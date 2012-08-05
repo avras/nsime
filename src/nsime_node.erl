@@ -55,4 +55,4 @@ get_application_count(_) ->
   ok.
 
 loop(State) ->
-  loop(State).
+  ok.

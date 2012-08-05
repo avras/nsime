@@ -8,32 +8,54 @@
 
 %% Purpose : Simulator module
 %% Author : Saravanan Vijayakumaran
+%% Description: Implementation of singleton simulator
 
 -module(nsime_simulator).
 -author("Saravanan Vijayakumaran").
 
--export([init/0, init/1, run/0, stop/0]).
--export([schedule/1, cancel/0]).
+-export([start/0, start/1, run/0, stop/0]).
+-export([schedule/1, cancel/1]).
 -export([current_time/0]).
+-export([loop/1]).
 
-init() ->
-  ok.
+start() ->
+  register(?MODULE, spawn(?MODULE, loop, [[]])).
 
 %% Argument will be the type of scheduler(map, list, heap)
-init(_) ->
+start(_) ->
   ok.
 
 run() ->
   ok.
 
 stop() ->
-  ok.
+  ?MODULE ! shutdown.
 
-schedule(_) ->
-  ok.
+schedule(Event) ->
+  ?MODULE ! {schedule, self(), Event},
+    receive 
+      {ok, State} -> {ok, State}
+    end.
 
-cancel() ->
-  ok.
+cancel(Event) ->
+  ?MODULE ! {cancel, self(), Event},
+    receive 
+      {ok, State} -> {ok, State}
+    end.
 
 current_time() ->
   ok.
+
+loop(State) ->
+  receive
+    {schedule, From, Event} ->
+      NewState = [Event | State], 
+      From ! {ok, NewState},
+      loop(NewState);
+    {cancel, From, Event} ->
+      NewState = lists:delete(Event, State), 
+      From ! {ok, NewState},
+      loop(NewState);
+    shutdown ->
+      exit(shutdown)
+    end.
