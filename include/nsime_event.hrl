@@ -11,6 +11,7 @@
 
 -record(nsime_event,
         {
+          time            :: integer(),
           pid             :: pid(),
           module          :: module(),
           function        :: fun(),
