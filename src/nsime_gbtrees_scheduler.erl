@@ -12,9 +12,7 @@
 -module(nsime_gbtrees_scheduler).
 -author("Saravanan Vijayakumaran").
 
--export([create/0, insert/1, is_empty/0, remove/1, remove_next/0]).
--export([show/0]).
--export([loop/1]).
+-export([create/0, stop/0, loop/1, insert/1, is_empty/0, remove/1, remove_next/0, show/0]).
 
 -include("nsime_event.hrl").
 
@@ -48,6 +46,9 @@ remove_next() ->
         none ->
             none
     end.
+
+stop() ->
+    exit(whereis(?MODULE), kill).
 
 show() ->
     ?MODULE ! {show, self()},

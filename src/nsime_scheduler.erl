@@ -20,7 +20,8 @@ behaviour_info(callbacks) ->
       {insert, 1},
       {is_empty, 0},
       {remove, 1},
-      {remove_next, 0}
+      {remove_next, 0},
+      {stop, 0}
     ];
 behaviour_info(_Other) ->
     undefined.
