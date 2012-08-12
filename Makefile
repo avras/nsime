@@ -1,4 +1,4 @@
-all: src tests
+all: src 
 
 tests: src
 			ct_run -pa ebin/ -logdir ./logs -dir ./test
