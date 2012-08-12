@@ -1,4 +1,7 @@
-all: beam
+all: src tests
+
+tests: src
+			ct_run -pa ebin/ -logdir ./logs -dir ./test
 
 BUILT=\
    ebin/nsime_simulator.beam \
@@ -9,7 +12,7 @@ BUILT=\
    ebin/nsime_queue.beam \
    ebin/nsime_application.beam 
 
-beam: $(BUILT) 
+src: $(BUILT) 
 
 ebin/nsime_simulator.beam: src/nsime_simulator.erl include/nsime_event.hrl
 			erlc -o ebin/ -I include/ $<
@@ -19,3 +22,5 @@ ebin/nsime_scheduler.beam: src/nsime_scheduler.erl
 
 ebin/nsime_gbtrees_scheduler.beam: src/nsime_gbtrees_scheduler.erl src/nsime_scheduler.erl
 			erlc -o ebin/ -I include/ -pa ebin/ $<
+
+
