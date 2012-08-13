@@ -38,36 +38,83 @@ start(_) ->
     ok.
 
 run() ->
-    ok.
+    Ref = make_ref(),
+    ?MODULE ! {run, self(), Ref},
+    receive
+        {ok, Ref} -> ok
+    end,
+    ?MODULE:stop().
+
 
 stop() ->
-    ?MODULE ! shutdown.
+    Ref = erlang:monitor(process, ?MODULE),
+    exit(whereis(?MODULE), kill),
+    receive
+        {'DOWN', Ref, process, {?MODULE, _Node}, Reason} ->
+            Reason
+    end.
 
-schedule(Time, Event = #nsime_event{pid=From}) ->
-    ?MODULE ! {schedule, From, Time, Event},
+schedule(Time, Event = #nsime_event{}) ->
+    Ref = make_ref(),
+    ?MODULE ! {schedule, self(), Time, Event, Ref},
         receive 
-            {ok, State} -> {ok, State}
+            {ok, Ref} -> ok
         end.
 
 cancel(Event) ->
-    ?MODULE ! {cancel, self(), Event},
+    Ref = make_ref(),
+    ?MODULE ! {cancel, self(), Event, Ref},
         receive 
-            {ok, State} -> {ok, State}
+            {ok, Ref} -> ok
         end.
 
 current_time() ->
-    ok.
+    Ref = make_ref(),
+    ?MODULE ! {current_time, self(), Ref},
+        receive
+            {current_time, Time, Ref} -> Time
+        end.
+
 
 loop(State) ->
     receive
-        {schedule, From, Time, Event} ->
-            NewState = [{Time, Event} | State], 
-            From ! {ok, NewState},
+        {schedule, From, Time, Event, Ref} ->
+            EventTime = State#nsime_simulator_state.current_time + Time,
+            NewEvent = Event#nsime_event{time = EventTime},
+            Scheduler = State#nsime_simulator_state.scheduler,
+            Scheduler:insert(NewEvent),
+            NumEvents = State#nsime_simulator_state.num_remaining_events,
+            NewState = State#nsime_simulator_state{num_remaining_events = NumEvents + 1},
+            From ! {ok, Ref},
             loop(NewState);
-        {cancel, From, Event} ->
-            NewState = lists:delete(Event, State), 
-            From ! {ok, NewState},
+        {cancel, From, Event, Ref} ->
+            Scheduler = State#nsime_simulator_state.scheduler,
+            case Scheduler:remove(Event) of
+                ok ->
+                    NumEvents = State#nsime_simulator_state.num_remaining_events,
+                    NewState = State#nsime_simulator_state{num_remaining_events = NumEvents - 1};
+                none ->
+                    NewState = State
+            end,
+            From ! {ok, Ref},
             loop(NewState);
-        shutdown ->
-            exit(shutdown)
+        {run, From, Ref} ->
+            run_all_events(State),
+            From ! {ok, Ref};
+        {current_time, From, Ref} ->
+            From ! {current_time, State#nsime_simulator_state.current_time, Ref},
+            loop(State)
+    end.
+
+run_all_events(State) ->
+    Scheduler = State#nsime_simulator_state.scheduler,
+    case Scheduler:is_empty() of
+        false ->
+            Event = Scheduler:remove_next(),
+            NumEvents = State#nsime_simulator_state.num_remaining_events,
+            NumExecutedEvents = State#nsime_simulator_state.num_executed_events,
+            erlang:apply(Event#nsime_event.module, Event#nsime_event.function, Event#nsime_event.arguments),
+            run_all_events(State#nsime_simulator_state{num_remaining_events = NumEvents - 1, num_executed_events = NumExecutedEvents + 1});
+        true ->
+            ok
     end.
