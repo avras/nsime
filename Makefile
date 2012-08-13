@@ -28,4 +28,5 @@ ebin/nsime_scheduler.beam: src/nsime_scheduler.erl
 ebin/nsime_gbtrees_scheduler.beam: src/nsime_gbtrees_scheduler.erl src/nsime_scheduler.erl
 			erlc +debug_info -o ebin/ -I include/ -pa ebin/ $<
 
-
+ebin/nsime_node.beam: src/nsime_node.erl include/nsime_node_state.hrl
+			erlc +debug_info -o ebin/ -I include/ -pa ebin/ $<
