@@ -35,8 +35,14 @@ is_empty() ->
           IsEmpty
     end.
 
-remove(_) ->
-    ok.
+remove(Event=#nsime_event{}) ->
+    ?MODULE ! {remove, self(), Event},
+    receive
+        ok -> 
+            ok;
+        none ->
+            none
+    end.
 
 remove_next() ->
     ?MODULE ! {remove_next, self()},
@@ -92,6 +98,30 @@ loop(EventQueue) ->
                             NewerEventQueue = gb_trees:insert(Time, RemainingEvents, NewEventQueue),
                             From ! {event, FirstEvent},
                             loop(NewerEventQueue)
+                    end;
+                true ->
+                    From ! none,
+                    loop(EventQueue)
+            end;
+        {remove, From, Event = #nsime_event{time = Time}} -> 
+            case gb_trees:is_empty(EventQueue) of
+                false ->
+                    case gb_trees:lookup(Time, EventQueue) of
+                        none -> 
+                            From ! none,
+                            loop(EventQueue);
+                        {value, ExistingEvents} ->
+                            NewEvents = lists:delete(Event, ExistingEvents),
+                            case length(NewEvents) of
+                                0 -> 
+                                    NewEventQueue = gb_trees:delete(Time, EventQueue),
+                                    From ! ok,
+                                    loop(NewEventQueue);
+                                _ ->
+                                    NewEventQueue = gb_trees:update(Time, NewEvents, EventQueue),
+                                    From ! ok,
+                                    loop(NewEventQueue)
+                            end
                     end;
                 true ->
                     From ! none,
