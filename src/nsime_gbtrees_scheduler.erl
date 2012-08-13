@@ -48,7 +48,12 @@ remove_next() ->
     end.
 
 stop() ->
-    exit(whereis(?MODULE), kill).
+    Ref = erlang:monitor(process, ?MODULE),
+    exit(whereis(?MODULE), kill),
+    receive
+        {'DOWN', Ref, process, {?MODULE, _Node}, Reason} ->
+            Reason
+    end.
 
 show() ->
     ?MODULE ! {show, self()},
