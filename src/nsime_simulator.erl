@@ -14,6 +14,7 @@
 -author("Saravanan Vijayakumaran").
 
 -include("nsime_event.hrl").
+-include("nsime_simulator_state.hrl").
 
 -export([start/0, start/1, run/0, stop/0]).
 -export([schedule/2, cancel/1]).
@@ -21,7 +22,16 @@
 -export([loop/1]).
 
 start() ->
-    register(?MODULE, spawn(?MODULE, loop, [[]])).
+    SimulatorState = #nsime_simulator_state{
+                          current_time = 0,
+                          scheduler = nsime_gbtrees_scheduler,
+                          num_remaining_events = 0,
+                          num_executed_events = 0,
+                          stopped = false
+                     },
+    Scheduler = SimulatorState#nsime_simulator_state.scheduler,
+    Scheduler:create(),
+    register(?MODULE, spawn(?MODULE, loop, [SimulatorState])).
 
 %% Argument will be the type of scheduler(map, list, heap)
 start(_) ->
@@ -34,7 +44,7 @@ stop() ->
     ?MODULE ! shutdown.
 
 schedule(Time, Event = #nsime_event{pid=From}) ->
-    ?MODULE ! {schedule, Time, From, Event},
+    ?MODULE ! {schedule, From, Time, Event},
         receive 
             {ok, State} -> {ok, State}
         end.
@@ -50,7 +60,7 @@ current_time() ->
 
 loop(State) ->
     receive
-        {schedule, Time, From, Event} ->
+        {schedule, From, Time, Event} ->
             NewState = [{Time, Event} | State], 
             From ! {ok, NewState},
             loop(NewState);

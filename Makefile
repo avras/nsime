@@ -17,7 +17,9 @@ BUILT=\
 
 src: $(BUILT) 
 
-ebin/nsime_simulator.beam: src/nsime_simulator.erl include/nsime_event.hrl
+ebin/nsime_simulator.beam: src/nsime_simulator.erl \
+                           include/nsime_event.hrl \
+                           include/nsime_simulator_state.hrl
 			erlc +debug_info -o ebin/ -I include/ $<
 
 ebin/nsime_scheduler.beam: src/nsime_scheduler.erl 
