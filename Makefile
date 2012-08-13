@@ -1,7 +1,10 @@
 all: src 
 
+touch: 
+			touch src/*.erl
+
 tests: src
-			ct_run -pa ebin/ -logdir ./logs -dir ./test
+			ct_run -pa ebin/ -logdir ./logs -dir ./test  -cover ./cover.spec
 
 BUILT=\
    ebin/nsime_simulator.beam \
@@ -15,12 +18,12 @@ BUILT=\
 src: $(BUILT) 
 
 ebin/nsime_simulator.beam: src/nsime_simulator.erl include/nsime_event.hrl
-			erlc -o ebin/ -I include/ $<
+			erlc +debug_info -o ebin/ -I include/ $<
 
 ebin/nsime_scheduler.beam: src/nsime_scheduler.erl 
-			erlc -o ebin/ -I include/ $<
+			erlc +debug_info -o ebin/ -I include/ $<
 
 ebin/nsime_gbtrees_scheduler.beam: src/nsime_gbtrees_scheduler.erl src/nsime_scheduler.erl
-			erlc -o ebin/ -I include/ -pa ebin/ $<
+			erlc +debug_info -o ebin/ -I include/ -pa ebin/ $<
 
 
