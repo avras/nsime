@@ -11,6 +11,7 @@ BUILT=\
    ebin/nsime_scheduler.beam \
    ebin/nsime_gbtrees_scheduler.beam \
    ebin/nsime_node.beam \
+   ebin/nsime_node_list.beam \
    ebin/nsime_channel.beam \
    ebin/nsime_queue.beam \
    ebin/nsime_application.beam 
@@ -29,4 +30,7 @@ ebin/nsime_gbtrees_scheduler.beam: src/nsime_gbtrees_scheduler.erl src/nsime_sch
 			erlc +debug_info -o ebin/ -I include/ -pa ebin/ $<
 
 ebin/nsime_node.beam: src/nsime_node.erl include/nsime_node_state.hrl
+			erlc +debug_info -o ebin/ -I include/ -pa ebin/ $<
+
+ebin/nsime_node_list.beam: src/nsime_node_list.erl
 			erlc +debug_info -o ebin/ -I include/ -pa ebin/ $<
