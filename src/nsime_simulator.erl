@@ -22,26 +22,36 @@
 -export([loop/1]).
 
 start() ->
+    start(gb_trees).
+
+start(SchedulerType) ->
+    Scheduler =
+    case SchedulerType of
+        gb_trees ->
+            nsime_gbtrees_scheduler;
+        _ ->
+            erlang:error(unsupported_scheduler)
+    end,
     SimulatorState = #nsime_simulator_state{
                           current_time = 0,
-                          scheduler = nsime_gbtrees_scheduler,
+                          scheduler = Scheduler,
                           num_remaining_events = 0,
                           num_executed_events = 0,
                           stopped = false
                      },
-    Scheduler = SimulatorState#nsime_simulator_state.scheduler,
     Scheduler:create(),
     register(?MODULE, spawn(?MODULE, loop, [SimulatorState])).
-
-%% Argument will be the type of scheduler(map, list, heap)
-start(_) ->
-    ok.
 
 run() ->
     Ref = make_ref(),
     ?MODULE ! {run, self(), Ref},
     receive
-        {ok, Ref} -> 
+        {ok, Event, Ref} ->
+            erlang:apply(
+                Event#nsime_event.module,
+                Event#nsime_event.function,
+                Event#nsime_event.arguments
+            ),
             ?MODULE:run();
         {none, Ref} ->
             ?MODULE:stop()
@@ -107,9 +117,12 @@ loop(State) ->
                     Event = Scheduler:remove_next(),
                     NumEvents = State#nsime_simulator_state.num_remaining_events,
                     NumExecutedEvents = State#nsime_simulator_state.num_executed_events,
-                    erlang:apply(Event#nsime_event.module, Event#nsime_event.function, Event#nsime_event.arguments),
-                    From ! {ok, Ref},
-                    loop(State#nsime_simulator_state{num_remaining_events = NumEvents - 1, num_executed_events = NumExecutedEvents + 1});
+                    From ! {ok, Event, Ref},
+                    NewState = State#nsime_simulator_state{
+                                    num_remaining_events = NumEvents - 1,
+                                    num_executed_events = NumExecutedEvents + 1
+                    },
+                    loop(NewState);
                 true ->
                     From ! {none, Ref},
                     loop(State)
