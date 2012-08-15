@@ -17,8 +17,8 @@
           received_byte_count = 0       :: integer(),
           dropped_packet_count = 0      :: integer(),
           dropped_byte_count = 0        :: integer(),
-          max_byte_count = 0                 :: integer(),
-          max_packet_count = 0               :: integer(),
+          max_byte_count = 0            :: integer(),
+          max_packet_count = 0          :: integer(),
           device_id = undefined         :: pid(),
           packets                       :: queue()
         }).

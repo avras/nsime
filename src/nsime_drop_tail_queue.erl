@@ -17,7 +17,7 @@
 
 -export([create/0, destroy/1, is_empty/1]).
 -export([enqueue_packet/2, dequeue_packet/1, drop_packet/2, dequeue_all_packets/1]).
--export([get_statistic/2, reset_statistics/1]).
+-export([get_statistics/1, reset_statistics/1]).
 -export([loop/1]).
 
 create() ->
@@ -72,22 +72,19 @@ drop_packet(QueuePid, PacketId) ->
     end.
 
 dequeue_all_packets(QueuePid) ->
-    case is_empty(QueuePid) of
-        false ->
-            dequeue_packet(QueuePid),
-            dequeue_all_packets(QueuePid);
-        true ->
-            ok
+    case dequeue_packet(QueuePid) of
+        none ->
+            ok;
+        #nsime_packet{} ->
+            dequeue_all_packets(QueuePid)
     end.
 
-get_statistic(QueuePid, StatisticName) ->
+get_statistics(QueuePid) ->
     Ref = make_ref(),
-    QueuePid ! {get_statistic, self(), StatisticName, Ref},
+    QueuePid ! {get_statistics, self(), Ref},
     receive
-        {ok, StatisticValue, Ref} ->
-            StatisticValue;
-        {none, Ref} ->
-            none
+        {ok, Statistics, Ref} ->
+            Statistics
     end.
 
 reset_statistics(QueuePid) ->
@@ -122,8 +119,14 @@ loop(QueueState) ->
                     From ! {ok, Ref},
                     loop(NewQueueState);
                 true ->
+                    DroppedByteCount = QueueState#nsime_dtq_state.dropped_byte_count,
+                    DroppedPacketCount = QueueState#nsime_dtq_state.dropped_packet_count,
+                    NewQueueState = QueueState#nsime_dtq_state{
+                                        dropped_byte_count = DroppedByteCount + Packet#nsime_packet.size,
+                                        dropped_packet_count = DroppedPacketCount + 1
+                    },
                     From ! {dropped, Ref},
-                    loop(QueueState)
+                    loop(NewQueueState)
             end;
         {dequeue_packet, From, Ref} ->
             case queue:out(QueueState#nsime_dtq_state.packets) of
@@ -172,5 +175,20 @@ loop(QueueState) ->
                     },
                     From ! {ok, Ref},
                     loop(NewQueueState)
-            end
+            end;
+        {get_statistics, From, Ref} ->
+            QueueStateWithoutPackets = QueueState#nsime_dtq_state{packets = queue:empty()},
+            From ! {ok, QueueStateWithoutPackets, Ref},
+            loop(QueueState);
+        {reset_statistics, From, Ref} ->
+            NewQueueState = QueueState#nsime_dtq_state{
+                                current_packet_count = 0,
+                                current_byte_count = 0,
+                                received_packet_count = 0,
+                                received_byte_count = 0,
+                                dropped_packet_count = 0,
+                                dropped_byte_count = 0
+            },
+            From ! {ok, Ref},
+            loop(NewQueueState)
     end.
