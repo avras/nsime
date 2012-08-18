@@ -9,9 +9,11 @@
 %% Purpose : Simulation event record
 %% Author : Saravanan Vijayakumaran
 
+-include("nsime_time.hrl").
+
 -record(nsime_event,
         {
-          time            :: integer(),
+          time            :: nsime_time(),
           pid             :: pid(),
           module          :: module(),
           function        :: fun(),
