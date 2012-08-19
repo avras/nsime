@@ -12,7 +12,7 @@
 -module(nsime_time).
 -author("Saravanan Vijayakumaran").
 
--include("nsime_time.hrl").
+-include("nsime_types.hrl").
 
 -export([add/2]).
 -export([is_nsime_time_unit/1, is_nsime_time/1]).

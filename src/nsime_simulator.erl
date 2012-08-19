@@ -13,6 +13,7 @@
 -module(nsime_simulator).
 -author("Saravanan Vijayakumaran").
 
+-include("nsime_types.hrl").
 -include("nsime_event.hrl").
 -include("nsime_simulator_state.hrl").
 

@@ -28,7 +28,7 @@ ebin/nsime_simulator.beam: src/nsime_simulator.erl \
 ebin/nsime_scheduler.beam: src/nsime_scheduler.erl 
 			erlc +debug_info -o ebin/ -I include/ $<
 
-ebin/nsime_time.beam: src/nsime_time.erl include/nsime_time.hrl
+ebin/nsime_time.beam: src/nsime_time.erl include/nsime_types.hrl
 			erlc +debug_info -o ebin/ -I include/ $<
 
 ebin/nsime_gbtrees_scheduler.beam: src/nsime_gbtrees_scheduler.erl src/nsime_scheduler.erl

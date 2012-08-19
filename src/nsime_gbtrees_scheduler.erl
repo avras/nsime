@@ -14,6 +14,7 @@
 
 -export([create/0, stop/0, loop/1, insert/1, is_empty/0, remove/1, remove_next/0, get_event_queue/0]).
 
+-include("nsime_types.hrl").
 -include("nsime_event.hrl").
 
 -behaviour(nsime_scheduler).

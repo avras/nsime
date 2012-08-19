@@ -12,6 +12,7 @@
 -module(nsime_ptp_channel).
 -author("Saravanan Vijayakumaran").
 
+-include("nsime_types.hrl").
 -include("nsime_event.hrl").
 -include("nsime_packet.hrl").
 -include("nsime_ptp_channel_state.hrl").
