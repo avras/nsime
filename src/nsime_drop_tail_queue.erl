@@ -29,7 +29,7 @@ destroy(QueuePid) ->
     Ref = erlang:monitor(process, QueuePid),
     exit(QueuePid, kill),
     receive
-        {'DOWN', Ref, process, {QueuePid, _Node}, Reason} ->
+        {'DOWN', Ref, process, QueuePid, Reason} ->
             Reason
     end.
 
