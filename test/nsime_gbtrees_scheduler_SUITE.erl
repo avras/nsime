@@ -15,7 +15,8 @@
 -compile(export_all).
 
 -include("ct.hrl").
--include("../include/nsime_event.hrl").
+-include("nsime_types.hrl").
+-include("nsime_event.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 all() -> [

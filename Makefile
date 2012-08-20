@@ -4,7 +4,7 @@ touch:
 			touch src/*.erl
 
 tests: src
-			ct_run -pa ebin/ -logdir ./logs -dir ./test  -cover ./cover.spec
+			ct_run -pz ebin/ -spec ./test.spec
 
 BUILT=\
    ebin/nsime_simulator.beam                          \
@@ -15,7 +15,7 @@ BUILT=\
    ebin/nsime_node.beam                               \
    ebin/nsime_node_list.beam                          \
    ebin/nsime_ptp_channel.beam                        \
-   ebin/nsime_ptp_netdevice.beam                        \
+   ebin/nsime_ptp_netdevice.beam                      \
    ebin/nsime_queue.beam                              \
    ebin/nsime_drop_tail_queue.beam                    \
    ebin/nsime_application.beam 
