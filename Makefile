@@ -10,6 +10,7 @@ BUILT=\
    ebin/nsime_simulator.beam \
    ebin/nsime_scheduler.beam \
    ebin/nsime_time.beam \
+   ebin/nsime_data_rate.beam \
    ebin/nsime_gbtrees_scheduler.beam \
    ebin/nsime_node.beam \
    ebin/nsime_node_list.beam \
@@ -29,6 +30,9 @@ ebin/nsime_scheduler.beam: src/nsime_scheduler.erl
 			erlc +debug_info -o ebin/ -I include/ $<
 
 ebin/nsime_time.beam: src/nsime_time.erl include/nsime_types.hrl
+			erlc +debug_info -o ebin/ -I include/ $<
+
+ebin/nsime_data_rate.beam: src/nsime_data_rate.erl include/nsime_types.hrl
 			erlc +debug_info -o ebin/ -I include/ $<
 
 ebin/nsime_gbtrees_scheduler.beam: src/nsime_gbtrees_scheduler.erl src/nsime_scheduler.erl

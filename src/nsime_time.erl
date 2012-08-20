@@ -27,7 +27,7 @@ is_nsime_time_unit(X) ->
     end.
 
 is_nsime_time({Value, Unit}) when 
-    is_integer(Value),
+    is_number(Value),
     Value >= 0
         -> is_nsime_time_unit(Unit);
 is_nsime_time(_) ->
