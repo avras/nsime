@@ -38,8 +38,7 @@ groups() ->
           test_insert_remove_events_unique_timestamps,
           test_insert_remove_events_duplicate_timestamps
         ]
-     }
-    ].
+    }].
 
 init_per_suite(Config) ->
     Config.
@@ -64,10 +63,7 @@ test_creation_shutdown(_) ->
                 ?assert(lists:member(nsime_gbtrees_scheduler, erlang:registered())),
                 ?assertEqual(nsime_gbtrees_scheduler:stop(), killed),
                 ?assertNot(lists:member(nsime_gbtrees_scheduler, erlang:registered()))
-        end,
-    ok.
-
-
+        end.
 
 test_empty_initally(_) ->
     nsime_gbtrees_scheduler:create(),
