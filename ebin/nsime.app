@@ -3,6 +3,14 @@
       {vsn, "0.1"},
       {modules, [
                   nsime_simulator,
+                  nsime_node,
+                  nsime_node_list,
+                  nsime_channel,
+                  nsime_application,
+                  nsime_queue,
+                  nsime_time,
+                  nsime_data_rate,
+                  nsime_scheduler,
                   nsime_gbtrees_scheduler,
                   nsime_ptp_channel,
                   nsime_ptp_netdevice,
@@ -11,6 +19,7 @@
       },
       {registered, [
                       nsime_simulator,
+                      nsime_node_list,
                       nsime_gbtrees_scheduler
                    ]
       }

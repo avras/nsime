@@ -1,5 +1,4 @@
 {level, details}.
-{incl_dir, ["src"]}.
 {incl_mods, [
               nsime_simulator,
               nsime_gbtrees_scheduler,
