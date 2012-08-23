@@ -21,13 +21,14 @@
 -include_lib("eunit/include/eunit.hrl").
 
 all() -> [
-          {group, testgroup_all_except_transmit}
+          {group, testgroup_all_except_transmit},
+          test_transmit
          ].
 
 groups() ->
     [{
         testgroup_all_except_transmit,
-        [sequence],
+        [parallel],
         [
           test_creation_shutdown,
           test_creation_with_state,
@@ -117,16 +118,18 @@ test_transmit(_) ->
     ChannelPid = nsime_ptp_channel:create(),
     Device1 = nsime_ptp_netdevice:create(),
     Device2 = nsime_ptp_netdevice:create(),
-%   nsime_ptp_channel:attach_netdevice(ChannelPid, Device1),
-%   nsime_ptp_channel:attach_netdevice(ChannelPid, Device2),
-%   Packet = #nsime_packet{},
-%   TxTime = {3, sec},
+    nsime_ptp_channel:attach_netdevice(ChannelPid, Device1),
+    nsime_ptp_channel:attach_netdevice(ChannelPid, Device2),
+    Packet = #nsime_packet{},
+    TxTime = {3, sec},
+    nsime_simulator:start(),
 %   nsime_ptp_channel:transmit(
 %       ChannelPid,
 %       Packet,
 %       Device1,
 %       TxTime
 %   ),
+    nsime_simulator:stop(),
     nsime_ptp_channel:destroy(ChannelPid),
     nsime_ptp_netdevice:destroy(Device1),
     nsime_ptp_netdevice:destroy(Device2).
