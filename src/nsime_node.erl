@@ -35,7 +35,7 @@ destroy(NodePid) ->
     Ref = erlang:monitor(process, NodePid),
     exit(NodePid, kill),
     receive
-        {'DOWN', Ref, process, {NodePid, _Node}, Reason} ->
+        {'DOWN', Ref, process, NodePid, Reason} ->
             Reason
     end.
 
