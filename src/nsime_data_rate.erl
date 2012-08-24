@@ -38,18 +38,20 @@ is_nsime_data_rate(_) ->
     false.
 
 calc_tx_time(DataRate, NumBytes) ->
-    case is_nsime_data_rate(DataRate) of
+    case is_nsime_data_rate(DataRate) andalso 
+         is_number(NumBytes) andalso
+         NumBytes >= 0 of
         true ->
             {Value, Unit} = DataRate,
             case Unit of
                 bits_per_sec -> {NumBytes*8/Value, sec};
                 bytes_per_sec -> {NumBytes/Value, sec};
-                kilo_bits_per_sec -> {NumBytes/(Value*1000), sec};
-                kilo_bytes_per_sec -> {NumBytes/(Value*8000), sec};
-                mega_bits_per_sec -> {NumBytes/(Value*1000000), sec};
-                mega_bytes_per_sec -> {NumBytes/(Value*8000000), sec};
-                giga_bits_per_sec -> {NumBytes/(Value*1000000000), sec};
-                giga_bytes_per_sec -> {NumBytes/(Value*8000000000), sec}
+                kilo_bits_per_sec -> {NumBytes*8/(Value*1000), sec};
+                kilo_bytes_per_sec -> {NumBytes/(Value*1000), sec};
+                mega_bits_per_sec -> {NumBytes*8/(Value*1000000), sec};
+                mega_bytes_per_sec -> {NumBytes/(Value*1000000), sec};
+                giga_bits_per_sec -> {NumBytes*8/(Value*1000000000), sec};
+                giga_bytes_per_sec -> {NumBytes/(Value*1000000000), sec}
             end;
         false ->
             erlang:error(invalid_argument)
