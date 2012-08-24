@@ -15,13 +15,17 @@
 -include("nsime_dtq_state.hrl").
 -include("nsime_packet.hrl").
 
--export([create/0, destroy/1, is_empty/1]).
+-export([create/0, create/1, destroy/1, is_empty/1]).
+-export([get_device_id/1, set_device_id/2]).
 -export([enqueue_packet/2, dequeue_packet/1, drop_packet/2, dequeue_all_packets/1]).
 -export([get_statistics/1, reset_statistics/1]).
 -export([loop/1]).
 
 create() ->
     QueueState = #nsime_dtq_state{},
+    spawn(?MODULE, loop, [QueueState]).
+
+create(QueueState = #nsime_dtq_state{}) ->
     spawn(?MODULE, loop, [QueueState]).
 
 destroy(QueuePid) ->
@@ -39,6 +43,22 @@ is_empty(QueuePid) ->
     receive
         {is_empty, IsEmpty, Ref} ->
             IsEmpty
+    end.
+
+get_device_id(QueuePid) ->
+    Ref = make_ref(),
+    QueuePid ! {get_device_id, self(), Ref},
+    receive
+        {ok, DeviceId, Ref} ->
+            DeviceId
+    end.
+
+set_device_id(QueuePid, DeviceId) ->
+    Ref = make_ref(),
+    QueuePid ! {set_device_id, self(), DeviceId, Ref},
+    receive
+        {ok, Ref} ->
+            ok
     end.
 
 enqueue_packet(QueuePid, Packet = #nsime_packet{}) ->
@@ -99,7 +119,16 @@ loop(QueueState) ->
     receive
         {is_empty, From, Ref} ->
             IsEmpty = queue:is_empty(QueueState#nsime_dtq_state.packets),
-            From ! {is_empty, IsEmpty, Ref};
+            From ! {is_empty, IsEmpty, Ref},
+            loop(QueueState);
+        {get_device_id, From, Ref} ->
+            DeviceId = QueueState#nsime_dtq_state.device_id,
+            From ! {ok, DeviceId, Ref},
+            loop(QueueState);
+        {set_device_id, From, DeviceId, Ref} ->
+            NewQueueState = QueueState#nsime_dtq_state{device_id = DeviceId},
+            From ! {ok, Ref},
+            loop(NewQueueState);
         {enqueue_packet, From, Packet, Ref} ->
             CurrentPacketCount = QueueState#nsime_dtq_state.current_packet_count,
             MaxPacketCount = QueueState#nsime_dtq_state.max_packet_count,
@@ -114,7 +143,7 @@ loop(QueueState) ->
                                         current_byte_count = CurrentByteCount + Packet#nsime_packet.size,
                                         current_packet_count = CurrentPacketCount + 1,
                                         received_packet_count = ReceivedPacketCount + 1,
-                                        received_byte_count = ReceivedByteCount + 1
+                                        received_byte_count = ReceivedByteCount + Packet#nsime_packet.size
                     },
                     From ! {ok, Ref},
                     loop(NewQueueState);
@@ -177,7 +206,7 @@ loop(QueueState) ->
                     loop(NewQueueState)
             end;
         {get_statistics, From, Ref} ->
-            QueueStateWithoutPackets = QueueState#nsime_dtq_state{packets = queue:empty()},
+            QueueStateWithoutPackets = QueueState#nsime_dtq_state{packets = queue:new()},
             From ! {ok, QueueStateWithoutPackets, Ref},
             loop(QueueState);
         {reset_statistics, From, Ref} ->
