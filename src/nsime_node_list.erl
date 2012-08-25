@@ -64,12 +64,12 @@ loop(NodePidList) ->
             case gb_sets:is_element(NodePid, NodePidList) of
                 true ->
                     NewNodePidList = gb_sets:delete(NodePid, NodePidList),
-                    From ! {ok, Ref};
+                    From ! {ok, Ref},
+                    loop(NewNodePidList);
                 false ->
-                    NewNodePidList = NodePidList,
-                    From ! {none, Ref}
-                end,
-            loop(NewNodePidList);
+                    From ! {none, Ref},
+                    loop(NodePidList)
+                end;
         {get_node_list, From, Ref} ->
             From ! {ok, NodePidList, Ref},
             loop(NodePidList)

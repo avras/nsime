@@ -161,11 +161,11 @@ insert_remove_events_from_timestamps(Timestamps) ->
     nsime_gbtrees_scheduler:stop().
 
 create_nsime_event(Time) ->    
-    Event = #nsime_event{
-                    time = Time,
-                    pid = erlang:self(),
-                    module = erlang,
-                    function = date,
-                    eventid = make_ref()
-                  }.
+    #nsime_event{
+        time = Time,
+        pid = erlang:self(),
+        module = erlang,
+        function = date,
+        eventid = make_ref()
+    }.
 
