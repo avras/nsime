@@ -88,7 +88,9 @@ drop_packet(QueuePid, PacketId) ->
         {ok, Ref} ->
             ok;
         {none, Ref} ->
-            none
+            none;
+        {invalid_state, Ref} ->
+            invalid_state
     end.
 
 dequeue_all_packets(QueuePid) ->
@@ -178,32 +180,36 @@ loop(QueueState) ->
             fun(Packet) ->
                 case Packet#nsime_packet.id of
                     PacketId ->
-                        false;
+                        true;
                     _ ->
-                        true
+                        false
                 end
             end,
-            InverseFilterFun = fun(Packet) -> not(FilterFun(Packet)) end,
-            [Packet | []] = queue:filter(InverseFilterFun, QueueState#nsime_dtq_state.packets),
-            case Packet of
-                [] ->
+            MatchingPackets = queue:filter(FilterFun, QueueState#nsime_dtq_state.packets),
+            case queue:len(MatchingPackets) of
+                0 ->
                     From ! {none, Ref},
                     loop(QueueState);
-                _ ->
-                    NewPacketQueue = queue:filter(FilterFun, QueueState#nsime_dtq_state.packets),
+                1 ->
+                    {{value, DroppedPacket}, _} = queue:out(MatchingPackets),
+                    InverseFilterFun = fun(Packet) -> not(FilterFun(Packet)) end,
+                    NewPacketQueue = queue:filter(InverseFilterFun, QueueState#nsime_dtq_state.packets),
                     CurrentPacketCount = QueueState#nsime_dtq_state.current_packet_count,
                     CurrentByteCount = QueueState#nsime_dtq_state.current_byte_count,
                     DroppedByteCount = QueueState#nsime_dtq_state.dropped_byte_count,
                     DroppedPacketCount = QueueState#nsime_dtq_state.dropped_packet_count,
                     NewQueueState = QueueState#nsime_dtq_state{
                                         packets = NewPacketQueue,
-                                        current_byte_count = CurrentByteCount - Packet#nsime_packet.size,
+                                        current_byte_count = CurrentByteCount - DroppedPacket#nsime_packet.size,
                                         current_packet_count = CurrentPacketCount - 1,
-                                        dropped_byte_count = DroppedByteCount + Packet#nsime_packet.size,
+                                        dropped_byte_count = DroppedByteCount + DroppedPacket#nsime_packet.size,
                                         dropped_packet_count = DroppedPacketCount + 1
                     },
                     From ! {ok, Ref},
-                    loop(NewQueueState)
+                    loop(NewQueueState);
+                _ ->
+                    From ! {invalid_state, Ref},
+                    loop(QueueState)
             end;
         {get_statistics, From, Ref} ->
             QueueStateWithoutPackets = QueueState#nsime_dtq_state{packets = queue:new()},
