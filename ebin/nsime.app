@@ -2,6 +2,7 @@
     [
       {vsn, "0.1"},
       {modules, [
+                  nsime_utils,
                   nsime_simulator,
                   nsime_node,
                   nsime_node_list,

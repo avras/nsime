@@ -1,8 +1,8 @@
 %%
 %% %CopyrightBegin%
-%% 
+%%
 %% Copyright Saravanan Vijayakumaran 2012. All Rights Reserved.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 
@@ -17,7 +17,7 @@
 -include("nsime_event.hrl").
 -include("nsime_simulator_state.hrl").
 
--export([start/0, start/1, run/0, stop/0]).
+-export([start/0, start/1, init/1, run/0, stop/0]).
 -export([schedule/2, cancel/1]).
 -export([current_time/0]).
 -export([loop/1]).
@@ -33,15 +33,32 @@ start(SchedulerType) ->
         _ ->
             erlang:error(unsupported_scheduler)
     end,
-    SimulatorState = #nsime_simulator_state{
-                          current_time = 0,
-                          scheduler = Scheduler,
-                          num_remaining_events = 0,
-                          num_executed_events = 0,
-                          stopped = false
-                     },
+    register(?MODULE, spawn(?MODULE, init, [Scheduler])),
+    nsime_utils:wait_for_registration([nsime_simulator, nsime_gbtrees_scheduler]).
+
+init(Scheduler) ->
     Scheduler:create(),
-    register(?MODULE, spawn(?MODULE, loop, [SimulatorState])).
+    SimulatorState = #nsime_simulator_state{
+        current_time = 0,
+        scheduler = Scheduler,
+        num_remaining_events = 0,
+        num_executed_events = 0,
+        stopped = false
+    },
+    loop(SimulatorState).
+
+stop() ->
+    Ref = make_ref(),
+    ?MODULE ! {stop_scheduler, self(), Ref},
+    receive
+        {ok, Ref} ->
+            MonitorRef = erlang:monitor(process, ?MODULE),
+            exit(whereis(?MODULE), kill),
+            receive
+                {'DOWN', MonitorRef, process, {?MODULE, _Node}, Reason} ->
+                    Reason
+            end
+    end.
 
 run() ->
     Ref = make_ref(),
@@ -58,14 +75,6 @@ run() ->
             ?MODULE:stop()
     end.
 
-
-stop() ->
-    Ref = erlang:monitor(process, ?MODULE),
-    exit(whereis(?MODULE), kill),
-    receive
-        {'DOWN', Ref, process, {?MODULE, _Node}, Reason} ->
-            Reason
-    end.
 
 schedule(Time, Event = #nsime_event{}) ->
     Ref = make_ref(),
@@ -130,5 +139,10 @@ loop(State) ->
             end;
         {current_time, From, Ref} ->
             From ! {current_time, State#nsime_simulator_state.current_time, Ref},
+            loop(State);
+        {stop_scheduler, From, Ref} ->
+            Scheduler = State#nsime_simulator_state.scheduler,
+            Scheduler:stop(),
+            From ! {ok, Ref},
             loop(State)
     end.

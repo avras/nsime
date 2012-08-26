@@ -12,7 +12,9 @@
 -module(nsime_gbtrees_scheduler).
 -author("Saravanan Vijayakumaran").
 
--export([create/0, stop/0, loop/1, insert/1, is_empty/0, remove/1, remove_next/0, get_event_queue/0]).
+-export([create/0, stop/0, is_empty/0]).
+-export([insert/1, remove/1, remove_next/0, get_event_queue/0]).
+-export([loop/1]).
 
 -include("nsime_types.hrl").
 -include("nsime_event.hrl").
@@ -21,7 +23,7 @@
 
 create() ->
     EventQueue = gb_trees:empty(),
-    register(?MODULE, spawn(?MODULE, loop, [EventQueue])).
+    register(?MODULE, spawn_link(?MODULE, loop, [EventQueue])).
 
 insert(Event = #nsime_event{}) ->
     Ref = make_ref(),
@@ -59,10 +61,11 @@ remove_next() ->
     end.
 
 stop() ->
-    Ref = erlang:monitor(process, ?MODULE),
-    exit(whereis(?MODULE), kill),
+    process_flag(trap_exit, true),
+    Pid = whereis(?MODULE),
+    exit(Pid, kill),
     receive
-        {'DOWN', Ref, process, {?MODULE, _Node}, Reason} ->
+        {'EXIT', Pid, Reason} ->
             Reason
     end.
 
