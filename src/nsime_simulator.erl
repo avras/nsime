@@ -130,6 +130,7 @@ loop(State) ->
                     NumExecutedEvents = State#nsime_simulator_state.num_executed_events,
                     From ! {ok, Event, Ref},
                     NewState = State#nsime_simulator_state{
+                                    current_time = Event#nsime_event.time,
                                     num_remaining_events = NumEvents - 1,
                                     num_executed_events = NumExecutedEvents + 1
                     },
