@@ -82,13 +82,13 @@ loop(EventQueue) ->
             From ! {is_empty, gb_trees:is_empty(EventQueue), Ref},
             loop(EventQueue);
         {insert, From, Event = #nsime_event{time = Time}, Ref} ->
-            case gb_trees:lookup(Time, EventQueue) of
+            case gb_trees:lookup(nsime_time:value(Time), EventQueue) of
                 none -> 
-                    NewEventQueue = gb_trees:insert(Time, [Event], EventQueue),
+                    NewEventQueue = gb_trees:insert(nsime_time:value(Time), [Event], EventQueue),
                     From ! {ok, Ref},
                     loop(NewEventQueue);
                 {value, ExistingEvents} ->
-                    NewEventQueue = gb_trees:update(Time, [Event | ExistingEvents], EventQueue),
+                    NewEventQueue = gb_trees:update(nsime_time:value(Time), [Event | ExistingEvents], EventQueue),
                     From ! {ok, Ref},
                     loop(NewEventQueue)
             end;
@@ -115,7 +115,7 @@ loop(EventQueue) ->
         {remove, From, Event = #nsime_event{time = Time}, Ref} -> 
             case gb_trees:is_empty(EventQueue) of
                 false ->
-                    case gb_trees:lookup(Time, EventQueue) of
+                    case gb_trees:lookup(nsime_time:value(Time), EventQueue) of
                         none -> 
                             From ! {none, Ref},
                             loop(EventQueue);
@@ -123,11 +123,11 @@ loop(EventQueue) ->
                             NewEvents = lists:delete(Event, ExistingEvents),
                             case length(NewEvents) of
                                 0 -> 
-                                    NewEventQueue = gb_trees:delete(Time, EventQueue),
+                                    NewEventQueue = gb_trees:delete(nsime_time:value(Time), EventQueue),
                                     From ! {ok, Ref},
                                     loop(NewEventQueue);
                                 _ ->
-                                    NewEventQueue = gb_trees:update(Time, NewEvents, EventQueue),
+                                    NewEventQueue = gb_trees:update(nsime_time:value(Time), NewEvents, EventQueue),
                                     From ! {ok, Ref},
                                     loop(NewEventQueue)
                             end

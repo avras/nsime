@@ -30,7 +30,8 @@ groups() ->
         [
           test_is_nsime_time_unit,
           test_is_nsime_time,
-          test_add
+          test_add,
+          test_value
         ]
     }].
           
@@ -81,3 +82,14 @@ test_add(_) ->
     ?assertEqual(nsime_time:add({1, nano_sec}, {1, sec}), {1000000001, nano_sec}),
     ?assertEqual(nsime_time:add({1, nano_sec}, {1, milli_sec}), {1000001, nano_sec}),
     ?assertEqual(nsime_time:add({1, nano_sec}, {1, micro_sec}), {1001, nano_sec}).
+
+test_value(_) ->
+    ?assertError(invalid_argument, nsime_time:value(junk)),
+    ?assertEqual(nsime_time:value({0, sec}), 0),
+    ?assertEqual(nsime_time:value({0, milli_sec}), 0),
+    ?assertEqual(nsime_time:value({0, micro_sec}), 0),
+    ?assertEqual(nsime_time:value({0, nano_sec}), 0),
+    ?assert(nsime_time:value({1.5, sec}) == 1500000000),
+    ?assert(nsime_time:value({1.5, milli_sec}) == 1500000),
+    ?assert(nsime_time:value({1.5, micro_sec}) == 1500),
+    ?assert(nsime_time:value({1.5, nano_sec}) == 1.5).

@@ -14,7 +14,7 @@
 
 -include("nsime_types.hrl").
 
--export([add/2]).
+-export([add/2, value/1]).
 -export([is_nsime_time_unit/1, is_nsime_time/1]).
 
 is_nsime_time_unit(X) -> 
@@ -77,5 +77,19 @@ add(A, B) ->
                     end
             end;
         false ->
+            erlang:error(invalid_argument)
+    end.
+
+value(Time) ->
+    case {is_nsime_time(Time), Time} of
+        {true, {Value, sec}} ->
+            Value*1000000000;
+        {true, {Value, milli_sec}} ->
+            Value*1000000;
+        {true, {Value, micro_sec}} ->
+            Value*1000;
+        {true, {Value, nano_sec}} ->
+            Value;
+        {false, _} ->
             erlang:error(invalid_argument)
     end.

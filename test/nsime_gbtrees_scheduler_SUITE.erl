@@ -15,9 +15,10 @@
 -compile(export_all).
 
 -include("ct.hrl").
+-include_lib("eunit/include/eunit.hrl").
+
 -include("nsime_types.hrl").
 -include("nsime_event.hrl").
--include_lib("eunit/include/eunit.hrl").
 
 all() -> [
           test_creation_shutdown,
@@ -73,13 +74,13 @@ test_empty_initally(_) ->
 test_insert_single_event(_) ->
     nsime_gbtrees_scheduler:create(),
     ?assert(nsime_gbtrees_scheduler:is_empty()),
-    Time = 5,
+    Time = {5, sec},
     Event = create_nsime_event(Time),
     ?assertEqual(nsime_gbtrees_scheduler:insert(Event), ok),
     ?assertNot(nsime_gbtrees_scheduler:is_empty()),
     EventQueue = nsime_gbtrees_scheduler:get_event_queue(),
-    case gb_trees:lookup(Time, EventQueue) of
-        {value, [ FirstEvent | RestOfEvents]} ->
+    case gb_trees:lookup(nsime_time:value(Time), EventQueue) of
+        {value, [FirstEvent | RestOfEvents]} ->
             ?assertEqual(FirstEvent, Event),
             ?assertEqual(RestOfEvents, []);
         _ ->
@@ -89,7 +90,7 @@ test_insert_single_event(_) ->
 
 test_remove_next_single_event(_) ->
     nsime_gbtrees_scheduler:create(),
-    Time = 6,
+    Time = {6, sec},
     Event = create_nsime_event(Time),
     nsime_gbtrees_scheduler:insert(Event),
     ?assertEqual(nsime_gbtrees_scheduler:remove_next(), Event),
@@ -99,25 +100,26 @@ test_remove_next_single_event(_) ->
 
 test_remove_single_event(_) ->
     nsime_gbtrees_scheduler:create(),
-    Time = 6,
+    Time = {6, sec},
     Event = create_nsime_event(Time),
     nsime_gbtrees_scheduler:insert(Event),
     ?assertEqual(nsime_gbtrees_scheduler:remove(Event), ok),
     ?assert(nsime_gbtrees_scheduler:is_empty()),
     ?assertEqual(nsime_gbtrees_scheduler:remove(Event), none),
-    nsime_gbtrees_scheduler:insert(Event#nsime_event{time=Time+1}),
+    NewTime = nsime_time:add(Time, {1, sec}),
+    nsime_gbtrees_scheduler:insert(Event#nsime_event{time = NewTime}),
     ?assertEqual(nsime_gbtrees_scheduler:remove(Event), none),
     nsime_gbtrees_scheduler:stop().
 
 
 test_insert_remove_next_events_unique_timestamps(_) ->
     N = 100,
-    Timestamps = lists:seq(1,N),
+    Timestamps = lists:zip(lists:seq(1,N), lists:duplicate(N, sec)),
     insert_remove_next_events_from_timestamps(Timestamps).
 
 test_insert_remove_next_events_duplicate_timestamps(_) ->
     N = 100,
-    Time = 73,
+    Time = {73, sec},
     Timestamps = lists:duplicate(N, Time),
     insert_remove_next_events_from_timestamps(Timestamps).
 
@@ -138,12 +140,12 @@ insert_remove_next_events_from_timestamps(Timestamps) ->
 
 test_insert_remove_events_unique_timestamps(_) ->
     N = 100,
-    Timestamps = lists:seq(1,N),
+    Timestamps = lists:zip(lists:seq(1,N), lists:duplicate(N, sec)),
     insert_remove_events_from_timestamps(Timestamps).
 
 test_insert_remove_events_duplicate_timestamps(_) ->
     N = 100,
-    Time = 73,
+    Time = {73, sec},
     Timestamps = lists:duplicate(N, Time),
     insert_remove_events_from_timestamps(Timestamps).
 

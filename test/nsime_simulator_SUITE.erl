@@ -17,6 +17,7 @@
 -include("ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-include("nsime_types.hrl").
 -include("nsime_simulator_state.hrl").
 
 all() -> [

@@ -39,11 +39,7 @@ start(SchedulerType) ->
 init(Scheduler) ->
     Scheduler:create(),
     SimulatorState = #nsime_simulator_state{
-        current_time = 0,
-        scheduler = Scheduler,
-        num_remaining_events = 0,
-        num_executed_events = 0,
-        stopped = false
+        scheduler = Scheduler
     },
     loop(SimulatorState).
 
@@ -72,16 +68,21 @@ run() ->
             ),
             ?MODULE:run();
         {none, Ref} ->
-            ?MODULE:stop()
+            simulation_complete
     end.
 
 
 schedule(Time, Event = #nsime_event{}) ->
-    Ref = make_ref(),
-    ?MODULE ! {schedule, self(), Time, Event, Ref},
-        receive 
-            {ok, Ref} -> ok
-        end.
+    case nsime_time:is_nsime_time(Time) of
+        true ->
+            Ref = make_ref(),
+            ?MODULE ! {schedule, self(), Time, Event, Ref},
+                receive 
+                    {ok, Ref} -> ok
+                end;
+        false ->
+            erlang:error(invalid_argument)
+    end.
 
 cancel(Event) ->
     Ref = make_ref(),
@@ -101,7 +102,7 @@ current_time() ->
 loop(State) ->
     receive
         {schedule, From, Time, Event, Ref} ->
-            EventTime = State#nsime_simulator_state.current_time + Time,
+            EventTime = nsime_time:add(State#nsime_simulator_state.current_time, Time),
             NewEvent = Event#nsime_event{time = EventTime},
             Scheduler = State#nsime_simulator_state.scheduler,
             Scheduler:insert(NewEvent),
