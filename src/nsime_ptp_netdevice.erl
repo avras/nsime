@@ -47,27 +47,27 @@ destroy(DevicePid) ->
             Reason
     end.
 
-add_ppp_header(Packet = #nsime_packet{data = Data}, <<EthernetProtocolNumber:16>>) ->
+add_ppp_header(Packet = #nsime_packet{data = Data, size = Size}, EthernetProtocolNumber) ->
     PPPProtocolNumber = ether_to_ppp(EthernetProtocolNumber),
-    Packet#nsime_packet{data = <<PPPProtocolNumber, Data>>}.
+    Packet#nsime_packet{data = <<PPPProtocolNumber:16, Data/binary>>, size = Size + 2}.
 
-process_ppp_header(Packet = #nsime_packet{data = Data}) ->
+process_ppp_header(Packet = #nsime_packet{data = Data, size = Size}) ->
     <<PPPHeader:16, Payload/binary>> = Data,
     EthernetProtocolNumber = ppp_to_ether(PPPHeader),
-    NewPacket = Packet#nsime_packet{data = Payload},
+    NewPacket = Packet#nsime_packet{data = Payload, size = Size - 2},
     {EthernetProtocolNumber, NewPacket}.
 
-ppp_to_ether(<<ProtocolNumber:16>>) ->
-    case ProtocolNumber of
-        16#0021 -> 16#0800;
-        16#0057 -> 16#86DD;
+ppp_to_ether(ProtocolNumber) ->
+    case <<ProtocolNumber:16>> of
+        <<16#0021:16>> -> 16#0800;
+        <<16#0057:16>> -> 16#86DD;
         _ -> erlang:error(undefined_protocol)
     end.
 
-ether_to_ppp(<<ProtocolNumber:16>>) ->
-    case ProtocolNumber of
-        16#0800 -> 16#0021;
-        16#86DD -> 16#0057;
+ether_to_ppp(ProtocolNumber) ->
+    case <<ProtocolNumber:16>> of
+        <<16#0800:16>> -> 16#0021;
+        <<16#86DD:16>> -> 16#0057;
         _ -> erlang:error(undefined_protocol)
     end.
 
@@ -87,7 +87,7 @@ get_node(DevicePid) ->
             NodePid
     end.
 
-set_address(DevicePid, <<Address:48>>) ->
+set_address(DevicePid, Address) ->
     Ref = make_ref(),
     DevicePid ! {set_address, self(), Address, Ref},
     receive
@@ -119,9 +119,9 @@ set_interframe_gap(DevicePid, InterframeGap) ->
             ok
     end.
 
-get_channel(ChannelPid) ->
+get_channel(DevicePid) ->
     Ref = make_ref(),
-    ChannelPid ! {get_channel, self(), Ref},
+    DevicePid ! {get_channel, self(), Ref},
     receive
         {ok, ChannelPid, Ref} ->
             ChannelPid
