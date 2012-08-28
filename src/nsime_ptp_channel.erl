@@ -154,13 +154,13 @@ loop(ChannelState = #nsime_ptp_channel_state{}) ->
                 {SourceDevicePid, DevicePid} -> DevicePid;
                 {DevicePid, SourceDevicePid} -> DevicePid
             end,
-            Delay = #nsime_ptp_channel_state.delay,
+            Delay = ChannelState#nsime_ptp_channel_state.delay,
             EventTime = nsime_time:add(TxTime, Delay),
             ReceiveEvent = #nsime_event{
                 time = EventTime,
                 module = nsime_ptp_netdevice,
                 function = receive_packet,
-                arguments = [DestDevicePid, EventTime, Packet],
+                arguments = [DestDevicePid, Packet],
                 eventid = make_ref()
             },
             nsime_simulator:schedule(TxTime, ReceiveEvent),

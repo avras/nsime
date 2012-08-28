@@ -326,14 +326,20 @@ loop(DeviceState = #nsime_ptp_netdevice_state{}) ->
                     Length = Packet#nsime_packet.size,
                     DataRate = DeviceState#nsime_ptp_netdevice_state.data_rate,
                     TxTime = nsime_data_rate:calc_tx_time(DataRate, Length),
+                    TxCompleteTime = nsime_time:add(
+                        TxTime,
+                        DeviceState#nsime_ptp_netdevice_state.interframe_gap
+                    ),
                     TxCompleteEvent = #nsime_event{
-                        time = TxTime,
+                        time = TxCompleteTime,
                         module = nsime_ptp_netdevice,
                         function = transmit_complete,
                         arguments = [self()],
                         eventid = make_ref()
                     },
-                    nsime_simulator:schedule(TxTime, TxCompleteEvent),
+                    nsime_simulator:schedule(TxCompleteTime, TxCompleteEvent),
+                    Channel = DeviceState#nsime_ptp_netdevice_state.channel,
+                    nsime_ptp_channel:transmit(Channel, Packet, self(), TxTime),
                     NewDeviceState = DeviceState#nsime_ptp_netdevice_state{
                         tx_state = busy,
                         current_packet = Packet

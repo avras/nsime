@@ -15,7 +15,7 @@
             address                                   :: binary(),
             tx_state = ready                          :: nsime_tx_device_state(),
             data_rate                                 :: nsime_data_rate(),
-            interframe_gap                            :: nsime_time(),
+            interframe_gap = {0, sec}                 :: nsime_time(),
             channel                                   :: pid(),
             queue_module = nsime_drop_tail_queue      :: module(),
             queue                                     :: pid(),

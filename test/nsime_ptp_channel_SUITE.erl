@@ -115,27 +115,42 @@ test_attach_netdevice(_) ->
     nsime_ptp_netdevice:destroy(Device2).
 
 test_transmit(_) ->
-    ChannelPid = nsime_ptp_channel:create(),
+    Delay = {4, sec},
     Device1 = nsime_ptp_netdevice:create(),
+    ?assert(is_pid(Device1)),
     Device2 = nsime_ptp_netdevice:create(),
-    nsime_ptp_channel:attach_netdevice(ChannelPid, Device1),
-    nsime_ptp_channel:attach_netdevice(ChannelPid, Device2),
-    Packet = #nsime_packet{},
-    TxTime = {3, sec},
+    ?assert(is_pid(Device2)),
+    ChannelState = create_ptp_channel_state(
+                      Delay,
+                      Device1,
+                      Device2
+                   ),
+    ChannelPid = nsime_ptp_channel:create(ChannelState),
+    ?assert(is_pid(ChannelPid)),
+    Packet = #nsime_packet{id = make_ref()},
     nsime_simulator:start(),
-%   nsime_ptp_channel:transmit(
-%       ChannelPid,
-%       Packet,
-%       Device1,
-%       TxTime
-%   ),
+    TxTime1 = {3, sec},
+    nsime_ptp_channel:transmit(
+        ChannelPid,
+        Packet,
+        Device1,
+        TxTime1
+    ),
+    TxTime2 = {6, sec},
+    nsime_ptp_channel:transmit(
+        ChannelPid,
+        Packet,
+        Device2,
+        TxTime2
+    ),
+    nsime_simulator:run(),
     nsime_simulator:stop(),
     nsime_ptp_channel:destroy(ChannelPid),
     nsime_ptp_netdevice:destroy(Device1),
     nsime_ptp_netdevice:destroy(Device2).
 
 create_ptp_channel_state(Delay, Device1, Device2) ->
-    ChannelState = #nsime_ptp_channel_state{
+    #nsime_ptp_channel_state{
         delay = Delay,
         devices = {Device1, Device2}
     }.
