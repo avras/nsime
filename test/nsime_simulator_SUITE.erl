@@ -66,9 +66,9 @@ test_schedule_run(_) ->
     Time3 = {6, sec},
     Ref3 = make_ref(),
     Event3 = create_event(event3, Ref3, Time3),
-    ?assertEqual(nsime_simulator:schedule(Time2, Event2), ok),
-    ?assertEqual(nsime_simulator:schedule(Time3, Event3), ok),
-    ?assertEqual(nsime_simulator:schedule(Time1, Event1), ok),
+    ?assertEqual(nsime_simulator:schedule(Time2, Event2), Time2),
+    ?assertEqual(nsime_simulator:schedule(Time3, Event3), Time3),
+    ?assertEqual(nsime_simulator:schedule(Time1, Event1), Time1),
     ?assertEqual(nsime_simulator:run(), simulation_complete),
     receive
         {event1, Ref1} ->
@@ -104,10 +104,10 @@ test_cancel_event(_) ->
     Time3 = {6, sec},
     Ref3 = make_ref(),
     Event3 = create_event(event3, Ref3, Time3),
-    ?assertEqual(nsime_simulator:schedule(Time2, Event2), ok),
-    ?assertEqual(nsime_simulator:schedule(Time3, Event3), ok),
-    ?assertEqual(nsime_simulator:schedule(Time1, Event1), ok),
-    ?assertEqual(nsime_simulator:cancel(Event2), ok),
+    ?assertEqual(nsime_simulator:schedule(Time2, Event2), Time2),
+    ?assertEqual(nsime_simulator:schedule(Time3, Event3), Time3),
+    ?assertEqual(nsime_simulator:schedule(Time1, Event1), Time1),
+    ?assertEqual(nsime_simulator:cancel(Event2#nsime_event{time = Time2}), ok),
     ?assertEqual(nsime_simulator:run(), simulation_complete),
     receive
         {event1, Ref1} ->
@@ -117,6 +117,8 @@ test_cancel_event(_) ->
         {event3, Ref3} ->
             ok
     end,
+
+    ?assertEqual(nsime_simulator:cancel(Event2#nsime_event{time = Time2}), none),
 
     ?assertEqual(nsime_simulator:stop(), killed),
     ?assertNot(lists:member(nsime_simulator, erlang:registered())),

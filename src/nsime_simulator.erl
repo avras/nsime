@@ -78,7 +78,8 @@ schedule(Time, Event = #nsime_event{}) ->
             Ref = make_ref(),
             ?MODULE ! {schedule, self(), Time, Event, Ref},
                 receive 
-                    {ok, Ref} -> ok
+                    {ok, EventTime, Ref} ->
+                        EventTime
                 end;
         false ->
             erlang:error(invalid_argument)
@@ -88,7 +89,10 @@ cancel(Event) ->
     Ref = make_ref(),
     ?MODULE ! {cancel, self(), Event, Ref},
         receive 
-            {ok, Ref} -> ok
+            {ok, Ref} ->
+                ok;
+            {none, Ref} ->
+                none
         end.
 
 current_time() ->
@@ -108,19 +112,20 @@ loop(State) ->
             Scheduler:insert(NewEvent),
             NumEvents = State#nsime_simulator_state.num_remaining_events,
             NewState = State#nsime_simulator_state{num_remaining_events = NumEvents + 1},
-            From ! {ok, Ref},
+            From ! {ok, EventTime, Ref},
             loop(NewState);
         {cancel, From, Event, Ref} ->
             Scheduler = State#nsime_simulator_state.scheduler,
             case Scheduler:remove(Event) of
                 ok ->
                     NumEvents = State#nsime_simulator_state.num_remaining_events,
-                    NewState = State#nsime_simulator_state{num_remaining_events = NumEvents - 1};
+                    NewState = State#nsime_simulator_state{num_remaining_events = NumEvents - 1},
+                    From ! {ok, Ref},
+                    loop(NewState);
                 none ->
-                    NewState = State
-            end,
-            From ! {ok, Ref},
-            loop(NewState);
+                    From ! {none, Ref},
+                    loop(State)
+            end;
         {run, From, Ref} ->
             Scheduler = State#nsime_simulator_state.scheduler,
             case Scheduler:is_empty() of
