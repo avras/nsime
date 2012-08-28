@@ -52,8 +52,8 @@ test_creation_shutdown(_) ->
             ?assertEqual(QueueStats#nsime_dtq_state.received_byte_count, 0),
             ?assertEqual(QueueStats#nsime_dtq_state.dropped_packet_count, 0),
             ?assertEqual(QueueStats#nsime_dtq_state.dropped_byte_count, 0),
-            ?assertEqual(QueueStats#nsime_dtq_state.max_packet_count, 0),
-            ?assertEqual(QueueStats#nsime_dtq_state.max_byte_count, 0),
+            ?assertEqual(QueueStats#nsime_dtq_state.max_packet_count, infinity),
+            ?assertEqual(QueueStats#nsime_dtq_state.max_byte_count, infinity),
             ?assertEqual(QueueStats#nsime_dtq_state.device_id, undefined),
             ?assert(queue:is_empty(QueueStats#nsime_dtq_state.packets)),
             ?assertEqual(nsime_drop_tail_queue:destroy(QueuePid), killed)
@@ -212,7 +212,6 @@ test_dequeue_all_packets(_) ->
     ?assert(is_pid(QueuePid)),
     Size = 1000,
     Packet1 = create_packet(Size),
-    PacketId1 = Packet1#nsime_packet.id,
     Packet2 = create_packet(Size),
     ?assertEqual(nsime_drop_tail_queue:enqueue_packet(QueuePid, Packet1), ok),
     ?assertEqual(nsime_drop_tail_queue:enqueue_packet(QueuePid, Packet2), ok),
@@ -253,7 +252,6 @@ test_reset_statistics(_) ->
 
     Size = 1000,
     Packet1 = create_packet(Size),
-    PacketId1 = Packet1#nsime_packet.id,
     Packet2 = create_packet(Size),
     ?assertEqual(nsime_drop_tail_queue:enqueue_packet(QueuePid, Packet1), ok),
     ?assertEqual(nsime_drop_tail_queue:enqueue_packet(QueuePid, Packet2), ok),

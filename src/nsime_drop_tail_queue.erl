@@ -22,7 +22,10 @@
 -export([loop/1]).
 
 create() ->
-    QueueState = #nsime_dtq_state{},
+    QueueState = #nsime_dtq_state{
+        max_packet_count = infinity,
+        max_byte_count = infinity
+    },
     spawn(?MODULE, loop, [QueueState]).
 
 create(QueueState = #nsime_dtq_state{}) ->

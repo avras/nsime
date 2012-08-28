@@ -124,6 +124,7 @@ test_transmit_start(_) ->
     DevicePid2 = nsime_ptp_netdevice:create(),
     ?assert(is_pid(DevicePid2)),
     ?assertEqual(nsime_ptp_netdevice:transmit_start(DevicePid1, #nsime_packet{}), false),
+    ?assertEqual(nsime_ptp_netdevice:transmit_complete(DevicePid1), false),
     ?assertEqual(nsime_ptp_netdevice:attach_channel(DevicePid1, ChannelPid), ok),
     ?assertEqual(nsime_ptp_netdevice:attach_channel(DevicePid2, ChannelPid), ok),
 
