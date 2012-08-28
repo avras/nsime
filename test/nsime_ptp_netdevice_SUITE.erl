@@ -26,7 +26,8 @@ all() -> [
             test_ppp_ether,
             test_add_process_header,
             test_set_get_components,
-            test_attach_channel
+            test_attach_channel,
+            test_transmit_start
          ].
 
 
@@ -43,7 +44,7 @@ test_creation_shutdown(_) ->
     ?assertEqual(nsime_ptp_netdevice:get_address(DevicePid), undefined),
     ?assertEqual(nsime_ptp_netdevice:get_channel(DevicePid), undefined),
     ?assertEqual(nsime_ptp_netdevice:get_queue_module(DevicePid), nsime_drop_tail_queue),
-    ?assertEqual(nsime_ptp_netdevice:get_queue(DevicePid), undefined),
+    ?assert(is_pid(nsime_ptp_netdevice:get_queue(DevicePid))),
     ?assertNot(nsime_ptp_netdevice:is_link_up(DevicePid)),
     ?assertEqual(nsime_ptp_netdevice:get_mtu(DevicePid), 1500),
     ?assertEqual(nsime_ptp_netdevice:get_device_index(DevicePid), undefined),
@@ -72,8 +73,7 @@ test_add_process_header(_) ->
     NewData = <<PPPProtNumber:16, Data/binary>>,
     NewPacket = Packet#nsime_packet{data = NewData, size = 4},
     ?assertMatch(NewPacket, nsime_ptp_netdevice:add_ppp_header(Packet, EtherProtNumber)),
-    ?assertMatch({EtherProtNumber, Packet}, nsime_ptp_netdevice:process_ppp_header(NewPacket)),
-    ok.
+    ?assertMatch({EtherProtNumber, Packet}, nsime_ptp_netdevice:process_ppp_header(NewPacket)).
 
 test_set_get_components(_) ->
     DevicePid = nsime_ptp_netdevice:create(),
@@ -114,9 +114,39 @@ test_attach_channel(_) ->
     ?assert(is_pid(DevicePid3)),
     ?assertEqual(nsime_ptp_netdevice:attach_channel(DevicePid1, ChannelPid), ok),
     ?assertEqual(nsime_ptp_netdevice:attach_channel(DevicePid2, ChannelPid), ok),
-    ?assertEqual(nsime_ptp_netdevice:attach_channel(DevicePid3, ChannelPid), none),
-    ok.
+    ?assertEqual(nsime_ptp_netdevice:attach_channel(DevicePid3, ChannelPid), none).
 
+test_transmit_start(_) ->
+   ChannelPid = nsime_ptp_channel:create(),
+    ?assert(is_pid(ChannelPid)),
+    DevicePid1 = nsime_ptp_netdevice:create(),
+    ?assert(is_pid(DevicePid1)),
+    DevicePid2 = nsime_ptp_netdevice:create(),
+    ?assert(is_pid(DevicePid2)),
+    ?assertEqual(nsime_ptp_netdevice:transmit_start(DevicePid1, #nsime_packet{}), false),
+    ?assertEqual(nsime_ptp_netdevice:attach_channel(DevicePid1, ChannelPid), ok),
+    ?assertEqual(nsime_ptp_netdevice:attach_channel(DevicePid2, ChannelPid), ok),
+
+    DataRate = {10, bits_per_sec},
+    ?assertEqual(nsime_ptp_netdevice:set_data_rate(DevicePid1, DataRate), ok),
+    InterFrameGap = {10, micro_sec},
+    ?assertEqual(nsime_ptp_netdevice:set_interframe_gap(DevicePid1, InterFrameGap), ok),
+
+    nsime_simulator:start(),
+    Data = <<0:160>>,
+    Packet = create_packet(make_ref(), 20, Data),
+    ?assertEqual(nsime_ptp_netdevice:transmit_start(DevicePid1, Packet), true),
+    ?assertEqual(nsime_simulator:run(), simulation_complete),
+
+    ?assertEqual(nsime_ptp_netdevice:transmit_start(DevicePid1, Packet), true),
+    ?assertEqual(nsime_ptp_netdevice:transmit_start(DevicePid1, Packet#nsime_packet{size = 25}), true),
+    ?assertEqual(nsime_ptp_netdevice:send_packet(DevicePid1, Packet, 16#86DD), true),
+    ?assertEqual(nsime_simulator:run(), simulation_complete),
+
+    ?assertEqual(nsime_simulator:stop(), killed),
+    ?assertEqual(nsime_ptp_channel:destroy(ChannelPid), killed),
+    ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid1), killed),
+    ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid2), killed).
 
 create_packet(Id, Size, Data) ->
     #nsime_packet{

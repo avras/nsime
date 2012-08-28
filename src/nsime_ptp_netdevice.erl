@@ -33,7 +33,11 @@
 
 
 create() ->
-    DeviceState = #nsime_ptp_netdevice_state{},
+    Queue = nsime_drop_tail_queue:create(),
+    DeviceState = #nsime_ptp_netdevice_state{
+        queue_module = nsime_drop_tail_queue,
+        queue = Queue
+    },
     spawn(?MODULE, loop, [DeviceState]).
 
 create(DeviceState = #nsime_ptp_netdevice_state{}) ->
@@ -233,7 +237,7 @@ transmit_complete(DevicePid) ->
             Result
     end.
 
-send_packet(DevicePid, Packet = #nsime_packet{}, <<ProtocolNumber:16>>) ->
+send_packet(DevicePid, Packet = #nsime_packet{}, ProtocolNumber) ->
     PacketWithHeader = add_ppp_header(Packet, ProtocolNumber),
     transmit_start(DevicePid, PacketWithHeader).
 
@@ -326,18 +330,14 @@ loop(DeviceState = #nsime_ptp_netdevice_state{}) ->
                     Length = Packet#nsime_packet.size,
                     DataRate = DeviceState#nsime_ptp_netdevice_state.data_rate,
                     TxTime = nsime_data_rate:calc_tx_time(DataRate, Length),
-                    TxCompleteTime = nsime_time:add(
-                        TxTime,
-                        DeviceState#nsime_ptp_netdevice_state.interframe_gap
-                    ),
                     TxCompleteEvent = #nsime_event{
-                        time = TxCompleteTime,
+                        time = TxTime,
                         module = nsime_ptp_netdevice,
                         function = transmit_complete,
                         arguments = [self()],
                         eventid = make_ref()
                     },
-                    nsime_simulator:schedule(TxCompleteTime, TxCompleteEvent),
+                    nsime_simulator:schedule(TxTime, TxCompleteEvent),
                     Channel = DeviceState#nsime_ptp_netdevice_state.channel,
                     nsime_ptp_channel:transmit(Channel, Packet, self(), TxTime),
                     NewDeviceState = DeviceState#nsime_ptp_netdevice_state{
