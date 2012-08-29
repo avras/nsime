@@ -55,6 +55,6 @@ test_add_delete(_) ->
     DeviceList1 = nsime_node_list:get_node_list(),
     ?assertNot(gb_sets:is_member(NodePid1, DeviceList1)),
     ?assert(gb_sets:is_member(NodePid2, DeviceList1)),
-    ?assertEqual(nsime_node:destroy(NodePid1), killed),
-    ?assertEqual(nsime_node:destroy(NodePid2), killed),
+    ?assertEqual(nsime_node:destroy(NodePid1), stopped),
+    ?assertEqual(nsime_node:destroy(NodePid2), stopped),
     ?assertEqual(nsime_node_list:stop(), stopped).

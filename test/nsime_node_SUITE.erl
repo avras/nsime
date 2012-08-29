@@ -54,7 +54,7 @@ test_creation_shutdown(_) ->
     ?assertEqual(nsime_node:get_application_count(NodePid), 0),
     ?assertMatch([], nsime_node:get_netdevices(NodePid)),
     ?assertMatch([], nsime_node:get_applications(NodePid)),
-    ?assertEqual(nsime_node:destroy(NodePid), killed).
+    ?assertEqual(nsime_node:destroy(NodePid), stopped).
 
 test_creation_multiple_nodes(_) ->
     N = 10,
@@ -67,7 +67,7 @@ test_creation_multiple_nodes(_) ->
             ?assertEqual(nsime_node:get_application_count(Pid), 0),
             ?assertMatch([], nsime_node:get_netdevices(Pid)),
             ?assertMatch([], nsime_node:get_applications(Pid)),
-            ?assertEqual(nsime_node:destroy(Pid), killed)
+            ?assertEqual(nsime_node:destroy(Pid), stopped)
             end,
         NodePidList
     ).

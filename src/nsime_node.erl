@@ -14,103 +14,87 @@
 
 -include("nsime_node_state.hrl").
 
--export([create/0, create/1, destroy/1]).
--export([add_netdevice/2, get_netdevices/1, get_netdevice_count/1]).
--export([add_application/2, get_applications/1, get_application_count/1]).
--export([loop/1]).
+-behaviour(gen_server).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+         terminate/2, code_change/3]).
+
+-export([create/0, create/1, destroy/1, add_netdevice/2,
+         get_netdevices/1, get_netdevice_count/1,
+         add_application/2, get_applications/1,
+         get_application_count/1]).
 
 create() ->
-    NodeState = #nsime_node_state{},
-    spawn(?MODULE, loop, [NodeState]).
+    {ok, Pid} = gen_server:start(?MODULE, [], []),
+    Pid.
 
 create(NumNodes) ->
     case NumNodes of
         0 ->
             [];
         _ ->
-            [spawn(?MODULE, loop, [#nsime_node_state{}]) | create(NumNodes-1)]
+            [create() | create(NumNodes-1)]
     end.
 
 destroy(NodePid) ->
-    Ref = erlang:monitor(process, NodePid),
-    exit(NodePid, kill),
-    receive
-        {'DOWN', Ref, process, NodePid, Reason} ->
-            Reason
-    end.
+    gen_server:call(NodePid, terminate).
 
 add_netdevice(NodePid, DeviceType) ->
-    Ref = make_ref(),
-    NodePid ! {add_netdevice, self(), DeviceType, Ref},
-    receive
-        {ok, Ref} ->
-            ok
-    end.
+    gen_server:call(NodePid, {add_netdevice, DeviceType}).
 
 get_netdevices(NodePid) ->
-    Ref = make_ref(),
-    NodePid ! {get_netdevices, self(), Ref},
-    receive
-        {netdevices, DevicePids, Ref} ->
-            DevicePids
-    end.
+    gen_server:call(NodePid, get_netdevices).
 
 get_netdevice_count(NodePid) ->
-    Ref = make_ref(),
-    NodePid ! {get_netdevice_count, self(), Ref},
-    receive
-        {netdevice_count, Length, Ref} ->
-            Length
-    end.
+    gen_server:call(NodePid, get_netdevice_count).
 
 add_application(NodePid, ApplicationType) ->
-    Ref = make_ref(),
-    NodePid ! {add_application, self(), ApplicationType, Ref},
-    receive
-        {ok, Ref} ->
-            ok
-    end.
+    gen_server:call(NodePid, {add_application, ApplicationType}).
 
 get_applications(NodePid) ->
-    Ref = make_ref(),
-    NodePid ! {get_applications, self(), Ref},
-    receive
-        {applications, ApplicationPids, Ref} ->
-            ApplicationPids
-    end.
+    gen_server:call(NodePid, get_applications).
 
 get_application_count(NodePid) ->
-    Ref = make_ref(),
-    NodePid ! {get_application_count, self(), Ref},
-    receive
-        {application_count, Length, Ref} ->
-            Length
-    end.
+    gen_server:call(NodePid, get_application_count).
 
-loop(State) ->
-    receive
-        {add_netdevice, From, DeviceType, Ref} ->
-            DevicePid = DeviceType:create(),
-            DeviceList = State#nsime_node_state.netdevices,
-            NewState = State#nsime_node_state{netdevices = [DevicePid | DeviceList]},
-            From ! {ok, Ref},
-            loop(NewState);
-        {get_netdevices, From, Ref} ->
-            From ! {netdevices, State#nsime_node_state.netdevices, Ref},
-            loop(State);
-        {get_netdevice_count, From, Ref} ->
-            From ! {netdevice_count, length(State#nsime_node_state.netdevices), Ref},
-            loop(State);
-        {add_application, From, ApplicationType, Ref} ->
-            ApplicationPid = ApplicationType:create(),
-            ApplicationList = State#nsime_node_state.applications,
-            NewState = State#nsime_node_state{applications = [ApplicationPid | ApplicationList]},
-            From ! {ok, Ref},
-            loop(NewState);
-        {get_applications, From, Ref} ->
-            From ! {applications, State#nsime_node_state.applications, Ref},
-            loop(State);
-        {get_application_count, From, Ref} ->
-            From ! {application_count, length(State#nsime_node_state.applications), Ref},
-            loop(State)
-    end.
+init([]) ->
+    State = #nsime_node_state{},
+    {ok, State}.
+
+handle_call({add_netdevice, DeviceType}, _From, State) ->
+    DevicePid = DeviceType:create(),
+    DeviceList = State#nsime_node_state.netdevices,
+    NewState = State#nsime_node_state{netdevices = [DevicePid | DeviceList]},
+    {reply, ok, NewState};
+
+handle_call(get_netdevices, _From, State) ->
+    {reply, State#nsime_node_state.netdevices, State};
+
+handle_call(get_netdevice_count, _From, State) ->
+    {reply, length(State#nsime_node_state.netdevices), State};
+
+handle_call({add_application, ApplicationType}, _From, State) ->
+    ApplicationPid = ApplicationType:create(),
+    ApplicationList = State#nsime_node_state.applications,
+    NewState = State#nsime_node_state{applications = [ApplicationPid | ApplicationList]},
+    {reply, ok, NewState};
+
+handle_call(get_applications, _From, State) ->
+    {reply, State#nsime_node_state.applications, State};
+
+handle_call(get_application_count, _From, State) ->
+    {reply, length(State#nsime_node_state.applications), State};
+
+handle_call(terminate, _From, State) ->
+    {stop, normal, stopped, State}.
+
+handle_cast(_Request, State) ->
+    {noreply, State}.
+
+handle_info(_Request, State) ->
+    {noreply, State}.
+
+terminate(_Reason, _State) ->
+    ok.
+
+code_change(_OldVersion, State, _Extra) ->
+    {ok, State}.
