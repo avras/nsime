@@ -56,7 +56,7 @@ test_creation_shutdown(_) ->
             ?assertEqual(QueueStats#nsime_dtq_state.max_byte_count, infinity),
             ?assertEqual(QueueStats#nsime_dtq_state.device_id, undefined),
             ?assert(queue:is_empty(QueueStats#nsime_dtq_state.packets)),
-            ?assertEqual(nsime_drop_tail_queue:destroy(QueuePid), killed)
+            ?assertEqual(nsime_drop_tail_queue:destroy(QueuePid), stopped)
     end.
 
 test_creation_with_initial_state(_) ->
@@ -74,7 +74,7 @@ test_creation_with_initial_state(_) ->
     ?assertEqual(QueueStats#nsime_dtq_state.max_byte_count, 0),
     ?assertEqual(QueueStats#nsime_dtq_state.device_id, undefined),
     ?assert(queue:is_empty(QueueStats#nsime_dtq_state.packets)),
-    ?assertEqual(nsime_drop_tail_queue:destroy(QueuePid), killed).
+    ?assertEqual(nsime_drop_tail_queue:destroy(QueuePid), stopped).
 
 
 test_enqueue_dequeue(_) ->
@@ -160,7 +160,7 @@ test_enqueue_dequeue(_) ->
     ?assertEqual(QueueStats6#nsime_dtq_state.max_packet_count, MaxPackets),
     ?assertEqual(QueueStats6#nsime_dtq_state.max_byte_count, MaxBytes),
 
-    ?assertEqual(nsime_drop_tail_queue:destroy(QueuePid), killed).
+    ?assertEqual(nsime_drop_tail_queue:destroy(QueuePid), stopped).
 
 test_drop_packet(_) ->
     MaxPackets = 3,
@@ -202,7 +202,7 @@ test_drop_packet(_) ->
     ?assertEqual(nsime_drop_tail_queue:dequeue_packet(QueuePid), Packet2),
     ?assertEqual(nsime_drop_tail_queue:dequeue_packet(QueuePid), Packet1),
     ?assertEqual(nsime_drop_tail_queue:dequeue_packet(QueuePid), Packet1),
-    ?assertEqual(nsime_drop_tail_queue:destroy(QueuePid), killed).
+    ?assertEqual(nsime_drop_tail_queue:destroy(QueuePid), stopped).
 
 test_dequeue_all_packets(_) ->
     MaxPackets = 3,
@@ -238,7 +238,7 @@ test_dequeue_all_packets(_) ->
     ?assertEqual(QueueStats1#nsime_dtq_state.max_packet_count, MaxPackets),
     ?assertEqual(QueueStats1#nsime_dtq_state.max_byte_count, MaxBytes),
 
-    ?assertEqual(nsime_drop_tail_queue:destroy(QueuePid), killed).
+    ?assertEqual(nsime_drop_tail_queue:destroy(QueuePid), stopped).
 
 test_reset_statistics(_) ->
     MaxPackets = 3,
@@ -283,7 +283,7 @@ test_reset_statistics(_) ->
     ?assertEqual(nsime_drop_tail_queue:dequeue_packet(QueuePid), Packet1),
     ?assertEqual(nsime_drop_tail_queue:dequeue_packet(QueuePid), Packet2),
 
-    ?assertEqual(nsime_drop_tail_queue:destroy(QueuePid), killed),
+    ?assertEqual(nsime_drop_tail_queue:destroy(QueuePid), stopped),
     ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid), killed).
 
 
