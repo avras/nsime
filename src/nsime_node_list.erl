@@ -13,64 +13,58 @@
 -module(nsime_node_list).
 -author("Saravanan Vijayakumaran").
 
+-behaviour(gen_server).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+         terminate/2, code_change/3]).
+
 -export([start/0, stop/0, add/1, delete/1, get_node_list/0]).
--export([loop/1]).
 
 start() ->
-    NodePidList = gb_sets:empty(),
-    register(?MODULE, spawn(?MODULE, loop, [NodePidList])).
+    gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
 stop() ->
-    Ref = erlang:monitor(process, ?MODULE),
-    exit(whereis(?MODULE), kill),
-    receive
-        {'DOWN', Ref, process, {?MODULE, _Node}, Reason} ->
-            Reason
-    end.
+    gen_server:call(?MODULE, terminate).
 
 add(NodePid) ->
-    Ref = make_ref(),
-    ?MODULE ! {add, self(), NodePid, Ref},
-    receive
-        {ok, Ref} ->
-            ok
-    end.
+    gen_server:call(?MODULE, {add, NodePid}).
 
 delete(NodePid) ->
-    Ref = make_ref(),
-    ?MODULE ! {delete, self(), NodePid, Ref},
-    receive
-        {ok, Ref} ->
-            ok;
-        {none, Ref} ->
-            none
-    end.
+    gen_server:call(?MODULE, {delete, NodePid}).
 
 get_node_list() ->
-    Ref = make_ref(),
-    ?MODULE ! {get_node_list, self(), Ref},
-    receive
-        {ok, NodePidList, Ref} ->
-            NodePidList
-    end.
+    gen_server:call(?MODULE, get_node_list).
 
-loop(NodePidList) ->
-    receive
-        {add, From, NodePid, Ref} -> 
-            NewNodePidList = gb_sets:add(NodePid, NodePidList),
-            From ! {ok, Ref},
-            loop(NewNodePidList);
-        {delete, From, NodePid, Ref} ->
-            case gb_sets:is_element(NodePid, NodePidList) of
-                true ->
-                    NewNodePidList = gb_sets:delete(NodePid, NodePidList),
-                    From ! {ok, Ref},
-                    loop(NewNodePidList);
-                false ->
-                    From ! {none, Ref},
-                    loop(NodePidList)
-                end;
-        {get_node_list, From, Ref} ->
-            From ! {ok, NodePidList, Ref},
-            loop(NodePidList)
-    end.
+init([]) ->
+    NodePidList = gb_sets:empty(),
+    {ok, NodePidList}.
+
+handle_call({add, NodePid}, _From, NodePidList) ->
+    NewNodePidList = gb_sets:add(NodePid, NodePidList),
+    {reply, ok, NewNodePidList};
+
+handle_call({delete, NodePid}, _From, NodePidList) ->
+    case gb_sets:is_element(NodePid, NodePidList) of
+        true ->
+            NewNodePidList = gb_sets:delete(NodePid, NodePidList),
+            {reply, ok, NewNodePidList};
+        false ->
+            {reply, none, NodePidList}
+        end;
+
+handle_call(get_node_list, _From, NodePidList) ->
+    {reply, NodePidList, NodePidList};
+
+handle_call(terminate, _From, NodePidList) ->
+    {stop, normal, killed, NodePidList}.
+
+handle_cast(_Request, NodePidList) ->
+    {noreply, NodePidList}.
+
+handle_info(_Request, NodePidList) ->
+    {noreply, NodePidList}.
+
+terminate(_Reason, _NodePidList) ->
+    ok.
+
+code_change(_OldVersion, NodePidList, _Extra) ->
+    {ok, NodePidList}.
