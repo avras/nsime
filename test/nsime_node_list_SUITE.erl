@@ -35,7 +35,7 @@ test_start_stop(_) ->
     ?assert(erlang:is_pid(Pid)),
     ?assert(lists:member(nsime_node_list, erlang:registered())),
     ?assert(gb_sets:is_empty(nsime_node_list:get_node_list())),
-    ?assertEqual(nsime_node_list:stop(), killed),
+    ?assertEqual(nsime_node_list:stop(), stopped),
     ?assertNot(lists:member(nsime_node_list, erlang:registered())).
 
 test_add_delete(_) ->
@@ -57,4 +57,4 @@ test_add_delete(_) ->
     ?assert(gb_sets:is_member(NodePid2, DeviceList1)),
     ?assertEqual(nsime_node:destroy(NodePid1), killed),
     ?assertEqual(nsime_node:destroy(NodePid2), killed),
-    ?assertEqual(nsime_node_list:stop(), killed).
+    ?assertEqual(nsime_node_list:stop(), stopped).

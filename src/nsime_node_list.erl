@@ -55,7 +55,7 @@ handle_call(get_node_list, _From, NodePidList) ->
     {reply, NodePidList, NodePidList};
 
 handle_call(terminate, _From, NodePidList) ->
-    {stop, normal, killed, NodePidList}.
+    {stop, normal, stopped, NodePidList}.
 
 handle_cast(_Request, NodePidList) ->
     {noreply, NodePidList}.
