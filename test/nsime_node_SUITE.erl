@@ -82,4 +82,10 @@ test_add_netdevice(_) ->
     ?assert(is_pid(DevicePid)).
 
 test_add_application(_) ->
-    ok.
+    NodePid = nsime_node:create(),
+    ?assert(is_pid(NodePid)),
+    ?assertEqual(nsime_node:get_application_count(NodePid), 0),
+    ?assertEqual(nsime_node:add_application(NodePid, nsime_ptp_netdevice), ok),
+    ?assertEqual(nsime_node:get_application_count(NodePid), 1),
+    [AppPid] = nsime_node:get_applications(NodePid),
+    ?assert(is_pid(AppPid)).
