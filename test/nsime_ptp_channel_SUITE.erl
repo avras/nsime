@@ -61,7 +61,7 @@ test_creation_shutdown(_) ->
             ?assertEqual(nsime_ptp_channel:get_netdevice(ChannelPid, 0), none),
             ?assertEqual(nsime_ptp_channel:get_netdevice(ChannelPid, 1), none),
             ?assertError(invalid_argument, nsime_ptp_channel:get_netdevice(ChannelPid, 2)),
-            ?assertEqual(nsime_ptp_channel:destroy(ChannelPid), killed)
+            ?assertEqual(nsime_ptp_channel:destroy(ChannelPid), stopped)
     end,
     ok.
 
@@ -83,7 +83,7 @@ test_creation_with_state(_) ->
             ?assertEqual(nsime_ptp_channel:get_netdevice_count(ChannelPid), 2),
             ?assertEqual(nsime_ptp_channel:get_netdevice(ChannelPid, 0), Device1),
             ?assertEqual(nsime_ptp_channel:get_netdevice(ChannelPid, 1), Device2),
-            ?assertEqual(nsime_ptp_channel:destroy(ChannelPid), killed)
+            ?assertEqual(nsime_ptp_channel:destroy(ChannelPid), stopped)
     end,
     nsime_ptp_netdevice:destroy(Device1),
     nsime_ptp_netdevice:destroy(Device2).
@@ -110,7 +110,7 @@ test_attach_netdevice(_) ->
     ?assertEqual(nsime_ptp_channel:get_netdevice(ChannelPid, 1), Device2),
     ?assertEqual(nsime_ptp_channel:attach_netdevice(ChannelPid, Device2), none),
     ?assertEqual(nsime_ptp_channel:get_netdevice_count(ChannelPid), 2),
-    ?assertEqual(nsime_ptp_channel:destroy(ChannelPid), killed),
+    ?assertEqual(nsime_ptp_channel:destroy(ChannelPid), stopped),
     ?assertEqual(nsime_ptp_netdevice:destroy(Device1), killed),
     ?assertEqual(nsime_ptp_netdevice:destroy(Device2), killed).
 
@@ -145,7 +145,7 @@ test_transmit(_) ->
     ), ok),
     ?assertEqual(nsime_simulator:run(), simulation_complete),
     ?assertEqual(nsime_simulator:stop(), killed),
-    ?assertEqual(nsime_ptp_channel:destroy(ChannelPid), killed),
+    ?assertEqual(nsime_ptp_channel:destroy(ChannelPid), stopped),
     ?assertEqual(nsime_ptp_netdevice:destroy(Device1), killed),
     ?assertEqual(nsime_ptp_netdevice:destroy(Device2), killed).
 
