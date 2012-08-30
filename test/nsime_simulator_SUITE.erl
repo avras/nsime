@@ -39,7 +39,7 @@ test_start_stop(_) ->
     ?assert(lists:member(nsime_simulator, erlang:registered())),
     ?assert(lists:member(nsime_gbtrees_scheduler, erlang:registered())),
     ?assertEqual(nsime_simulator:current_time(), {0, sec}),
-    ?assertEqual(nsime_simulator:stop(), killed),
+    ?assertEqual(nsime_simulator:stop(), stopped),
     ?assertNot(lists:member(nsime_simulator, erlang:registered())),
     ?assertNot(lists:member(nsime_gbtrees_scheduler, erlang:registered())),
 
@@ -48,7 +48,7 @@ test_start_stop(_) ->
     nsime_simulator:start(gb_trees),
     ?assert(lists:member(nsime_simulator, erlang:registered())),
     ?assert(lists:member(nsime_gbtrees_scheduler, erlang:registered())),
-    ?assertEqual(nsime_simulator:stop(), killed),
+    ?assertEqual(nsime_simulator:stop(), stopped),
     ?assertNot(lists:member(nsime_simulator, erlang:registered())),
     ?assertNot(lists:member(nsime_gbtrees_scheduler, erlang:registered())).
 
@@ -86,7 +86,7 @@ test_schedule_run(_) ->
 
     ?assertError(invalid_argument, nsime_simulator:schedule(junk, Event1)),
 
-    ?assertEqual(nsime_simulator:stop(), killed),
+    ?assertEqual(nsime_simulator:stop(), stopped),
     ?assertNot(lists:member(nsime_simulator, erlang:registered())),
     ?assertNot(lists:member(nsime_gbtrees_scheduler, erlang:registered())).
 
@@ -120,7 +120,7 @@ test_cancel_event(_) ->
 
     ?assertEqual(nsime_simulator:cancel(Event2#nsime_event{time = Time2}), none),
 
-    ?assertEqual(nsime_simulator:stop(), killed),
+    ?assertEqual(nsime_simulator:stop(), stopped),
     ?assertNot(lists:member(nsime_simulator, erlang:registered())),
     ?assertNot(lists:member(nsime_gbtrees_scheduler, erlang:registered())).
 

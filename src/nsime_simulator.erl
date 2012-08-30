@@ -17,10 +17,12 @@
 -include("nsime_event.hrl").
 -include("nsime_simulator_state.hrl").
 
--export([start/0, start/1, init/1, run/0, stop/0]).
--export([schedule/2, cancel/1]).
--export([current_time/0]).
--export([loop/1]).
+-behaviour(gen_server).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+         terminate/2, code_change/3]).
+
+-export([start/0, start/1, run/0, stop/0, schedule/2,
+         cancel/1, current_time/0]).
 
 start() ->
     start(gb_trees).
@@ -33,123 +35,98 @@ start(SchedulerType) ->
         _ ->
             erlang:error(unsupported_scheduler)
     end,
-    register(?MODULE, spawn(?MODULE, init, [Scheduler])),
-    nsime_utils:wait_for_registration([nsime_simulator, nsime_gbtrees_scheduler]).
+    gen_server:start({local, ?MODULE}, ?MODULE, Scheduler, []).
+
+stop() ->
+    gen_server:call(?MODULE, terminate).
 
 init(Scheduler) ->
     Scheduler:create(),
     SimulatorState = #nsime_simulator_state{
         scheduler = Scheduler
     },
-    loop(SimulatorState).
-
-stop() ->
-    Ref = make_ref(),
-    ?MODULE ! {stop_scheduler, self(), Ref},
-    receive
-        {ok, Ref} ->
-            MonitorRef = erlang:monitor(process, ?MODULE),
-            exit(whereis(?MODULE), kill),
-            receive
-                {'DOWN', MonitorRef, process, {?MODULE, _Node}, Reason} ->
-                    Reason
-            end
-    end.
+    {ok, SimulatorState}.
 
 run() ->
-    Ref = make_ref(),
-    ?MODULE ! {run, self(), Ref},
-    receive
-        {ok, Event, Ref} ->
+    case gen_server:call(?MODULE, run) of
+        {event, Event} ->
             erlang:apply(
                 Event#nsime_event.module,
                 Event#nsime_event.function,
                 Event#nsime_event.arguments
             ),
             ?MODULE:run();
-        {none, Ref} ->
+        none ->
             simulation_complete
     end.
-
 
 schedule(Time, Event = #nsime_event{}) ->
     case nsime_time:is_nsime_time(Time) of
         true ->
-            Ref = make_ref(),
-            ?MODULE ! {schedule, self(), Time, Event, Ref},
-                receive 
-                    {ok, EventTime, Ref} ->
-                        EventTime
-                end;
+            gen_server:call(?MODULE, {schedule, Time, Event});
         false ->
             erlang:error(invalid_argument)
     end.
 
 cancel(Event) ->
-    Ref = make_ref(),
-    ?MODULE ! {cancel, self(), Event, Ref},
-        receive 
-            {ok, Ref} ->
-                ok;
-            {none, Ref} ->
-                none
-        end.
+    gen_server:call(?MODULE, {cancel, Event}).
 
 current_time() ->
-    Ref = make_ref(),
-    ?MODULE ! {current_time, self(), Ref},
-        receive
-            {current_time, Time, Ref} -> Time
-        end.
+    gen_server:call(?MODULE, current_time).
 
+handle_call({schedule, Time, Event}, _From, State) ->
+    EventTime = nsime_time:add(State#nsime_simulator_state.current_time, Time),
+    NewEvent = Event#nsime_event{time = EventTime},
+    Scheduler = State#nsime_simulator_state.scheduler,
+    Scheduler:insert(NewEvent),
+    NumEvents = State#nsime_simulator_state.num_remaining_events,
+    NewState = State#nsime_simulator_state{num_remaining_events = NumEvents + 1},
+    {reply, EventTime, NewState};
 
-loop(State) ->
-    receive
-        {schedule, From, Time, Event, Ref} ->
-            EventTime = nsime_time:add(State#nsime_simulator_state.current_time, Time),
-            NewEvent = Event#nsime_event{time = EventTime},
-            Scheduler = State#nsime_simulator_state.scheduler,
-            Scheduler:insert(NewEvent),
+handle_call({cancel, Event}, _From, State) ->
+    Scheduler = State#nsime_simulator_state.scheduler,
+    case Scheduler:remove(Event) of
+        ok ->
             NumEvents = State#nsime_simulator_state.num_remaining_events,
-            NewState = State#nsime_simulator_state{num_remaining_events = NumEvents + 1},
-            From ! {ok, EventTime, Ref},
-            loop(NewState);
-        {cancel, From, Event, Ref} ->
-            Scheduler = State#nsime_simulator_state.scheduler,
-            case Scheduler:remove(Event) of
-                ok ->
-                    NumEvents = State#nsime_simulator_state.num_remaining_events,
-                    NewState = State#nsime_simulator_state{num_remaining_events = NumEvents - 1},
-                    From ! {ok, Ref},
-                    loop(NewState);
-                none ->
-                    From ! {none, Ref},
-                    loop(State)
-            end;
-        {run, From, Ref} ->
-            Scheduler = State#nsime_simulator_state.scheduler,
-            case Scheduler:is_empty() of
-                false ->
-                    Event = Scheduler:remove_next(),
-                    NumEvents = State#nsime_simulator_state.num_remaining_events,
-                    NumExecutedEvents = State#nsime_simulator_state.num_executed_events,
-                    From ! {ok, Event, Ref},
-                    NewState = State#nsime_simulator_state{
-                                    current_time = Event#nsime_event.time,
-                                    num_remaining_events = NumEvents - 1,
-                                    num_executed_events = NumExecutedEvents + 1
-                    },
-                    loop(NewState);
-                true ->
-                    From ! {none, Ref},
-                    loop(State)
-            end;
-        {current_time, From, Ref} ->
-            From ! {current_time, State#nsime_simulator_state.current_time, Ref},
-            loop(State);
-        {stop_scheduler, From, Ref} ->
-            Scheduler = State#nsime_simulator_state.scheduler,
-            Scheduler:stop(),
-            From ! {ok, Ref},
-            loop(State)
-    end.
+            NewState = State#nsime_simulator_state{num_remaining_events = NumEvents - 1},
+            {reply, ok, NewState};
+        none ->
+            {reply, none, State}
+    end;
+
+handle_call(run, _From, State) ->
+    Scheduler = State#nsime_simulator_state.scheduler,
+    case Scheduler:is_empty() of
+        false ->
+            Event = Scheduler:remove_next(),
+            NumEvents = State#nsime_simulator_state.num_remaining_events,
+            NumExecutedEvents = State#nsime_simulator_state.num_executed_events,
+            NewState = State#nsime_simulator_state{
+                            current_time = Event#nsime_event.time,
+                            num_remaining_events = NumEvents - 1,
+                            num_executed_events = NumExecutedEvents + 1
+            },
+            {reply, {event, Event}, NewState};
+        true ->
+            {reply, none, State}
+    end;
+
+handle_call(current_time, _From, State) ->
+    {reply, State#nsime_simulator_state.current_time, State};
+
+handle_call(terminate, _From, State) ->
+    {stop, normal, stopped, State}.
+
+handle_cast(_Request, State) ->
+    {noreply, State}.
+
+handle_info(_Request, State) ->
+    {noreply, State}.
+
+terminate(_Reason, State) ->
+    Scheduler = State#nsime_simulator_state.scheduler,
+    Scheduler:stop(),
+    ok.
+
+code_change(_OldVersion, State, _Extra) ->
+    {ok, State}.

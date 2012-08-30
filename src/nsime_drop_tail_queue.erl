@@ -181,17 +181,17 @@ handle_call(reset_statistics, _From, QueueState) ->
     },
     {reply, ok, NewQueueState};
 
-handle_call(terminate, _From, State) ->
-    {stop, normal, stopped, State}.
+handle_call(terminate, _From, QueueState) ->
+    {stop, normal, stopped, QueueState}.
 
-handle_cast(_Request, State) ->
-    {noreply, State}.
+handle_cast(_Request, QueueState) ->
+    {noreply, QueueState}.
 
-handle_info(_Request, State) ->
-    {noreply, State}.
+handle_info(_Request, QueueState) ->
+    {noreply, QueueState}.
 
 terminate(_Reason, _State) ->
     ok.
 
-code_change(_OldVersion, State, _Extra) ->
-    {ok, State}.
+code_change(_OldVersion, QueueState, _Extra) ->
+    {ok, QueueState}.

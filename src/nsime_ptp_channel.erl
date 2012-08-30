@@ -136,17 +136,17 @@ handle_call({transmit, Packet, SourceDevicePid, TxTime}, _From, ChannelState) ->
     nsime_simulator:schedule(TxTime, ReceiveEvent),
     {reply, ok, ChannelState};
 
-handle_call(terminate, _From, State) ->
-    {stop, normal, stopped, State}.
+handle_call(terminate, _From, ChannelState) ->
+    {stop, normal, stopped, ChannelState}.
 
-handle_cast(_Request, State) ->
-    {noreply, State}.
+handle_cast(_Request, ChannelState) ->
+    {noreply, ChannelState}.
 
-handle_info(_Request, State) ->
-    {noreply, State}.
+handle_info(_Request, ChannelState) ->
+    {noreply, ChannelState}.
 
 terminate(_Reason, _State) ->
     ok.
 
-code_change(_OldVersion, State, _Extra) ->
-    {ok, State}.
+code_change(_OldVersion, ChannelState, _Extra) ->
+    {ok, ChannelState}.
