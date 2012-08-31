@@ -27,7 +27,8 @@ all() -> [
             test_add_process_header,
             test_set_get_components,
             test_attach_channel,
-            test_transmit_start
+            test_transmit_start,
+            test_cast_info_codechange
          ].
 
 
@@ -148,6 +149,14 @@ test_transmit_start(_) ->
     ?assertEqual(nsime_ptp_channel:destroy(ChannelPid), stopped),
     ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid1), stopped),
     ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid2), stopped).
+
+test_cast_info_codechange(_) ->
+    DevicePid = nsime_ptp_netdevice:create(),
+    ?assert(is_pid(DevicePid)),
+    gen_server:cast(DevicePid, junk),
+    DevicePid ! junk,
+    nsime_ptp_netdevice:code_change(junk, junk, junk),
+    ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid), stopped).
 
 create_packet(Id, Size, Data) ->
     #nsime_packet{

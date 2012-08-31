@@ -28,7 +28,8 @@ all() -> [
             test_drop_packet,
             test_dequeue_all_packets,
             test_reset_statistics,
-            test_set_get_device_id
+            test_set_get_device_id,
+            test_cast_info_codechange
          ].
 
 
@@ -286,8 +287,6 @@ test_reset_statistics(_) ->
     ?assertEqual(nsime_drop_tail_queue:destroy(QueuePid), stopped),
     ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid), stopped).
 
-
-
 test_set_get_device_id(_) ->
     QueuePid = nsime_drop_tail_queue:create(),
     ?assert(is_pid(QueuePid)),
@@ -297,7 +296,16 @@ test_set_get_device_id(_) ->
     QueueStats = nsime_drop_tail_queue:get_statistics(QueuePid),
     ?assertEqual(QueueStats#nsime_dtq_state.device_id, DevicePid),
     ?assertEqual(nsime_drop_tail_queue:get_device_id(QueuePid), DevicePid),
-    nsime_ptp_netdevice:destroy(DevicePid).
+    ?assertEqual(nsime_drop_tail_queue:destroy(QueuePid), stopped),
+    ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid), stopped).
+
+test_cast_info_codechange(_) ->
+    QueuePid = nsime_drop_tail_queue:create(),
+    ?assert(is_pid(QueuePid)),
+    gen_server:cast(QueuePid, junk),
+    QueuePid ! junk,
+    nsime_drop_tail_queue:code_change(junk, junk, junk),
+    ?assertEqual(nsime_drop_tail_queue:destroy(QueuePid), stopped).
 
 create_packet(Size) ->
     #nsime_packet{

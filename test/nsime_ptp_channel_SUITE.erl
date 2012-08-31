@@ -22,7 +22,8 @@
 
 all() -> [
           {group, testgroup_all_except_transmit},
-          test_transmit
+          test_transmit,
+          test_cast_info_codechange
          ].
 
 groups() ->
@@ -148,6 +149,14 @@ test_transmit(_) ->
     ?assertEqual(nsime_ptp_channel:destroy(ChannelPid), stopped),
     ?assertEqual(nsime_ptp_netdevice:destroy(Device1), stopped),
     ?assertEqual(nsime_ptp_netdevice:destroy(Device2), stopped).
+
+test_cast_info_codechange(_) ->
+    ChannelPid = nsime_ptp_channel:create(),
+    ?assert(is_pid(ChannelPid)),
+    gen_server:cast(ChannelPid, junk),
+    ChannelPid ! junk,
+    nsime_ptp_channel:code_change(junk, junk, junk),
+    ?assertEqual(nsime_ptp_channel:destroy(ChannelPid), stopped).
 
 create_ptp_channel_state(Delay, Device1, Device2) ->
     #nsime_ptp_channel_state{

@@ -22,7 +22,8 @@
 
 all() -> [
           test_creation_shutdown,
-          {group, testgroup_insertion_deletion}
+          {group, testgroup_insertion_deletion},
+          test_cast_info_codechange
          ].
 
 groups() ->
@@ -161,6 +162,15 @@ insert_remove_events_from_timestamps(Timestamps) ->
     Event = create_nsime_event(5),
     ?assertEqual(nsime_gbtrees_scheduler:remove(Event), none),
     nsime_gbtrees_scheduler:stop().
+
+test_cast_info_codechange(_) ->
+    nsime_gbtrees_scheduler:create(),
+    Pid = erlang:whereis(nsime_gbtrees_scheduler),
+    ?assert(erlang:is_pid(Pid)),
+    gen_server:cast(nsime_gbtrees_scheduler, junk),
+    Pid ! junk,
+    nsime_gbtrees_scheduler:code_change(junk, junk, junk),
+    ?assertEqual(nsime_gbtrees_scheduler:stop(), stopped).
 
 create_nsime_event(Time) ->    
     #nsime_event{

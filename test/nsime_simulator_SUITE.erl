@@ -24,7 +24,8 @@
 all() -> [
             test_start_stop,
             test_schedule_run,
-            test_cancel_event
+            test_cancel_event,
+            test_cast_info_codechange
          ].
 
 
@@ -123,6 +124,16 @@ test_cancel_event(_) ->
     ?assertEqual(nsime_simulator:stop(), stopped),
     ?assertNot(lists:member(nsime_simulator, erlang:registered())),
     ?assertNot(lists:member(nsime_gbtrees_scheduler, erlang:registered())).
+
+test_cast_info_codechange(_) ->
+    nsime_simulator:start(),
+    Pid = erlang:whereis(nsime_simulator),
+    ?assert(erlang:is_pid(Pid)),
+    ?assert(lists:member(nsime_simulator, erlang:registered())),
+    gen_server:cast(nsime_simulator, junk),
+    Pid ! junk,
+    nsime_simulator:code_change(junk, junk, junk),
+    ?assertEqual(nsime_simulator:stop(), stopped).
 
 create_event(Msg, Ref, Time) ->
    #nsime_event{

@@ -30,7 +30,8 @@ groups() ->
           test_creation_shutdown,
           test_creation_multiple_nodes,
           test_add_netdevice,
-          test_add_application
+          test_add_application,
+          test_cast_info_codechange
         ]
     }].
           
@@ -79,7 +80,8 @@ test_add_netdevice(_) ->
     ?assertEqual(nsime_node:add_netdevice(NodePid, nsime_ptp_netdevice), ok),
     ?assertEqual(nsime_node:get_netdevice_count(NodePid), 1),
     [DevicePid] = nsime_node:get_netdevices(NodePid),
-    ?assert(is_pid(DevicePid)).
+    ?assert(is_pid(DevicePid)),
+    ?assertEqual(nsime_node:destroy(NodePid), stopped).
 
 test_add_application(_) ->
     NodePid = nsime_node:create(),
@@ -88,4 +90,13 @@ test_add_application(_) ->
     ?assertEqual(nsime_node:add_application(NodePid, nsime_ptp_netdevice), ok),
     ?assertEqual(nsime_node:get_application_count(NodePid), 1),
     [AppPid] = nsime_node:get_applications(NodePid),
-    ?assert(is_pid(AppPid)).
+    ?assert(is_pid(AppPid)),
+    ?assertEqual(nsime_node:destroy(NodePid), stopped).
+
+test_cast_info_codechange(_) ->
+    NodePid = nsime_node:create(),
+    ?assert(is_pid(NodePid)),
+    gen_server:cast(NodePid, junk),
+    NodePid ! junk,
+    nsime_node:code_change(junk, junk, junk),
+    ?assertEqual(nsime_node:destroy(NodePid), stopped).

@@ -19,7 +19,8 @@
 
 all() -> [
             test_start_stop,
-            test_add_delete
+            test_add_delete,
+            test_cast_info_codechange
          ].
 
 
@@ -57,4 +58,13 @@ test_add_delete(_) ->
     ?assert(gb_sets:is_member(NodePid2, DeviceList1)),
     ?assertEqual(nsime_node:destroy(NodePid1), stopped),
     ?assertEqual(nsime_node:destroy(NodePid2), stopped),
+    ?assertEqual(nsime_node_list:stop(), stopped).
+
+test_cast_info_codechange(_) ->
+    nsime_node_list:start(),
+    Pid = erlang:whereis(nsime_node_list),
+    ?assert(erlang:is_pid(Pid)),
+    gen_server:cast(nsime_node_list, junk),
+    Pid ! junk,
+    nsime_node_list:code_change(junk, junk, junk),
     ?assertEqual(nsime_node_list:stop(), stopped).
