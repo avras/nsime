@@ -7,7 +7,6 @@
                   nsime_node_list,
                   nsime_time,
                   nsime_data_rate,
-                  nsime_scheduler,
                   nsime_gbtrees_scheduler,
                   nsime_ptp_channel,
                   nsime_ptp_netdevice,

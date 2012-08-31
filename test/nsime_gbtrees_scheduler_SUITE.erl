@@ -62,7 +62,7 @@ test_creation_shutdown(_) ->
             _ ->
                 ?assert(erlang:is_pid(Pid)),
                 ?assert(lists:member(nsime_gbtrees_scheduler, erlang:registered())),
-                ?assertEqual(nsime_gbtrees_scheduler:stop(), killed),
+                ?assertEqual(nsime_gbtrees_scheduler:stop(), stopped),
                 ?assertNot(lists:member(nsime_gbtrees_scheduler, erlang:registered()))
         end.
 

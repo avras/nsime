@@ -12,128 +12,106 @@
 -module(nsime_gbtrees_scheduler).
 -author("Saravanan Vijayakumaran").
 
--export([create/0, stop/0, is_empty/0]).
--export([insert/1, remove/1, remove_next/0, get_event_queue/0]).
--export([loop/1]).
-
 -include("nsime_types.hrl").
 -include("nsime_event.hrl").
 
--behaviour(nsime_scheduler).
+-behaviour(gen_server).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+         terminate/2, code_change/3]).
+
+-export([create/0, stop/0, is_empty/0, insert/1, 
+         remove/1, remove_next/0, get_event_queue/0]).
 
 create() ->
-    EventQueue = gb_trees:empty(),
-    register(?MODULE, spawn_link(?MODULE, loop, [EventQueue])).
+    gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
-insert(Event = #nsime_event{}) ->
-    Ref = make_ref(),
-    ?MODULE ! {insert, self(), Event, Ref},
-    receive
-        {ok, Ref} -> ok
-    end.
+insert(Event) ->
+    gen_server:call(?MODULE, {insert, Event}).
 
 is_empty() ->
-    Ref = make_ref(),
-    ?MODULE ! {is_empty, self(), Ref},
-    receive
-      {is_empty, IsEmpty, Ref} ->
-          IsEmpty
-    end.
+    gen_server:call(?MODULE, is_empty).
 
-remove(Event=#nsime_event{}) ->
-    Ref = make_ref(),
-    ?MODULE ! {remove, self(), Event, Ref},
-    receive
-        {ok, Ref} -> 
-            ok;
-        {none, Ref} ->
-            none
-    end.
+remove(Event) ->
+    gen_server:call(?MODULE, {remove, Event}).
 
 remove_next() ->
-    Ref = make_ref(),
-    ?MODULE ! {remove_next, self(), Ref},
-    receive
-        {event, Event, Ref} ->
-            Event;
-        {none, Ref} ->
-            none
-    end.
+    gen_server:call(?MODULE, remove_next).
 
 stop() ->
-    process_flag(trap_exit, true),
-    Pid = whereis(?MODULE),
-    exit(Pid, kill),
-    receive
-        {'EXIT', Pid, Reason} ->
-            Reason
-    end.
+    gen_server:call(?MODULE, terminate).
 
 get_event_queue() ->
-    Ref = make_ref(),
-    ?MODULE ! {get_event_queue, self(), Ref},
-    receive 
-        {event_queue, EventQueue, Ref} -> EventQueue
-    end.
+    gen_server:call(?MODULE, get_event_queue).
 
-loop(EventQueue) ->
-    receive
-        {is_empty, From, Ref} ->
-            From ! {is_empty, gb_trees:is_empty(EventQueue), Ref},
-            loop(EventQueue);
-        {insert, From, Event = #nsime_event{time = Time}, Ref} ->
+init([]) ->
+    EventQueue = gb_trees:empty(),
+    {ok, EventQueue}.
+
+handle_call(is_empty, _From, EventQueue) ->
+    {reply, gb_trees:is_empty(EventQueue), EventQueue};
+
+handle_call({insert, Event}, _From, EventQueue) ->
+    Time = Event#nsime_event.time,
+    case gb_trees:lookup(nsime_time:value(Time), EventQueue) of
+        none -> 
+            NewEventQueue = gb_trees:insert(nsime_time:value(Time), [Event], EventQueue),
+            {reply, ok, NewEventQueue};
+        {value, ExistingEvents} ->
+            NewEventQueue = gb_trees:update(nsime_time:value(Time), [Event | ExistingEvents], EventQueue),
+            {reply, ok, NewEventQueue}
+    end;
+
+handle_call(get_event_queue, _From, EventQueue) ->
+    {reply, EventQueue, EventQueue};
+
+handle_call(remove_next, _From, EventQueue) ->
+    case gb_trees:is_empty(EventQueue) of
+        false ->
+            {Time, [FirstEvent | RemainingEvents], NewEventQueue} = gb_trees:take_smallest(EventQueue),
+            case RemainingEvents of 
+                [] ->
+                    {reply, FirstEvent, NewEventQueue};
+                _ ->
+                    NewerEventQueue = gb_trees:insert(Time, RemainingEvents, NewEventQueue),
+                    {reply, FirstEvent, NewerEventQueue}
+            end;
+        true ->
+            {reply, none, EventQueue}
+    end;
+
+handle_call({remove, Event}, _From, EventQueue) ->
+    Time = Event#nsime_event.time,
+    case gb_trees:is_empty(EventQueue) of
+        false ->
             case gb_trees:lookup(nsime_time:value(Time), EventQueue) of
                 none -> 
-                    NewEventQueue = gb_trees:insert(nsime_time:value(Time), [Event], EventQueue),
-                    From ! {ok, Ref},
-                    loop(NewEventQueue);
+                    {reply, none, EventQueue};
                 {value, ExistingEvents} ->
-                    NewEventQueue = gb_trees:update(nsime_time:value(Time), [Event | ExistingEvents], EventQueue),
-                    From ! {ok, Ref},
-                    loop(NewEventQueue)
-            end;
-        {get_event_queue, From, Ref} ->
-            From ! {event_queue, EventQueue, Ref},
-            loop(EventQueue);
-        {remove_next, From, Ref} -> 
-            case gb_trees:is_empty(EventQueue) of
-                false ->
-                    {Time, [FirstEvent | RemainingEvents], NewEventQueue} = gb_trees:take_smallest(EventQueue),
-                    case RemainingEvents of 
-                        [] ->
-                            From ! {event, FirstEvent, Ref},
-                            loop(NewEventQueue);
+                    NewEvents = lists:delete(Event, ExistingEvents),
+                    case length(NewEvents) of
+                        0 -> 
+                            NewEventQueue = gb_trees:delete(nsime_time:value(Time), EventQueue),
+                            {reply, ok, NewEventQueue};
                         _ ->
-                            NewerEventQueue = gb_trees:insert(Time, RemainingEvents, NewEventQueue),
-                            From ! {event, FirstEvent, Ref},
-                            loop(NewerEventQueue)
-                    end;
-                true ->
-                    From ! {none, Ref},
-                    loop(EventQueue)
+                            NewEventQueue = gb_trees:update(nsime_time:value(Time), NewEvents, EventQueue),
+                            {reply, ok, NewEventQueue}
+                    end
             end;
-        {remove, From, Event = #nsime_event{time = Time}, Ref} -> 
-            case gb_trees:is_empty(EventQueue) of
-                false ->
-                    case gb_trees:lookup(nsime_time:value(Time), EventQueue) of
-                        none -> 
-                            From ! {none, Ref},
-                            loop(EventQueue);
-                        {value, ExistingEvents} ->
-                            NewEvents = lists:delete(Event, ExistingEvents),
-                            case length(NewEvents) of
-                                0 -> 
-                                    NewEventQueue = gb_trees:delete(nsime_time:value(Time), EventQueue),
-                                    From ! {ok, Ref},
-                                    loop(NewEventQueue);
-                                _ ->
-                                    NewEventQueue = gb_trees:update(nsime_time:value(Time), NewEvents, EventQueue),
-                                    From ! {ok, Ref},
-                                    loop(NewEventQueue)
-                            end
-                    end;
-                true ->
-                    From ! {none, Ref},
-                    loop(EventQueue)
-            end
-    end.
+        true ->
+            {reply, none, EventQueue}
+    end;
+
+handle_call(terminate, _From, EventQueue) ->
+    {stop, normal, stopped, EventQueue}.
+
+handle_cast(_Request, EventQueue) ->
+    {noreply, EventQueue}.
+
+handle_info(_Request, EventQueue) ->
+    {noreply, EventQueue}.
+
+terminate(_Reason, _EventQueue) ->
+    ok.
+
+code_change(_OldVersion, EventQueue, _Extra) ->
+    {ok, EventQueue}.
