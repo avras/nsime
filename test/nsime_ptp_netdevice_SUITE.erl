@@ -48,12 +48,12 @@ test_creation_shutdown(_) ->
     ?assertNot(nsime_ptp_netdevice:is_link_up(DevicePid)),
     ?assertEqual(nsime_ptp_netdevice:get_mtu(DevicePid), 1500),
     ?assertEqual(nsime_ptp_netdevice:get_device_index(DevicePid), undefined),
-    ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid), killed),
+    ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid), stopped),
 
     DeviceState = #nsime_ptp_netdevice_state{},
     DevicePid1 = nsime_ptp_netdevice:create(DeviceState),
     ?assert(is_pid(DevicePid1)),
-    ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid1), killed).
+    ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid1), stopped).
 
 test_ppp_ether(_) ->
     ?assertEqual(nsime_ptp_netdevice:ppp_to_ether(16#0021), 16#0800),
@@ -146,8 +146,8 @@ test_transmit_start(_) ->
 
     ?assertEqual(nsime_simulator:stop(), stopped),
     ?assertEqual(nsime_ptp_channel:destroy(ChannelPid), stopped),
-    ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid1), killed),
-    ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid2), killed).
+    ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid1), stopped),
+    ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid2), stopped).
 
 create_packet(Id, Size, Data) ->
     #nsime_packet{

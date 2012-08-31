@@ -284,7 +284,7 @@ test_reset_statistics(_) ->
     ?assertEqual(nsime_drop_tail_queue:dequeue_packet(QueuePid), Packet2),
 
     ?assertEqual(nsime_drop_tail_queue:destroy(QueuePid), stopped),
-    ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid), killed).
+    ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid), stopped).
 
 
 

@@ -17,39 +17,35 @@
 -include("nsime_packet.hrl").
 -include("nsime_ptp_netdevice_state.hrl").
 
--export([create/0, create/1, destroy/1]).
--export([add_ppp_header/2, process_ppp_header/1, ppp_to_ether/1, ether_to_ppp/1]).
--export([set_node/2, get_node/1]).
--export([set_address/2, get_address/1]).
--export([set_data_rate/2, set_interframe_gap/2]).
--export([get_channel/1, set_receive_error_model/2]).
--export([set_queue/2, get_queue/1, set_queue_module/2, get_queue_module/1]).
--export([set_mtu/2, get_mtu/1]).
--export([set_device_index/2, get_device_index/1]).
--export([is_link_up/1, attach_channel/2]).
--export([transmit_start/2, transmit_complete/1]).
--export([send_packet/3, receive_packet/2]).
--export([loop/1]).
+-behaviour(gen_server).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+         terminate/2, code_change/3]).
 
+-export([create/0, create/1, destroy/1,
+         add_ppp_header/2, process_ppp_header/1,
+         ppp_to_ether/1, ether_to_ppp/1,
+         set_node/2, get_node/1,
+         set_address/2, get_address/1,
+         set_data_rate/2, set_interframe_gap/2,
+         get_channel/1, set_receive_error_model/2,
+         set_queue/2, get_queue/1,
+         set_queue_module/2, get_queue_module/1,
+         set_mtu/2, get_mtu/1,
+         set_device_index/2, get_device_index/1,
+         is_link_up/1, attach_channel/2,
+         transmit_start/2, transmit_complete/1,
+         send_packet/3, receive_packet/2]).
 
 create() ->
-    Queue = nsime_drop_tail_queue:create(),
-    DeviceState = #nsime_ptp_netdevice_state{
-        queue_module = nsime_drop_tail_queue,
-        queue = Queue
-    },
-    spawn(?MODULE, loop, [DeviceState]).
+    {ok, Pid} = gen_server:start(?MODULE, [], []),
+    Pid.
 
 create(DeviceState = #nsime_ptp_netdevice_state{}) ->
-    spawn(?MODULE, loop, [DeviceState]).
+    {ok, Pid} = gen_server:start(?MODULE, DeviceState, []),
+    Pid.
 
 destroy(DevicePid) ->
-    Ref = erlang:monitor(process, DevicePid),
-    exit(DevicePid, kill),
-    receive
-        {'DOWN', Ref, process, DevicePid, Reason} ->
-            Reason
-    end.
+    gen_server:call(DevicePid, terminate).
 
 add_ppp_header(Packet = #nsime_packet{data = Data, size = Size}, EthernetProtocolNumber) ->
     PPPProtocolNumber = ether_to_ppp(EthernetProtocolNumber),
@@ -76,166 +72,64 @@ ether_to_ppp(ProtocolNumber) ->
     end.
 
 set_node(DevicePid, NodePid) ->
-    Ref = make_ref(),
-    DevicePid ! {set_node, self(), NodePid, Ref},
-    receive
-        {ok, Ref} ->
-            ok
-    end.
+    gen_server:call(DevicePid, {set_node, NodePid}).
 
 get_node(DevicePid) ->
-    Ref = make_ref(),
-    DevicePid ! {get_node, self(), Ref},
-    receive
-        {ok, NodePid, Ref} ->
-            NodePid
-    end.
+    gen_server:call(DevicePid, get_node).
 
 set_address(DevicePid, Address) ->
-    Ref = make_ref(),
-    DevicePid ! {set_address, self(), Address, Ref},
-    receive
-        {ok, Ref} ->
-            ok
-    end.
+    gen_server:call(DevicePid, {set_address, Address}).
 
 get_address(DevicePid) ->
-    Ref = make_ref(),
-    DevicePid ! {get_address, self(), Ref},
-    receive
-        {ok, Address, Ref} ->
-            Address
-    end.
+    gen_server:call(DevicePid, get_address).
 
 set_data_rate(DevicePid, DataRate) ->
-    Ref = make_ref(),
-    DevicePid ! {set_data_rate, self(), DataRate, Ref},
-    receive
-        {ok, Ref} ->
-            ok
-    end.
+    gen_server:call(DevicePid, {set_data_rate, DataRate}).
 
 set_interframe_gap(DevicePid, InterframeGap) ->
-    Ref = make_ref(),
-    DevicePid ! {set_interframe_gap, self(), InterframeGap, Ref},
-    receive
-        {ok, Ref} ->
-            ok
-    end.
+    gen_server:call(DevicePid, {set_interframe_gap, InterframeGap}).
 
 get_channel(DevicePid) ->
-    Ref = make_ref(),
-    DevicePid ! {get_channel, self(), Ref},
-    receive
-        {ok, ChannelPid, Ref} ->
-            ChannelPid
-    end.
+    gen_server:call(DevicePid, get_channel).
 
 set_queue(DevicePid, QueuePid) ->
-    Ref = make_ref(),
-    DevicePid ! {set_queue, self(), QueuePid, Ref},
-    receive
-        {ok, Ref} ->
-            ok
-    end.
+    gen_server:call(DevicePid, {set_queue, QueuePid}).
 
 get_queue(DevicePid) ->
-    Ref = make_ref(),
-    DevicePid ! {get_queue, self(), Ref},
-    receive
-        {ok, QueuePid, Ref} ->
-            QueuePid
-    end.
+    gen_server:call(DevicePid, get_queue).
 
 set_queue_module(DevicePid, QueueModule) ->
-    Ref = make_ref(),
-    DevicePid ! {set_queue_module, self(), QueueModule, Ref},
-    receive
-        {ok, Ref} ->
-            ok
-    end.
+    gen_server:call(DevicePid, {set_queue_module, QueueModule}).
 
 get_queue_module(DevicePid) ->
-    Ref = make_ref(),
-    DevicePid ! {get_queue_module, self(), Ref},
-    receive
-        {ok, QueueModule, Ref} ->
-            QueueModule
-    end.
+    gen_server:call(DevicePid, get_queue_module).
 
 set_receive_error_model(DevicePid, ErrorModel) ->
-    Ref = make_ref(),
-    DevicePid ! {set_receive_error_model, self(), ErrorModel, Ref},
-    receive
-        {ok, Ref} ->
-            ok
-    end.
+    gen_server:call(DevicePid, {set_receive_error_model, ErrorModel}).
 
 is_link_up(DevicePid) ->
-    Ref = make_ref(),
-    DevicePid ! {is_link_up, self(), Ref},
-    receive
-        {ok, IsLinkUp, Ref} ->
-            IsLinkUp
-    end.
+    gen_server:call(DevicePid, is_link_up).
 
 set_mtu(DevicePid, MTU) ->
-    Ref = make_ref(),
-    DevicePid ! {set_mtu, self(), MTU, Ref},
-    receive
-        {ok, Ref} ->
-            ok
-    end.
+    gen_server:call(DevicePid, {set_mtu, MTU}).
 
 get_mtu(DevicePid) ->
-    Ref = make_ref(),
-    DevicePid ! {get_mtu, self(), Ref},
-    receive
-        {ok, MTU, Ref} ->
-            MTU
-    end.
+    gen_server:call(DevicePid, get_mtu).
 
 set_device_index(DevicePid, DeviceIndex) ->
-    Ref = make_ref(),
-    DevicePid ! {set_device_index, self(), DeviceIndex, Ref},
-    receive
-        {ok, Ref} ->
-            ok
-    end.
+    gen_server:call(DevicePid, {set_device_index, DeviceIndex}).
 
 get_device_index(DevicePid) ->
-    Ref = make_ref(),
-    DevicePid ! {get_device_index, self(), Ref},
-    receive
-        {ok, DeviceIndex, Ref} ->
-            DeviceIndex
-    end.
+    gen_server:call(DevicePid, get_device_index).
 
 attach_channel(DevicePid, ChannelPid) ->
-    Ref = make_ref(),
-    DevicePid ! {attach_channel, self(), ChannelPid, Ref},
-    receive
-        {none, Ref} ->
-            none;
-        {ok, Ref} ->
-            ok
-    end.
+    gen_server:call(DevicePid, {attach_channel, ChannelPid}).
 
 transmit_start(DevicePid, Packet = #nsime_packet{}) ->
-    Ref = make_ref(),
-    DevicePid ! {transmit_start, self(), Packet, Ref},
-    receive
-        {Result, Ref} ->
-            Result
-    end.
+    gen_server:call(DevicePid, {transmit_start, Packet}).
 
 transmit_complete(DevicePid) ->
-    Ref = make_ref(),
-    DevicePid ! {transmit_complete, self(), Ref},
-    receive
-        {Result, Ref} ->
-            Result
-    end.
+    gen_server:call(DevicePid, transmit_complete).
 
 send_packet(DevicePid, Packet = #nsime_packet{}, ProtocolNumber) ->
     PacketWithHeader = add_ppp_header(Packet, ProtocolNumber),
@@ -244,146 +138,164 @@ send_packet(DevicePid, Packet = #nsime_packet{}, ProtocolNumber) ->
 receive_packet(_DevicePid, _Packet = #nsime_packet{}) ->
     ok.
 
-loop(DeviceState = #nsime_ptp_netdevice_state{}) ->
-    receive
-        {set_node, From, NodePid, Ref} ->
-            NewDeviceState = DeviceState#nsime_ptp_netdevice_state{node = NodePid},
-            From ! {ok, Ref},
-            loop(NewDeviceState);
-        {get_node, From, Ref} ->
-            NodePid = DeviceState#nsime_ptp_netdevice_state.node,
-            From ! {ok, NodePid, Ref},
-            loop(DeviceState);
-        {set_address, From, Address, Ref} ->
-            NewDeviceState = DeviceState#nsime_ptp_netdevice_state{address = Address},
-            From ! {ok, Ref},
-            loop(NewDeviceState);
-        {get_address, From, Ref} ->
-            Address = DeviceState#nsime_ptp_netdevice_state.address,
-            From ! {ok, Address, Ref},
-            loop(DeviceState);
-        {set_queue_module, From, QueueModule, Ref} ->
-            NewDeviceState = DeviceState#nsime_ptp_netdevice_state{queue_module = QueueModule},
-            From ! {ok, Ref},
-            loop(NewDeviceState);
-        {get_queue_module, From, Ref} ->
+init([]) ->
+    Queue = nsime_drop_tail_queue:create(),
+    DeviceState = #nsime_ptp_netdevice_state{
+        queue_module = nsime_drop_tail_queue,
+        queue = Queue
+    },
+    {ok, DeviceState};
+
+init(DeviceState = #nsime_ptp_netdevice_state{}) ->
+    {ok, DeviceState}.
+
+handle_call({set_node, NodePid}, _From, DeviceState) ->
+    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{node = NodePid},
+    {reply, ok, NewDeviceState};
+
+handle_call(get_node, _From, DeviceState) ->
+    NodePid = DeviceState#nsime_ptp_netdevice_state.node,
+    {reply, NodePid, DeviceState};
+
+handle_call({set_address, Address}, _From, DeviceState) ->
+    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{address = Address},
+    {reply, ok, NewDeviceState};
+
+handle_call(get_address, _From, DeviceState) ->
+    Address = DeviceState#nsime_ptp_netdevice_state.address,
+    {reply, Address, DeviceState};
+
+handle_call({set_queue_module, QueueModule}, _From, DeviceState) ->
+    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{queue_module = QueueModule},
+    {reply, ok, NewDeviceState};
+
+handle_call(get_queue_module, _From, DeviceState) ->
+    QueueModule = DeviceState#nsime_ptp_netdevice_state.queue_module,
+    {reply, QueueModule, DeviceState};
+
+handle_call({set_data_rate, DataRate}, _From, DeviceState) ->
+    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{data_rate = DataRate},
+    {reply, ok, NewDeviceState};
+
+handle_call({set_interframe_gap, InterframeGap}, _From, DeviceState) ->
+    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{interframe_gap = InterframeGap},
+    {reply, ok, NewDeviceState};
+
+handle_call(get_channel, _From, DeviceState) ->
+    ChannelPid = DeviceState#nsime_ptp_netdevice_state.channel,
+    {reply, ChannelPid, DeviceState};
+
+handle_call({set_queue, QueuePid}, _From, DeviceState) ->
+    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{queue = QueuePid},
+    {reply, ok, NewDeviceState};
+
+handle_call(get_queue, _From, DeviceState) ->
+    QueuePid = DeviceState#nsime_ptp_netdevice_state.queue,
+    {reply, QueuePid, DeviceState};
+
+handle_call({set_receive_error_model, ErrorModel}, _From, DeviceState) ->
+    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{rx_error_model = ErrorModel},
+    {reply, ok, NewDeviceState};
+
+handle_call(is_link_up, _From, DeviceState) ->
+    IsLinkUp = DeviceState#nsime_ptp_netdevice_state.link_up,
+    {reply, IsLinkUp, DeviceState};
+
+handle_call({set_mtu, MTU}, _From, DeviceState) ->
+    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{mtu = MTU},
+    {reply, ok, NewDeviceState};
+
+handle_call(get_mtu, _From, DeviceState) ->
+    MTU = DeviceState#nsime_ptp_netdevice_state.mtu,
+    {reply, MTU, DeviceState};
+
+handle_call({set_device_index, DeviceIndex}, _From, DeviceState) ->
+    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{device_index = DeviceIndex},
+    {reply, ok, NewDeviceState};
+
+handle_call(get_device_index, _From, DeviceState) ->
+    DeviceIndex = DeviceState#nsime_ptp_netdevice_state.device_index,
+    {reply, DeviceIndex, DeviceState};
+
+handle_call({attach_channel, ChannelPid}, _From, DeviceState) ->
+    case nsime_ptp_channel:attach_netdevice(ChannelPid, self()) of
+        ok ->
+            NewDeviceState = DeviceState#nsime_ptp_netdevice_state{channel = ChannelPid, link_up = true},
+           {reply, ok, NewDeviceState}; 
+        none ->
+           {reply, none, DeviceState}
+    end;
+
+handle_call({transmit_start, Packet}, _From, DeviceState) ->
+    case {DeviceState#nsime_ptp_netdevice_state.tx_state, DeviceState#nsime_ptp_netdevice_state.link_up} of
+        {ready, true} ->
+            Length = Packet#nsime_packet.size,
+            DataRate = DeviceState#nsime_ptp_netdevice_state.data_rate,
+            TxTime = nsime_data_rate:calc_tx_time(DataRate, Length),
+            TxCompleteEvent = #nsime_event{
+                time = TxTime,
+                module = nsime_ptp_netdevice,
+                function = transmit_complete,
+                arguments = [self()],
+                eventid = make_ref()
+            },
+            nsime_simulator:schedule(TxTime, TxCompleteEvent),
+            Channel = DeviceState#nsime_ptp_netdevice_state.channel,
+            nsime_ptp_channel:transmit(Channel, Packet, self(), TxTime),
+            NewDeviceState = DeviceState#nsime_ptp_netdevice_state{
+                tx_state = busy,
+                current_packet = Packet
+            },
+            {reply, true, NewDeviceState};
+        {busy, true} ->
             QueueModule = DeviceState#nsime_ptp_netdevice_state.queue_module,
-            From ! {ok, QueueModule, Ref},
-            loop(DeviceState);
-        {set_data_rate, From, DataRate, Ref} ->
-            NewDeviceState = DeviceState#nsime_ptp_netdevice_state{data_rate = DataRate},
-            From ! {ok, Ref},
-            loop(NewDeviceState);
-        {set_interframe_gap, From, InterframeGap, Ref} ->
-            NewDeviceState = DeviceState#nsime_ptp_netdevice_state{interframe_gap = InterframeGap},
-            From ! {ok, Ref},
-            loop(NewDeviceState);
-        {get_channel, From, Ref} ->
-            ChannelPid = DeviceState#nsime_ptp_netdevice_state.channel,
-            From ! {ok, ChannelPid, Ref},
-            loop(DeviceState);
-        {set_queue, From, QueuePid, Ref} ->
-            NewDeviceState = DeviceState#nsime_ptp_netdevice_state{queue = QueuePid},
-            From ! {ok, Ref},
-            loop(NewDeviceState);
-        {get_queue, From, Ref} ->
             QueuePid = DeviceState#nsime_ptp_netdevice_state.queue,
-            From ! {ok, QueuePid, Ref},
-            loop(DeviceState);
-        {set_receive_error_model, From, ErrorModel, Ref} ->
-            NewDeviceState = DeviceState#nsime_ptp_netdevice_state{rx_error_model = ErrorModel},
-            From ! {ok, Ref},
-            loop(NewDeviceState);
-        {is_link_up, From, Ref} ->
-            IsLinkUp = DeviceState#nsime_ptp_netdevice_state.link_up,
-            From ! {ok, IsLinkUp, Ref},
-            loop(DeviceState);
-        {set_mtu, From, MTU, Ref} ->
-            NewDeviceState = DeviceState#nsime_ptp_netdevice_state{mtu = MTU},
-            From ! {ok, Ref},
-            loop(NewDeviceState);
-        {get_mtu, From, Ref} ->
-            MTU = DeviceState#nsime_ptp_netdevice_state.mtu,
-            From ! {ok, MTU, Ref},
-            loop(DeviceState);
-        {set_device_index, From, DeviceIndex, Ref} ->
-            NewDeviceState = DeviceState#nsime_ptp_netdevice_state{device_index = DeviceIndex},
-            From ! {ok, Ref},
-            loop(NewDeviceState);
-        {get_device_index, From, Ref} ->
-            DeviceIndex = DeviceState#nsime_ptp_netdevice_state.device_index,
-            From ! {ok, DeviceIndex, Ref},
-            loop(DeviceState);
-        {attach_channel, From, ChannelPid, Ref} ->
-            case nsime_ptp_channel:attach_netdevice(ChannelPid, self()) of
-                ok ->
-                    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{channel = ChannelPid, link_up = true},
-                    From ! {ok, Ref},
-                    loop(NewDeviceState);
+            QueueModule:enqueue_packet(QueuePid, Packet),
+            {reply, true, DeviceState};
+        {_, false} ->
+            {reply, false, DeviceState}
+    end;
+
+handle_call(transmit_complete, _From, DeviceState) ->
+    case DeviceState#nsime_ptp_netdevice_state.tx_state of
+        busy ->
+            NewDeviceState = DeviceState#nsime_ptp_netdevice_state{
+                tx_state = ready,
+                current_packet = none
+            },
+            QueueModule = DeviceState#nsime_ptp_netdevice_state.queue_module,
+            QueuePid = DeviceState#nsime_ptp_netdevice_state.queue,
+            Packet = QueueModule:dequeue_packet(QueuePid),
+            case Packet of
                 none ->
-                    From ! {none, Ref},
-                    loop(DeviceState)
-            end;
-        {transmit_start, From, Packet, Ref} ->
-            case {DeviceState#nsime_ptp_netdevice_state.tx_state, DeviceState#nsime_ptp_netdevice_state.link_up} of
-                {ready, true} ->
-                    Length = Packet#nsime_packet.size,
-                    DataRate = DeviceState#nsime_ptp_netdevice_state.data_rate,
-                    TxTime = nsime_data_rate:calc_tx_time(DataRate, Length),
-                    TxCompleteEvent = #nsime_event{
-                        time = TxTime,
+                    ok;
+                _ ->
+                    InterframeGap = DeviceState#nsime_ptp_netdevice_state.interframe_gap,
+                    NextTxEvent = #nsime_event{
+                        time = InterframeGap,
                         module = nsime_ptp_netdevice,
-                        function = transmit_complete,
-                        arguments = [self()],
+                        function = transmit_start,
+                        arguments = [self(), Packet],
                         eventid = make_ref()
                     },
-                    nsime_simulator:schedule(TxTime, TxCompleteEvent),
-                    Channel = DeviceState#nsime_ptp_netdevice_state.channel,
-                    nsime_ptp_channel:transmit(Channel, Packet, self(), TxTime),
-                    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{
-                        tx_state = busy,
-                        current_packet = Packet
-                    },
-                    From ! {true, Ref},
-                    loop(NewDeviceState);
-                {busy, true} ->
-                    QueueModule = DeviceState#nsime_ptp_netdevice_state.queue_module,
-                    QueuePid = DeviceState#nsime_ptp_netdevice_state.queue,
-                    QueueModule:enqueue_packet(QueuePid, Packet),
-                    From ! {true, Ref},
-                    loop(DeviceState);
-                {_, false} ->
-                    From ! {false, Ref},
-                    loop(DeviceState)
-            end;
-        {transmit_complete, From, Ref} ->
-            case DeviceState#nsime_ptp_netdevice_state.tx_state of
-                busy ->
-                    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{
-                        tx_state = ready,
-                        current_packet = none
-                    },
-                    QueueModule = DeviceState#nsime_ptp_netdevice_state.queue_module,
-                    QueuePid = DeviceState#nsime_ptp_netdevice_state.queue,
-                    Packet = QueueModule:dequeue_packet(QueuePid),
-                    case Packet of
-                        none ->
-                            ok;
-                        _ ->
-                            InterframeGap = DeviceState#nsime_ptp_netdevice_state.interframe_gap,
-                            NextTxEvent = #nsime_event{
-                                time = InterframeGap,
-                                module = nsime_ptp_netdevice,
-                                function = transmit_start,
-                                arguments = [self(), Packet],
-                                eventid = make_ref()
-                            },
-                            nsime_simulator:schedule(InterframeGap, NextTxEvent)
-                    end,
-                    From ! {true, Ref},
-                    loop(NewDeviceState);
-                ready ->
-                    From ! {false, Ref},
-                    loop(DeviceState)
-            end
-    end.
+                    nsime_simulator:schedule(InterframeGap, NextTxEvent)
+            end,
+            {reply, true, NewDeviceState};
+        ready ->
+            {reply, false, DeviceState}
+    end;
+
+handle_call(terminate, _From, DeviceState) ->
+    {stop, normal, stopped, DeviceState}.
+
+handle_cast(_Request, DeviceState) ->
+    {noreply, DeviceState}.
+
+handle_info(_Request, DeviceState) ->
+    {noreply, DeviceState}.
+
+terminate(_Reason, _State) ->
+    ok.
+
+code_change(_OldVersion, DeviceState, _Extra) ->
+    {ok, DeviceState}.

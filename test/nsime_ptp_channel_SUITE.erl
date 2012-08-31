@@ -111,8 +111,8 @@ test_attach_netdevice(_) ->
     ?assertEqual(nsime_ptp_channel:attach_netdevice(ChannelPid, Device2), none),
     ?assertEqual(nsime_ptp_channel:get_netdevice_count(ChannelPid), 2),
     ?assertEqual(nsime_ptp_channel:destroy(ChannelPid), stopped),
-    ?assertEqual(nsime_ptp_netdevice:destroy(Device1), killed),
-    ?assertEqual(nsime_ptp_netdevice:destroy(Device2), killed).
+    ?assertEqual(nsime_ptp_netdevice:destroy(Device1), stopped),
+    ?assertEqual(nsime_ptp_netdevice:destroy(Device2), stopped).
 
 test_transmit(_) ->
     Delay = {4, sec},
@@ -146,8 +146,8 @@ test_transmit(_) ->
     ?assertEqual(nsime_simulator:run(), simulation_complete),
     ?assertEqual(nsime_simulator:stop(), stopped),
     ?assertEqual(nsime_ptp_channel:destroy(ChannelPid), stopped),
-    ?assertEqual(nsime_ptp_netdevice:destroy(Device1), killed),
-    ?assertEqual(nsime_ptp_netdevice:destroy(Device2), killed).
+    ?assertEqual(nsime_ptp_netdevice:destroy(Device1), stopped),
+    ?assertEqual(nsime_ptp_netdevice:destroy(Device2), stopped).
 
 create_ptp_channel_state(Delay, Device1, Device2) ->
     #nsime_ptp_channel_state{
