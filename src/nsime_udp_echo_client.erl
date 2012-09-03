@@ -25,6 +25,8 @@
          set_node/2, get_node/1, 
          schedule_start/2, set_remote/3,
          set_data_size/2, get_data_size/1,
+         set_max_packets/2, get_max_packets/1,
+         set_inter_packet_gap/2, get_inter_packet_gap/1,
          start/1, stop/1, send/1, handle_read/1]).
 
 create() ->
@@ -41,7 +43,13 @@ set_node(ClientPid, NodePid) ->
     gen_server:call(ClientPid, {set_node, NodePid}).
 
 schedule_start(ClientPid, Time) ->
-    gen_server:call(ClientPid, {schedule_start, Time}).
+    StartEvent = #nsime_event{
+        module = ?MODULE,
+        function = start,
+        arguments = [ClientPid],
+        eventid = make_ref()
+    },
+    nsime_simulator:schedule(Time, StartEvent).
 
 set_remote(ClientPid, Address, Port) when 
     is_list(Address), 
@@ -58,6 +66,18 @@ get_data_size(ClientPid) ->
 
 set_data_size(ClientPid, DataSize) ->
     gen_server:call(ClientPid, {set_data_size, DataSize}).
+
+get_max_packets(ClientPid) ->
+    gen_server:call(ClientPid, get_max_packets).
+
+set_max_packets(ClientPid, MaxPackets) ->
+    gen_server:call(ClientPid, {set_max_packets, MaxPackets}).
+
+get_inter_packet_gap(ClientPid) ->
+    gen_server:call(ClientPid, get_inter_packet_gap).
+
+set_inter_packet_gap(ClientPid, InterPacketGap) ->
+    gen_server:call(ClientPid, {set_inter_packet_gap, InterPacketGap}).
 
 start(ClientPid) ->
     gen_server:call(ClientPid, start).
@@ -92,16 +112,6 @@ handle_call({set_node, NodePid}, _From, ClientState) ->
     NewClientState = ClientState#nsime_udp_echo_client_state{node = NodePid},
     {reply, ok, NewClientState};
 
-handle_call({schedule_start, Time}, _From, ClientState) ->
-    StartEvent = #nsime_event{
-        module = ?MODULE,
-        function = start,
-        arguments = [self()],
-        eventid = make_ref()
-    },
-    nsime_simulator:schedule(Time, StartEvent),
-    {reply, ok, ClientState};
-
 handle_call({set_remote, Address, Port}, _From, ClientState) ->
     case inet_parse:address(Address) of
         {ok, AddressTuple} ->
@@ -120,6 +130,22 @@ handle_call(get_data_size, _From, ClientState) ->
 
 handle_call({set_data_size, DataSize}, _From, ClientState) ->
     NewClientState = ClientState#nsime_udp_echo_client_state{data_size = DataSize},
+    {reply, ok, NewClientState};
+
+handle_call(get_max_packets, _From, ClientState) ->
+    MaxPackets = ClientState#nsime_udp_echo_client_state.max_packets,
+    {reply, MaxPackets, ClientState};
+
+handle_call({set_max_packets, MaxPackets}, _From, ClientState) ->
+    NewClientState = ClientState#nsime_udp_echo_client_state{max_packets = MaxPackets},
+    {reply, ok, NewClientState};
+
+handle_call(get_inter_packet_gap, _From, ClientState) ->
+    InterPacketGap = ClientState#nsime_udp_echo_client_state.inter_packet_gap,
+    {reply, InterPacketGap, ClientState};
+
+handle_call({set_inter_packet_gap, InterPacketGap}, _From, ClientState) ->
+    NewClientState = ClientState#nsime_udp_echo_client_state{inter_packet_gap = InterPacketGap},
     {reply, ok, NewClientState};
 
 handle_call(start, _From, ClientState) ->
