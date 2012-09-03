@@ -11,8 +11,9 @@
 
 -record(nsime_udp_echo_server_state,
         {
+          node                        :: pid(),
           socket                      :: pid(),
           listen_port                 :: inet:port_number(),
-          transmit_callback           :: fun(),
-          receive_callback            :: fun()
+          transmit_trace_callback     :: fun(),
+          receive_trace_callback      :: fun()
         }).

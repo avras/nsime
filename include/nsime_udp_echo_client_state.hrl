@@ -11,14 +11,16 @@
 
 -record(nsime_udp_echo_client_state,
         {
+          node                        :: pid(),
           socket                      :: pid(),
           peer_address                :: inet:ip_address(),
           peer_port                   :: inet:port_number(),
-          data_size                   :: integer(),
-          data                        :: binary(),
+          data_size = 0               :: integer(),
+          data = undefined            :: binary(),
           num_sent_packets = 0        :: integer(),
           max_packets = infinity      :: integer(),
-          send_event                  :: nsime_event(),
-          transmit_callback           :: fun(),
-          receive_callback            :: fun()
+          inter_packet_gap = {0, sec} :: nsime_time(),
+          send_event                  :: #nsime_event{},
+          transmit_trace_callback     :: fun(),
+          receive_trace_callback      :: fun()
         }).

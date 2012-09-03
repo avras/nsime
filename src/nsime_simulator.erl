@@ -22,7 +22,7 @@
          terminate/2, code_change/3]).
 
 -export([start/0, start/1, run/0, stop/0, schedule/2,
-         cancel/1, current_time/0]).
+         schedule_now/1, cancel/1, current_time/0]).
 
 start() ->
     start(gb_trees).
@@ -67,6 +67,9 @@ schedule(Time, Event = #nsime_event{}) ->
         false ->
             erlang:error(invalid_argument)
     end.
+
+schedule_now(Event = #nsime_event{}) ->
+    schedule({0, sec}, Event).
 
 cancel(Event) ->
     gen_server:call(?MODULE, {cancel, Event}).

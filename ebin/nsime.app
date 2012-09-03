@@ -10,7 +10,8 @@
                   nsime_gbtrees_scheduler,
                   nsime_ptp_channel,
                   nsime_ptp_netdevice,
-                  nsime_drop_tail_queue
+                  nsime_drop_tail_queue,
+                  nsime_udp_echo_client
                 ]
       },
       {registered, [
