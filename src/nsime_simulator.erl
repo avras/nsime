@@ -81,7 +81,7 @@ handle_call({schedule, Time, Event}, _From, State) ->
     Scheduler:insert(NewEvent),
     NumEvents = State#nsime_simulator_state.num_remaining_events,
     NewState = State#nsime_simulator_state{num_remaining_events = NumEvents + 1},
-    {reply, EventTime, NewState};
+    {reply, NewEvent, NewState};
 
 handle_call({cancel, Event}, _From, State) ->
     Scheduler = State#nsime_simulator_state.scheduler,
