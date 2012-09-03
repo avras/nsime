@@ -11,7 +11,7 @@
 
 -record(nsime_udp_echo_server_state,
         {
-          socket                      :: module(),
+          socket                      :: pid(),
           listen_port                 :: inet:port_number(),
           transmit_callback           :: fun(),
           receive_callback            :: fun()

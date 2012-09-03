@@ -11,13 +11,13 @@
 
 -record(nsime_udp_echo_client_state,
         {
-          packet_size                 :: integer(),
-          packet_data                 :: binary(),
-          num_sent_packets            :: integer(),
-          max_packets                 :: integer(),
-          socket                      :: module(),
+          socket                      :: pid(),
           peer_address                :: inet:ip_address(),
           peer_port                   :: inet:port_number(),
+          data_size                   :: integer(),
+          data                        :: binary(),
+          num_sent_packets = 0        :: integer(),
+          max_packets = infinity      :: integer(),
           send_event                  :: nsime_event(),
           transmit_callback           :: fun(),
           receive_callback            :: fun()
