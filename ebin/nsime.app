@@ -11,6 +11,7 @@
                   nsime_ptp_channel,
                   nsime_ptp_netdevice,
                   nsime_drop_tail_queue,
+                  nsime_ip_endpoint,
                   nsime_udp_echo_client,
                   nsime_udp_echo_server
                 ]

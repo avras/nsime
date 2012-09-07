@@ -17,24 +17,17 @@
 %%  along with nsime.  If not, see <http://www.gnu.org/licenses/>.
 %%
 
-%% Purpose : Nsime type definitions
+%% Purpose :IP endpoint state record
 %% Author : Saravanan Vijayakumaran
 
--type nsime_time_unit() :: sec | milli_sec | micro_sec | nano_sec.
-
--type nsime_time() :: {number(), nsime_time_unit()}.
-
--type nsime_data_rate_unit() :: bits_per_sec
-                              | bytes_per_sec
-                              | kilo_bits_per_sec
-                              | kilo_bytes_per_sec
-                              | mega_bits_per_sec
-                              | mega_bytes_per_sec
-                              | giga_bits_per_sec
-                              | giga_bytes_per_sec.
-
--type nsime_data_rate() :: {number(), nsime_data_rate_unit()}.
-
--type nsime_tx_device_state() :: ready | busy.
-
--type nsime_callback() :: {module(), fun(), list()}.
+-record(nsime_ip_endpoint_state,
+        {
+          local_address               :: inet:ip_address(),
+          local_port                  :: inet:port_number(),
+          peer_address                :: inet:ip_address(),
+          peer_port                   :: inet:port_number(),
+          bound_netdevice             :: pid(),
+          receive_callback            :: nsime_callback(),
+          icmp_callback               :: nsime_callback(),
+          destroy_callback            :: nsime_callback()
+        }).
