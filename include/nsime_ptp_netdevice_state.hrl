@@ -22,6 +22,7 @@
 
 -record(nsime_ptp_netdevice_state,
         {
+            device_type = nsime_ptp_netdevice         :: atom(),
             node                                      :: pid(),
             address                                   :: binary(),
             tx_state = ready                          :: nsime_tx_device_state(),
@@ -34,5 +35,5 @@
             link_up = false                           :: boolean(),
             mtu = 1500                                :: pos_integer(),
             current_packet = none                     :: none | #nsime_packet{},
-            device_index                              :: non_neg_integer()
+            interface_index                           :: non_neg_integer()
         }).

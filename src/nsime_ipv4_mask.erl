@@ -27,7 +27,7 @@
          get_zero/0, get_ones/0, to_string/1]).
 
 create(MaskString) ->
-    case inet_parse:ipv4_address(MaskString) ->
+    case inet_parse:ipv4_address(MaskString) of
         {ok, Mask} ->
             Mask;
         {error, einval} ->
@@ -41,8 +41,9 @@ get_prefix_length(Mask) ->
     lists:last(
         lists:takewhile(
             fun(N) ->
-                <<OnesPrefix:N, _Rest:(32-N)>> = AllOnes,
-                <<BinaryMaskPrefix:N, _Rest:(32-N)>> = BinaryMask,
+                RestSize = 32-N,
+                <<OnesPrefix:N, _Rest:RestSize>> = AllOnes,
+                <<BinaryMaskPrefix:N, _Rest:RestSize>> = BinaryMask,
                 OnesPrefix == BinaryMaskPrefix
             end,
             Lengths

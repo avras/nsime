@@ -59,7 +59,7 @@ test_creation_shutdown(_) ->
     ?assert(is_pid(nsime_ptp_netdevice:get_queue(DevicePid))),
     ?assertNot(nsime_ptp_netdevice:is_link_up(DevicePid)),
     ?assertEqual(nsime_ptp_netdevice:get_mtu(DevicePid), 1500),
-    ?assertEqual(nsime_ptp_netdevice:get_device_index(DevicePid), undefined),
+    ?assertEqual(nsime_ptp_netdevice:get_interface_index(DevicePid), undefined),
     ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid), stopped),
 
     DeviceState = #nsime_ptp_netdevice_state{},
@@ -112,8 +112,8 @@ test_set_get_components(_) ->
     ?assertEqual(nsime_ptp_netdevice:set_mtu(DevicePid, MTU), ok),
     ?assertEqual(nsime_ptp_netdevice:get_mtu(DevicePid), MTU),
     DeviceIndex = 10,
-    ?assertEqual(nsime_ptp_netdevice:set_device_index(DevicePid, DeviceIndex), ok),
-    ?assertEqual(nsime_ptp_netdevice:get_device_index(DevicePid), DeviceIndex).
+    ?assertEqual(nsime_ptp_netdevice:set_interface_index(DevicePid, DeviceIndex), ok),
+    ?assertEqual(nsime_ptp_netdevice:get_interface_index(DevicePid), DeviceIndex).
 
 test_attach_channel(_) ->
     ChannelPid = nsime_ptp_channel:create(),

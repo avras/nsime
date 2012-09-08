@@ -32,7 +32,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([create/0, create/1, destroy/1,
+-export([create/0, create/1, destroy/1, get_device_type/1,
          add_ppp_header/2, process_ppp_header/1,
          ppp_to_ether/1, ether_to_ppp/1,
          set_node/2, get_node/1,
@@ -41,9 +41,12 @@
          get_channel/1, set_receive_error_model/2,
          set_queue/2, get_queue/1,
          set_queue_module/2, get_queue_module/1,
-         set_mtu/2, get_mtu/1,
-         set_device_index/2, get_device_index/1,
-         is_link_up/1, attach_channel/2,
+         set_mtu/2, get_mtu/1, attach_channel/2,
+         set_interface_index/2, get_interface_index/1,
+         is_link_up/1, is_bridge/1, is_ptp/1,
+         is_broadcast/1, get_broadcast_address/1,
+         is_multicast/1, get_multicast_address/2,
+         needs_arp/1, supports_send_from/1,
          transmit_start/2, transmit_complete/1,
          send_packet/3, receive_packet/2]).
 
@@ -57,6 +60,9 @@ create(DeviceState = #nsime_ptp_netdevice_state{}) ->
 
 destroy(DevicePid) ->
     gen_server:call(DevicePid, terminate).
+
+get_device_type(DevicePid) ->
+    gen_server:call(DevicePid, get_device_type).
 
 add_ppp_header(Packet = #nsime_packet{data = Data, size = Size}, EthernetProtocolNumber) ->
     PPPProtocolNumber = ether_to_ppp(EthernetProtocolNumber),
@@ -103,6 +109,9 @@ set_interframe_gap(DevicePid, InterframeGap) ->
 get_channel(DevicePid) ->
     gen_server:call(DevicePid, get_channel).
 
+set_receive_error_model(DevicePid, ErrorModel) ->
+    gen_server:call(DevicePid, {set_receive_error_model, ErrorModel}).
+
 set_queue(DevicePid, QueuePid) ->
     gen_server:call(DevicePid, {set_queue, QueuePid}).
 
@@ -115,26 +124,47 @@ set_queue_module(DevicePid, QueueModule) ->
 get_queue_module(DevicePid) ->
     gen_server:call(DevicePid, get_queue_module).
 
-set_receive_error_model(DevicePid, ErrorModel) ->
-    gen_server:call(DevicePid, {set_receive_error_model, ErrorModel}).
-
-is_link_up(DevicePid) ->
-    gen_server:call(DevicePid, is_link_up).
-
 set_mtu(DevicePid, MTU) ->
     gen_server:call(DevicePid, {set_mtu, MTU}).
 
 get_mtu(DevicePid) ->
     gen_server:call(DevicePid, get_mtu).
 
-set_device_index(DevicePid, DeviceIndex) ->
-    gen_server:call(DevicePid, {set_device_index, DeviceIndex}).
-
-get_device_index(DevicePid) ->
-    gen_server:call(DevicePid, get_device_index).
-
 attach_channel(DevicePid, ChannelPid) ->
     gen_server:call(DevicePid, {attach_channel, ChannelPid}).
+
+set_interface_index(DevicePid, DeviceIndex) ->
+    gen_server:call(DevicePid, {set_interface_index, DeviceIndex}).
+
+get_interface_index(DevicePid) ->
+    gen_server:call(DevicePid, get_interface_index).
+
+is_link_up(DevicePid) ->
+    gen_server:call(DevicePid, is_link_up).
+
+is_bridge(DevicePid) ->
+    gen_server:call(DevicePid, is_bridge).
+
+is_ptp(DevicePid) ->
+    gen_server:call(DevicePid, is_ptp).
+
+is_broadcast(DevicePid) ->
+    gen_server:call(DevicePid, is_broadcast).
+
+get_broadcast_address(DevicePid) ->
+    gen_server:call(DevicePid, get_broadcast_address).
+
+is_multicast(DevicePid) ->
+    gen_server:call(DevicePid, is_multicast).
+
+get_multicast_address(DevicePid, MulticastGroupAddress) ->
+    gen_server:call(DevicePid, {get_multicast_address, MulticastGroupAddress}).
+
+needs_arp(DevicePid) ->
+    gen_server:call(DevicePid, needs_arp).
+
+supports_send_from(DevicePid) ->
+    gen_server:call(DevicePid, supports_send_from).
 
 transmit_start(DevicePid, Packet = #nsime_packet{}) ->
     gen_server:call(DevicePid, {transmit_start, Packet}).
@@ -160,6 +190,10 @@ init([]) ->
 init(DeviceState = #nsime_ptp_netdevice_state{}) ->
     {ok, DeviceState}.
 
+handle_call(get_device_type, _From, DeviceState) ->
+    DeviceType = DeviceState#nsime_ptp_netdevice_state.device_type,
+    {reply, DeviceType, DeviceState};
+
 handle_call({set_node, NodePid}, _From, DeviceState) ->
     NewDeviceState = DeviceState#nsime_ptp_netdevice_state{node = NodePid},
     {reply, ok, NewDeviceState};
@@ -176,14 +210,6 @@ handle_call(get_address, _From, DeviceState) ->
     Address = DeviceState#nsime_ptp_netdevice_state.address,
     {reply, Address, DeviceState};
 
-handle_call({set_queue_module, QueueModule}, _From, DeviceState) ->
-    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{queue_module = QueueModule},
-    {reply, ok, NewDeviceState};
-
-handle_call(get_queue_module, _From, DeviceState) ->
-    QueueModule = DeviceState#nsime_ptp_netdevice_state.queue_module,
-    {reply, QueueModule, DeviceState};
-
 handle_call({set_data_rate, DataRate}, _From, DeviceState) ->
     NewDeviceState = DeviceState#nsime_ptp_netdevice_state{data_rate = DataRate},
     {reply, ok, NewDeviceState};
@@ -196,6 +222,10 @@ handle_call(get_channel, _From, DeviceState) ->
     ChannelPid = DeviceState#nsime_ptp_netdevice_state.channel,
     {reply, ChannelPid, DeviceState};
 
+handle_call({set_receive_error_model, ErrorModel}, _From, DeviceState) ->
+    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{rx_error_model = ErrorModel},
+    {reply, ok, NewDeviceState};
+
 handle_call({set_queue, QueuePid}, _From, DeviceState) ->
     NewDeviceState = DeviceState#nsime_ptp_netdevice_state{queue = QueuePid},
     {reply, ok, NewDeviceState};
@@ -204,13 +234,13 @@ handle_call(get_queue, _From, DeviceState) ->
     QueuePid = DeviceState#nsime_ptp_netdevice_state.queue,
     {reply, QueuePid, DeviceState};
 
-handle_call({set_receive_error_model, ErrorModel}, _From, DeviceState) ->
-    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{rx_error_model = ErrorModel},
+handle_call({set_queue_module, QueueModule}, _From, DeviceState) ->
+    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{queue_module = QueueModule},
     {reply, ok, NewDeviceState};
 
-handle_call(is_link_up, _From, DeviceState) ->
-    IsLinkUp = DeviceState#nsime_ptp_netdevice_state.link_up,
-    {reply, IsLinkUp, DeviceState};
+handle_call(get_queue_module, _From, DeviceState) ->
+    QueueModule = DeviceState#nsime_ptp_netdevice_state.queue_module,
+    {reply, QueueModule, DeviceState};
 
 handle_call({set_mtu, MTU}, _From, DeviceState) ->
     NewDeviceState = DeviceState#nsime_ptp_netdevice_state{mtu = MTU},
@@ -220,14 +250,6 @@ handle_call(get_mtu, _From, DeviceState) ->
     MTU = DeviceState#nsime_ptp_netdevice_state.mtu,
     {reply, MTU, DeviceState};
 
-handle_call({set_device_index, DeviceIndex}, _From, DeviceState) ->
-    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{device_index = DeviceIndex},
-    {reply, ok, NewDeviceState};
-
-handle_call(get_device_index, _From, DeviceState) ->
-    DeviceIndex = DeviceState#nsime_ptp_netdevice_state.device_index,
-    {reply, DeviceIndex, DeviceState};
-
 handle_call({attach_channel, ChannelPid}, _From, DeviceState) ->
     case nsime_ptp_channel:attach_netdevice(ChannelPid, self()) of
         ok ->
@@ -236,6 +258,47 @@ handle_call({attach_channel, ChannelPid}, _From, DeviceState) ->
         none ->
            {reply, none, DeviceState}
     end;
+
+handle_call({set_interface_index, DeviceIndex}, _From, DeviceState) ->
+    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{interface_index = DeviceIndex},
+    {reply, ok, NewDeviceState};
+
+handle_call(get_interface_index, _From, DeviceState) ->
+    DeviceIndex = DeviceState#nsime_ptp_netdevice_state.interface_index,
+    {reply, DeviceIndex, DeviceState};
+
+handle_call(is_link_up, _From, DeviceState) ->
+    IsLinkUp = DeviceState#nsime_ptp_netdevice_state.link_up,
+    {reply, IsLinkUp, DeviceState};
+
+handle_call(is_bridge, _From, DeviceState) ->
+    {reply, false, DeviceState};
+
+handle_call(is_ptp, _From, DeviceState) ->
+    {reply, true, DeviceState};
+
+handle_call(is_broadcast, _From, DeviceState) ->
+    {reply, true, DeviceState};
+
+handle_call(get_broadcast_address, _From, DeviceState) ->
+    {reply, <<16#FF, 16#FF, 16#FF, 16#FF, 16#FF, 16#FF>>, DeviceState};
+
+handle_call(is_multicast, _From, DeviceState) ->
+    {reply, true, DeviceState};
+
+handle_call({get_multicast_address, GroupAddress}, _From, DeviceState) ->
+    case size(GroupAddress) of
+        4 ->
+            {reply, <<16#01, 16#00, 16#5E, 16#00, 16#00, 16#00>>, DeviceState};
+        6 ->
+            {reply, <<16#33, 16#33, 16#33, 16#00, 16#00, 16#00>>, DeviceState}
+    end;
+
+handle_call(needs_arp, _From, DeviceState) ->
+    {reply, false, DeviceState};
+
+handle_call(supports_send_from, _From, DeviceState) ->
+    {reply, false, DeviceState};
 
 handle_call({transmit_start, Packet}, _From, DeviceState) ->
     case {DeviceState#nsime_ptp_netdevice_state.tx_state, DeviceState#nsime_ptp_netdevice_state.link_up} of

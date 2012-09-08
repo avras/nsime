@@ -8,9 +8,13 @@
                   nsime_time,
                   nsime_data_rate,
                   nsime_gbtrees_scheduler,
+                  nsime_netdevice,
                   nsime_ptp_channel,
                   nsime_ptp_netdevice,
                   nsime_drop_tail_queue,
+                  nsime_ipv4_address,
+                  nsime_ipv4_mask,
+                  nsime_ipv4_interface_address,
                   nsime_ip_endpoint,
                   nsime_udp_echo_client,
                   nsime_udp_echo_server

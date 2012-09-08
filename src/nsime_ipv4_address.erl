@@ -25,7 +25,7 @@
 
 -export([serialize/1, deserialize/1, is_broadcast/1, is_multicast/1, 
          is_local_multicast/1, combine_mask/2, get_subnet_directed_broadcast/2,
-         is_subnet_directed_broadcast/2, get_zero/0, get_any/0, get_broadcast/0
+         is_subnet_directed_broadcast/2, get_zero/0, get_any/0, get_broadcast/0,
          get_loopback/0, to_string/1]).
 
 serialize(Address) ->
