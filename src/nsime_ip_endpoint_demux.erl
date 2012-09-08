@@ -50,9 +50,82 @@ get_all_endpoints(DemuxPid) ->
 lookup_port_local(DemuxPid, Port) ->
     gen_server:call(DemuxPid, {lookup_port_local, Port}).
 
+lookup_local(DemuxPid, Address, Port) ->
+    gen_server:call(DemuxPid, {lookup_local, Address, Port}).
+
+lookup(
+    DemuxPid,
+    DestAddress,
+    DestPort,
+    SrcAddress,
+    SrcPort,
+    IncomingInterface
+) ->
+    gen_server:call(DemuxPid, {lookup,
+                               DestAddress,
+                               DestPort,
+                               SrcAddress,
+                               SrcPort,
+                               IncomingInterface
+                              }).
+
 init([]) ->
     DemuxState = #nsime_ip_endpoint_state{},
     {ok, DemuxState}.
+
+handle_call(get_all_endpoints, _From, DemuxState) ->
+    Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
+    {reply, Endpoints, DemuxState};
+
+handle_call({lookup_port_local, Port}, _From, DemuxState) ->
+    Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
+    {
+        reply,
+        lists:any(
+            fun(X) ->
+                nsime_ip_endpoint:get_local_port(X) == Port
+            end,
+            Endpoints
+        ),
+        DemuxState
+    };
+
+handle_call({lookup_local, Address, Port}, _From, DemuxState) ->
+    Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
+    {
+        reply,
+        lists:any(
+            fun(X) ->
+                (nsime_ip_endpoint:get_local_address(X) == Address)
+                and (nsime_ip_endpoint:get_local_port(X) == Port)
+            end,
+            Endpoints
+        ),
+        DemuxState
+    };
+
+handle_call(
+    {lookup, DestAddress, DestPort, SrcAddress, SrcPort, IncomingInterface},
+    _From,
+    DemuxState
+) ->
+    case {size(DestAddress), size(SrcAddress)} of
+        {4, 4} ->
+            Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
+            DestinationDevice = nsime_ip_interface:get_netdevice(IncomingInterface),
+            RelevantEndpoints = lists:filter(
+                fun(X) ->
+                    (nsime_ip_endpoint:get_local_port(X) == DestPort) and
+                    (nsime_ip_endpoint:get_bound_netdevice(X) == DestinationDevice)
+                end,
+                Endpoints
+            ),
+        {6, 6} ->
+            erlang:error(ipv6_not_supported);
+        _ ->
+            erlang:error(invalid_argument)
+    end;
+
 
 handle_call(terminate, _From, DemuxState) ->
     {stop, normal, stopped, DemuxState}.

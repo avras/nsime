@@ -17,14 +17,15 @@
 %%  along with nsime.  If not, see <http://www.gnu.org/licenses/>.
 %%
 
-%% Purpose :IPv4 interface address state record
+%% Purpose :IPv4 interface state record
 %% Author : Saravanan Vijayakumaran
 
--record(nsime_ipv4_interface_address_state,
+-record(nsime_ipv4_interface_state,
         {
-          local_address               :: inet:ip4_address(),
-          broadcast_address           :: inet:ip4_address(),
-          mask                        :: nsime_ipv4_mask(),
-          address_scope = global      :: host | link | global,
-          is_secondary = false        :: boolean()
+          interface_up = false        :: boolean(),
+          forwarding = true           :: boolean(),
+          metric = 1                  :: integer(),
+          node                        :: pid(),
+          device                      :: pid(),
+          arp_cache                   :: pid()
         }).
