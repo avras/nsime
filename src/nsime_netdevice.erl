@@ -31,7 +31,8 @@
          is_broadcast/1, get_broadcast_address/1,
          is_multicast/1, get_multicast_address/2,
          set_node/2, get_node/1,
-         needs_arp/1, supports_send_from/1]).
+         needs_arp/1, supports_send_from/1,
+         send/4]).
 
 get_device_type(DevicePid) ->
     gen_server:call(DevicePid, get_device_type).
@@ -89,3 +90,6 @@ needs_arp(DevicePid) ->
 
 supports_send_from(DevicePid) ->
     gen_server:call(DevicePid, supports_send_from).
+
+send(DevicePid, Packet, Address, ProtocolNumber) ->
+    gen_server:call(DevicePid, {send, Packet, Address, ProtocolNumber}).

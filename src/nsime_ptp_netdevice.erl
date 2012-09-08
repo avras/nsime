@@ -48,7 +48,7 @@
          is_multicast/1, get_multicast_address/2,
          needs_arp/1, supports_send_from/1,
          transmit_start/2, transmit_complete/1,
-         send_packet/3, receive_packet/2]).
+         send/4, receive_packet/2]).
 
 create() ->
     {ok, Pid} = gen_server:start(?MODULE, [], []),
@@ -172,9 +172,8 @@ transmit_start(DevicePid, Packet = #nsime_packet{}) ->
 transmit_complete(DevicePid) ->
     gen_server:call(DevicePid, transmit_complete).
 
-send_packet(DevicePid, Packet = #nsime_packet{}, ProtocolNumber) ->
-    PacketWithHeader = add_ppp_header(Packet, ProtocolNumber),
-    transmit_start(DevicePid, PacketWithHeader).
+send(DevicePid, Packet = #nsime_packet{}, Address, ProtocolNumber) ->
+    gen_server:call(DevicePid, {send, Packet, Address, ProtocolNumber}).
 
 receive_packet(_DevicePid, _Packet = #nsime_packet{}) ->
     ok.
@@ -301,6 +300,37 @@ handle_call(supports_send_from, _From, DeviceState) ->
     {reply, false, DeviceState};
 
 handle_call({transmit_start, Packet}, _From, DeviceState) ->
+    case {DeviceState#nsime_ptp_netdevice_state.tx_state, DeviceState#nsime_ptp_netdevice_state.link_up} of
+        {ready, true} ->
+            Length = Packet#nsime_packet.size,
+            DataRate = DeviceState#nsime_ptp_netdevice_state.data_rate,
+            TxTime = nsime_data_rate:calc_tx_time(DataRate, Length),
+            TxCompleteEvent = #nsime_event{
+                time = TxTime,
+                module = nsime_ptp_netdevice,
+                function = transmit_complete,
+                arguments = [self()],
+                eventid = make_ref()
+            },
+            nsime_simulator:schedule(TxTime, TxCompleteEvent),
+            Channel = DeviceState#nsime_ptp_netdevice_state.channel,
+            nsime_ptp_channel:transmit(Channel, Packet, self(), TxTime),
+            NewDeviceState = DeviceState#nsime_ptp_netdevice_state{
+                tx_state = busy,
+                current_packet = Packet
+            },
+            {reply, true, NewDeviceState};
+        {busy, true} ->
+            QueueModule = DeviceState#nsime_ptp_netdevice_state.queue_module,
+            QueuePid = DeviceState#nsime_ptp_netdevice_state.queue,
+            QueueModule:enqueue_packet(QueuePid, Packet),
+            {reply, true, DeviceState};
+        {_, false} ->
+            {reply, false, DeviceState}
+    end;
+
+handle_call({send, PacketWithoutHeader, _Address, ProtocolNumber}, _From, DeviceState) ->
+    Packet = add_ppp_header(PacketWithoutHeader, ProtocolNumber),
     case {DeviceState#nsime_ptp_netdevice_state.tx_state, DeviceState#nsime_ptp_netdevice_state.link_up} of
         {ready, true} ->
             Length = Packet#nsime_packet.size,
