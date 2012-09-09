@@ -29,7 +29,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([create/0, set_node/2, 
+-export([create/0, set_node/2, destroy/1,
          set_device/2, get_device/1,
          set_arp_cache/2, get_arp_cache/1,
          set_metric/2, get_metric/1,
@@ -174,102 +174,102 @@ handle_call({set_forwarding, Forwarding}, _From, InterfaceState) ->
     {reply, ok, NewInterfaceState};
 
 handle_call({send, Packet, DestAddress}, _From, InterfaceState) ->
-    if InterfaceState#nsime_ipv4_interface_state.interface_up == false ->
-        {reply, interface_down, InterfaceState}
-    end,
-    Device = InterfaceState#nsime_ipv4_interface_state.device,
-    Node = InterfaceState#nsime_ipv4_interface_state.node,
-
-    if nsime_netdevice:get_device_type(Device) == nsime_loopback_netdevice ->
-        nsime_netdevice:send(
-            Packet,
-            nsime_netdevice:get_broadcast_address(Device),
-            nsime_ipv4_protocol:protocol_number()
-        ),
-        {reply, ok, InterfaceState}
-    end,
-
-    AddressList = InterfaceState#nsime_ipv4_interface_state.address_list,
-    [MatchingAddress|_] = lists:filter(
-        fun(A) ->
-            nsime_ipv4_interface_address:get_local_address(A) == DestAddress
-        end,
-        AddressList
-    ),
-    if not(is_pid(MatchingAddress)) ->
-        IPv4Protocol = nsime_node:get_pid(nsime_ipv4_protocol)
-        nsime_ipv4_protocol:receive(
-            IPv4Protocol,
-            Device,
-            Packet,
-            nsime_ipv4_protocol:protocol_number(),
-            nsime_device:get_broadcast_address(Device),
-            DestAddress,
-            packet_host
-        ),
-        {reply, ok, InterfaceState}
-    end,
-
-    case nsime_netdevice:needs_arp(Device) of
+    case InterfaceState#nsime_ipv4_interface_state.interface_up of
+        false ->
+            {reply, interface_down, InterfaceState};
         true ->
-            ArpCache = InterfaceState#nsime_ipv4_interface_state.arp_cache,
-            case {nsime_ipv4_address:is_broadcast(DestAddress),
-                  nsime_ipv4_address:is_multicast(DestAddress)} of
-                {true, false} ->
-                    HardwareAddress = nsime_netdevice:get_broadcast_address(Device),
-                    Found = true;
-                {false, true} ->
-                    HardwareAddress = nsime_netdevice:get_multicast_address(Device),
-                    Found = true;
-                {false, false} ->
-                    case lists:any(
+            Device = InterfaceState#nsime_ipv4_interface_state.device,
+
+            case (nsime_netdevice:get_device_type(Device) == nsime_loopback_netdevice) of
+                true ->
+                    nsime_netdevice:send(
+                        Packet,
+                        nsime_netdevice:get_broadcast_address(Device),
+                        nsime_ipv4_protocol:protocol_number()
+                    ),
+                    {reply, ok, InterfaceState};
+                false ->
+                    AddressList = InterfaceState#nsime_ipv4_interface_state.address_list,
+                    [MatchingAddress|_] = lists:filter(
                         fun(A) ->
-                            Mask = nsime_ipv4_interface_address:get_mask(A),
-                            nsime_ipv4_address:is_subnet_directed_broadcast(
-                                DestAddress,
-                                Mask
-                            )
+                            nsime_ipv4_interface_address:get_local_address(A) == DestAddress
                         end,
                         AddressList
-                    ) of
+                    ),
+                    case is_pid(MatchingAddress) of
                         false ->
-                            case nsime_arp_protocol:lookup(
-                                Packet,
-                                DestAddress,
+                            IPv4Protocol = nsime_node:get_pid(nsime_ipv4_protocol),
+                            nsime_ipv4_protocol:receive_packet(
+                                IPv4Protocol,
                                 Device,
-                                ArpCache
-                            ) of
-                                {true, HardwareAddress} ->
-                                    Found = true;
-                                false ->
-                                    Found = false
-                            end;
+                                Packet,
+                                nsime_ipv4_protocol:protocol_number(),
+                                nsime_device:get_broadcast_address(Device),
+                                DestAddress,
+                                packet_host
+                            ),
+                            {reply, ok, InterfaceState};
                         true ->
-                            HardwareAddress
-                                = nsime_netdevice:get_broadcast_address(Device),
-                            Found = true
+                            case nsime_netdevice:needs_arp(Device) of
+                                true ->
+                                    ArpCache = InterfaceState#nsime_ipv4_interface_state.arp_cache,
+                                    {HardwareAddress, Found} = case {nsime_ipv4_address:is_broadcast(DestAddress),
+                                          nsime_ipv4_address:is_multicast(DestAddress)} of
+                                        {true, false} ->
+                                            {nsime_netdevice:get_broadcast_address(Device), true};
+                                        {false, true} ->
+                                            {nsime_netdevice:get_multicast_address(Device), true};
+                                        {false, false} ->
+                                            case lists:any(
+                                                fun(A) ->
+                                                    Mask = nsime_ipv4_interface_address:get_mask(A),
+                                                    nsime_ipv4_address:is_subnet_directed_broadcast(
+                                                        DestAddress,
+                                                        Mask
+                                                    )
+                                                end,
+                                                AddressList
+                                            ) of
+                                                false ->
+                                                    case nsime_arp_protocol:lookup(
+                                                        Packet,
+                                                        DestAddress,
+                                                        Device,
+                                                        ArpCache
+                                                    ) of
+                                                        {true, Address} ->
+                                                            {Address, true};
+                                                        false ->
+                                                            {undefined, false}
+                                                    end;
+                                                true ->
+                                                    {nsime_netdevice:get_broadcast_address(Device), true}
+                                            end
+                                    end,
+                                    if
+                                        Found ->
+                                            nsime_netdevice:send(
+                                                Device,
+                                                Packet,
+                                                HardwareAddress,
+                                                nsime_ipv4_protocol:protocol_number()
+                                            ),
+                                            {reply, ok, InterfaceState};
+                                        true ->
+                                            {reply, address_unresolved, InterfaceState}
+                                    end;
+                                false ->
+                                    nsime_netdevice:send(
+                                        Device,
+                                        Packet,
+                                        nsime_netdevice:get_broadcast_address(Device),
+                                        nsime_ipv4_protocol:protocol_number()
+                                    ),
+                                    {reply, ok, InterfaceState}
+                            end
                     end
-            end,
-            if
-                Found ->
-                    nsime_netdevice:send(
-                        Device,
-                        Packet,
-                        HardwareAddress,
-                        nsime_ipv4_protocol:protocol_number()
-                    );
-                true ->
-                    {reply, address_unresolved, InterfaceState}
-            end;
-        false ->
-            nsime_netdevice:send(
-                Device,
-                Packet,
-                nsime_netdevice:get_broadcast_address(Device),
-                nsime_ipv4_protocol:protocol_number()
-            ),
-            {reply, ok, InterfaceState}
-    end.
+            end
+    end;
 
 handle_call({add_address, Address}, _From, InterfaceState) ->
     AddressList = InterfaceState#nsime_ipv4_interface_state.address_list,

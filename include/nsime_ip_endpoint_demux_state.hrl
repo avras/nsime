@@ -24,6 +24,6 @@
         {
           ephemeral_port = 49152      :: inet:port_number(),
           first_port = 49152          :: inet:port_number(),
-          last_port = 49152           :: inet:port_number(),
+          last_port = 65535           :: inet:port_number(),
           endpoints = []              :: [pid()]
         }).

@@ -69,6 +69,40 @@ lookup(
                                IncomingInterface
                               }).
 
+simple_lookup(
+    DemuxPid,
+    DestAddress,
+    DestPort,
+    SrcAddress,
+    SrcPort
+) ->
+    gen_server:call(DemuxPid, {simple_lookup,
+                               DestAddress,
+                               DestPort,
+                               SrcAddress,
+                               SrcPort
+                              }).
+
+allocate(DemuxPid) ->
+    gen_server:call(DemuxPid, allocate).
+
+allocate(DemuxPid, AddressOrPort) ->
+    case is_integer(AddressOrPort) of
+        true ->
+            gen_server:call(DemuxPid, {allocate, nsime_ipv4_address:get_any(), AddressOrPort});
+        false ->
+            gen_server:call(DemuxPid, {allocate, AddressOrPort})
+    end.
+
+allocate(DemuxPid, Address, Port) ->
+    gen_server:call(DemuxPid, {allocate, Address, Port}).
+
+allocate(DemuxPid, LocalAddress, LocalPort, PeerAddress, PeerPort) ->
+    gen_server:call(DemuxPid, {allocate, LocalAddress, LocalPort, PeerAddress, PeerPort}).
+
+deallocate(DemuxPid, EndpointPid) ->
+    gen_server:call(DemuxPid, {deallocate, EndpointPid}).
+
 init([]) ->
     DemuxState = #nsime_ip_endpoint_demux_state{},
     {ok, DemuxState}.
@@ -119,7 +153,7 @@ handle_call(
                     (nsime_ip_endpoint:get_bound_netdevice(X) == DestinationDevice)
                 end,
                 Endpoints
-            )
+            ),
             AddressList = nsime_ipv4_interface:get_address_list(IncomingInterface),
             [MatchingInterfaceAddress | _] = lists:filter(
                 fun(A) ->
@@ -133,70 +167,245 @@ handle_call(
                 end,
                 AddressList
             ),
-            case MatchingInterfaceAddress of
+            {SubnetDirected, IncomingInterfaceAddress} = case MatchingInterfaceAddress of
                 [] ->
-                    SubnetDirected = false;
+                    {false, undefined};
                 _ ->
-                    SubnetDirected = true,
-                    IncomingInterfaceAddress =
+                    {
+                        true,
                         nsime_ipv4_interface_address:get_local_address(
                             MatchingInterfaceAddress
                         )
+                    }
             end,
             IsBroadcast =
                 nsime_ipv4_address:is_broadcast(DestAddress) bor SubnetDirected,
             EndpointsListWithProperties = lists:map(
                 fun(E) ->
+                    LocalAddress = nsime_ip_endpoint:get_local_address(E),
                     LocalAddressMatchesWildcard =
+                        (LocalAddress == nsime_ipv4_address:get_any()),
+                    LocalAddressMatchesDestAddress = (LocalAddress == DestAddress),
+                    LocalAddressMatchesExact =
+                        case (IsBroadcast band not(LocalAddressMatchesWildcard)) of
+                            true ->
+                                (nsime_ip_endpoint:get_local_address(E) ==
+                                    IncomingInterfaceAddress);
+                            false ->
+                                LocalAddressMatchesDestAddress
+                        end,
+                    RemotePortMatchesExact =
+                        (nsime_ip_endpoint:get_peer_port(E) == SrcPort),
+                    RemotePortMatchesWildcard =
+                        (nsime_ip_endpoint:get_peer_port(E) == 0),
+                    RemoteAddressMatchesExact =
+                        (nsime_ip_endpoint:get_peer_address(E) == SrcAddress),
+                    RemoteAddressMatchesWildcard =
                         (
-                            nsime_ip_endpoint:get_local_address(E) ==
+                            nsime_ip_endpoint:get_peer_address(E) ==
                             nsime_ipv4_address:get_any()
                         ),
-                    LocalAddressMatchesDestAddress =
-                        (nsime_ip_endpoint:get_local_address(E) == DestAddress),
-                    LocalAddressMatchesExact =
-                    case (IsBroadcast band not(LocalAddressMatchesDestAddress)) of
-                        true ->
-                            nsime_ip_endpoint:get_local_address(E) ==
-                                IncomingInterfaceAddress;
-                        false ->
-                            false
-                    end,
-                    case (LocalAddressMatchesExact bor LocalAddressMatchesWildcard) of
-                        false ->
-                            false;
-                        true ->
-                            RemotePortMatchesExact =
-                                (nsime_ip_endpoint:get_peer_port(E) == SrcPort),
-                            RemotePortMatchesWildcard =
-                                (nsime_ip_endpoint:get_peer_port(E) == 0),
-                            RemoteAddressMatchesExact =
-                                (nsime_ip_endpoint:get_peer_address(E) == SrcAddress),
-                            RemoteAddressMatchesWildcard =
-                                (
-                                    nsime_ip_endpoint:get_peer_address(E) ==
-                                    nsime_ipv4_address:get_any()
-                                ),
-                            case {
-                                RemotePortMatchesExact bor RemotePortMatchesWildcard,
-                                RemoteAddressMatchesExact bor RemoteAddressMatchesWildcard
-                            } of
-                                {true, true} ->
-                                    true;
-                                {_, _} ->
-                                    false
-                            end
-                    end
+                    {
+                        LocalAddressMatchesExact,
+                        LocalAddressMatchesWildcard,
+                        RemotePortMatchesExact,
+                        RemotePortMatchesWildcard,
+                        RemoteAddressMatchesExact,
+                        RemoteAddressMatchesWildcard,
+                        E
+                    }
                 end,
                 RelevantEndpoints
             ),
-            {reply, FinalEndpointsList, DemuxState};
+            FilteredEndpointsListWithProperties = lists:filter(
+                fun({LAME, LAMW, RPME, RPMW, RAME, RAMW, _E}) ->
+                    if
+                        not(LAME bor LAMW) ->
+                            false;
+                        not(RPME bor RPMW) ->
+                            false;
+                        not(RAME bor RAMW) ->
+                            false;
+                        true ->
+                            true
+                    end
+                end,
+                EndpointsListWithProperties
+            ),
+            {FinalList1, FinalList2, FinalList3, FinalList4} = lists:foldl(
+                fun({LAME, LAMW, RPME, RPMW, RAME, RAMW, E}, {L1, L2, L3, L4}) ->
+                    if
+                        LAMW and RPMW and RAMW ->
+                            {[E|L1], L2, L3, L4};
+                        (LAME bor (IsBroadcast band LAMW)) and RPMW and RAMW ->
+                            {L1, [E|L2], L3, L4};
+                        LAMW and RPME and RAME ->
+                            {L1, L2, [E|L3], L4};
+                        LAME and RPME and RAME ->
+                            {L1, L2, L3, [E|L4]};
+                        true ->
+                            {L1, L2, L3, L4}
+                    end
+                end,
+                {[], [], [], []},
+                FilteredEndpointsListWithProperties
+            ),
+            if
+                length(FinalList4) > 0 ->
+                    {reply, FinalList4, DemuxState};
+                length(FinalList3) > 0 ->
+                    {reply, FinalList3, DemuxState};
+                length(FinalList2) > 0 ->
+                    {reply, FinalList2, DemuxState};
+                true ->
+                    {reply, FinalList1, DemuxState}
+            end;
         {6, 6} ->
             erlang:error(ipv6_not_supported);
         _ ->
             erlang:error(invalid_argument)
     end;
 
+handle_call(
+    {simple_lookup, DestAddress, DestPort, SrcAddress, SrcPort},
+    _From,
+    DemuxState
+) ->
+    case {size(DestAddress), size(SrcAddress)} of
+        {4, 4} ->
+            Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
+            EndpointsMatchingPort = lists:filter(
+                fun(E) ->
+                    nsime_ip_endpoint:get_local_port(E) == DestPort
+                end,
+                Endpoints
+            ),
+            ExactMatches = lists:filter(
+                fun(E) ->
+                    (nsime_ip_endpoint:get_local_address(E) == DestAddress) and
+                    (nsime_ip_endpoint:get_peer_port(E) == SrcPort) and
+                    (nsime_ip_endpoint:get_peer_address(E) == SrcAddress)
+                end,
+                EndpointsMatchingPort
+            ),
+            case length(ExactMatches) > 0 of
+                true ->
+                    [E|_] = ExactMatches,
+                    {reply, E, DemuxState};
+                false ->
+                    {E, _} = lists:foldl(
+                        fun(E, {ChosenE, Genericity}) ->
+                            Temp = case {
+                                nsime_ip_endpoint:get_local_address(E),
+                                nsime_ip_endpoint:get_peer_address(E)
+                            } of
+                                {true, true} ->
+                                    2;
+                                {false, true} ->
+                                    1;
+                                {true, false} ->
+                                    1;
+                                {false, false} ->
+                                    0
+                            end,
+                            case Temp < Genericity of
+                                true ->
+                                    {E, Temp};
+                                false ->
+                                    {ChosenE, Genericity}
+                            end
+                        end,
+                        {undefined, 3},
+                        EndpointsMatchingPort
+                    ),
+                    {reply, E, DemuxState}
+            end;
+        {6, 6} ->
+            erlang:error(ipv6_not_supported);
+        _ ->
+            erlang:error(invalid_argument)
+    end;
+
+handle_call(allocate, _From, DemuxState) ->
+    Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
+    case allocate_ephemeral_port(DemuxState) of
+        0 ->
+            erlang:error(ephemeral_port_allocation_failed);
+        Port ->
+            NewEndpoint =
+                nsime_ip_endpoint:create(nsime_ipv4_address:get_any(), Port),
+            NewDemuxState = DemuxState#nsime_ip_endpoint_demux_state{
+                endpoints = [NewEndpoint | Endpoints]
+            },
+            {reply, NewEndpoint, NewDemuxState}
+    end;
+
+handle_call({allocate, Address}, _From, DemuxState) ->
+    Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
+    case allocate_ephemeral_port(DemuxState) of
+        0 ->
+            erlang:error(ephemeral_port_allocation_failed);
+        Port ->
+            NewEndpoint =
+                nsime_ip_endpoint:create(Address, Port),
+            NewDemuxState = DemuxState#nsime_ip_endpoint_demux_state{
+                endpoints = [NewEndpoint | Endpoints]
+            },
+            {reply, NewEndpoint, NewDemuxState}
+    end;
+
+handle_call({allocate, Address, Port}, _From, DemuxState) ->
+    Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
+    case lists:any(
+        fun(X) ->
+            (nsime_ip_endpoint:get_local_address(X) == Address)
+            and (nsime_ip_endpoint:get_local_port(X) == Port)
+        end,
+        Endpoints
+    ) of
+        true ->
+            erlang:error(duplicate_address_port);
+        false ->
+            NewEndpoint = nsime_ip_endpoint:create(Address, Port),
+            NewDemuxState = DemuxState#nsime_ip_endpoint_demux_state{
+                endpoints = [NewEndpoint | Endpoints]
+            },
+            {reply, NewEndpoint, NewDemuxState}
+    end;
+
+handle_call(
+    {allocate, LocalAddress, LocalPort, PeerAddress, PeerPort},
+    _From,
+    DemuxState
+) ->
+    Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
+    case lists:any(
+        fun(E) ->
+            (nsime_ip_endpoint:get_local_port(E) == LocalPort) and
+            (nsime_ip_endpoint:get_local_address(E) == LocalAddress) and
+            (nsime_ip_endpoint:get_peer_port(E) == PeerPort) and
+            (nsime_ip_endpoint:get_peer_address(E) == PeerAddress)
+        end,
+        Endpoints
+    ) of
+        true ->
+            erlang:error(duplicate_address_port);
+        false ->
+            NewEndpoint = nsime_ip_endpoint:create(LocalAddress, LocalPort),
+            nsime_ip_endpoint:set_peer(NewEndpoint, PeerAddress, PeerPort),
+            NewDemuxState = DemuxState#nsime_ip_endpoint_demux_state{
+                endpoints = [NewEndpoint | Endpoints]
+            },
+            {reply, NewEndpoint, NewDemuxState}
+    end;
+
+handle_call({deallocate, EndpointPid}, _From, DemuxState) ->
+    Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
+    NewEndpoints = lists:delete(EndpointPid, Endpoints),
+    NewDemuxState = DemuxState#nsime_ip_endpoint_demux_state{
+        endpoints = NewEndpoints
+    },
+    {reply, ok, NewDemuxState};
 
 handle_call(terminate, _From, DemuxState) ->
     {stop, normal, stopped, DemuxState}.
@@ -212,3 +421,43 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVersion, DemuxState, _Extra) ->
     {ok, DemuxState}.
+
+%% Helper methods %%
+allocate_ephemeral_port(DemuxState) ->
+    FirstPort = DemuxState#nsime_ip_endpoint_demux_state.first_port,
+    LastPort = DemuxState#nsime_ip_endpoint_demux_state.last_port,
+    Count = LastPort - FirstPort,
+    allocate_ephemeral_port(DemuxState, Count).
+
+allocate_ephemeral_port(DemuxState, Count) ->
+    if
+        Count < 1 ->
+            0;
+        true ->
+            EphemeralPort = DemuxState#nsime_ip_endpoint_demux_state.ephemeral_port,
+            FirstPort = DemuxState#nsime_ip_endpoint_demux_state.first_port,
+            LastPort = DemuxState#nsime_ip_endpoint_demux_state.last_port,
+            Port = case ((EphemeralPort+1 < FirstPort) bor (EphemeralPort+1 > LastPort)) of
+                true ->
+                    FirstPort;
+                false ->
+                    EphemeralPort + 1
+            end,
+            Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
+            case lists:any(
+                fun(X) ->
+                    nsime_ip_endpoint:get_local_port(X) == Port
+                end,
+                Endpoints
+            ) of
+                true ->
+                    allocate_ephemeral_port(
+                        DemuxState#nsime_ip_endpoint_demux_state{
+                            ephemeral_port = Port
+                        },
+                        Count-1
+                    );
+                false ->
+                    Port
+            end
+    end.
