@@ -46,3 +46,6 @@
                          | {255, nsime_address_prefix_atom(), 0, 0}
                          | {255, 255, nsime_address_prefix_atom(), 0}
                          | {255, 255, 255, nsime_address_prefix_atom()}.
+
+-type nsime_netdevice_packet_type() :: packet_host | packet_broadcast |
+                                       packet_multicast | packet_otherhost.
