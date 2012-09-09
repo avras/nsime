@@ -25,15 +25,15 @@
 
 -include("nsime_types.hrl").
 -include("nsime_event.hrl").
--include("nsime_ip_endpoint_state.hrl").
+-include("nsime_ip_endpoint_demux_state.hrl").
 
 -behaviour(gen_server).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([create/0, destroy/1, get_all_endpoints/1
+-export([create/0, destroy/1, get_all_endpoints/1,
          lookup_port_local/2, lookup_local/3,
-         lookup/5, simple_lookup/5,
+         lookup/6, simple_lookup/5,
          allocate/1, allocate/2, allocate/3,
          allocate/5, deallocate/2]).
 
@@ -70,7 +70,7 @@ lookup(
                               }).
 
 init([]) ->
-    DemuxState = #nsime_ip_endpoint_state{},
+    DemuxState = #nsime_ip_endpoint_demux_state{},
     {ok, DemuxState}.
 
 handle_call(get_all_endpoints, _From, DemuxState) ->
@@ -119,7 +119,7 @@ handle_call(
                     (nsime_ip_endpoint:get_bound_netdevice(X) == DestinationDevice)
                 end,
                 Endpoints
-            ),
+            );
         {6, 6} ->
             erlang:error(ipv6_not_supported);
         _ ->

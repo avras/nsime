@@ -36,7 +36,8 @@
          is_up/1, is_down/1, set_up/1, set_down/1,
          is_forwarding/1, set_forwarding/2,
          send/3, add_address/2, remove_address/2,
-         get_address/2, get_num_addresses/1]). 
+         get_address/2, get_num_addresses/1,
+         get_address_list/1]).
 
 create() ->
     {ok, Pid} = gen_server:start(?MODULE, [], []),
@@ -98,6 +99,9 @@ get_address(InterfacePid, Index) ->
 
 get_num_addresses(InterfacePid) ->
     gen_server:call(InterfacePid, get_num_addresses).
+
+get_address_list(InterfacePid) ->
+    gen_server:call(InterfacePid, get_address_list).
 
 init([]) ->
     InterfaceState = #nsime_ipv4_interface_state{},
@@ -288,6 +292,10 @@ handle_call({get_address, Index}, _From, InterfaceState) ->
 handle_call(get_num_addresses, _From, InterfaceState) ->
     AddressList = InterfaceState#nsime_ipv4_interface_state.address_list,
     {reply, length(AddressList), InterfaceState};
+
+handle_call(get_address_list, _From, InterfaceState) ->
+    AddressList = InterfaceState#nsime_ipv4_interface_state.address_list,
+    {reply, AddressList, InterfaceState};
 
 handle_call(terminate, _From, InterfaceState) ->
     {stop, normal, stopped, InterfaceState}.
