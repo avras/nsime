@@ -119,7 +119,78 @@ handle_call(
                     (nsime_ip_endpoint:get_bound_netdevice(X) == DestinationDevice)
                 end,
                 Endpoints
-            );
+            )
+            AddressList = nsime_ipv4_interface:get_address_list(IncomingInterface),
+            [MatchingInterfaceAddress | _] = lists:filter(
+                fun(A) ->
+                    Address = nsime_ipv4_interface_address:get_local_address(A),
+                    Mask = nsime_ipv4_interface_address:get_mask(A),
+                    (
+                        nsime_ipv4_address:combine_mask(Address, Mask) ==
+                        nsime_ipv4_address:combine_mask(DestAddress, Mask)
+                    ) and
+                    nsime_ipv4_address:is_subnet_directed_broadcast(DestAddress, Mask)
+                end,
+                AddressList
+            ),
+            case MatchingInterfaceAddress of
+                [] ->
+                    SubnetDirected = false;
+                _ ->
+                    SubnetDirected = true,
+                    IncomingInterfaceAddress =
+                        nsime_ipv4_interface_address:get_local_address(
+                            MatchingInterfaceAddress
+                        )
+            end,
+            IsBroadcast =
+                nsime_ipv4_address:is_broadcast(DestAddress) bor SubnetDirected,
+            EndpointsListWithProperties = lists:map(
+                fun(E) ->
+                    LocalAddressMatchesWildcard =
+                        (
+                            nsime_ip_endpoint:get_local_address(E) ==
+                            nsime_ipv4_address:get_any()
+                        ),
+                    LocalAddressMatchesDestAddress =
+                        (nsime_ip_endpoint:get_local_address(E) == DestAddress),
+                    LocalAddressMatchesExact =
+                    case (IsBroadcast band not(LocalAddressMatchesDestAddress)) of
+                        true ->
+                            nsime_ip_endpoint:get_local_address(E) ==
+                                IncomingInterfaceAddress;
+                        false ->
+                            false
+                    end,
+                    case (LocalAddressMatchesExact bor LocalAddressMatchesWildcard) of
+                        false ->
+                            false;
+                        true ->
+                            RemotePortMatchesExact =
+                                (nsime_ip_endpoint:get_peer_port(E) == SrcPort),
+                            RemotePortMatchesWildcard =
+                                (nsime_ip_endpoint:get_peer_port(E) == 0),
+                            RemoteAddressMatchesExact =
+                                (nsime_ip_endpoint:get_peer_address(E) == SrcAddress),
+                            RemoteAddressMatchesWildcard =
+                                (
+                                    nsime_ip_endpoint:get_peer_address(E) ==
+                                    nsime_ipv4_address:get_any()
+                                ),
+                            case {
+                                RemotePortMatchesExact bor RemotePortMatchesWildcard,
+                                RemoteAddressMatchesExact bor RemoteAddressMatchesWildcard
+                            } of
+                                {true, true} ->
+                                    true;
+                                {_, _} ->
+                                    false
+                            end
+                    end
+                end,
+                RelevantEndpoints
+            ),
+            {reply, FinalEndpointsList, DemuxState};
         {6, 6} ->
             erlang:error(ipv6_not_supported);
         _ ->
