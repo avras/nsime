@@ -37,7 +37,7 @@
           allow_broadcast = false             :: boolean(),
           delivery_queue = queue:new()        :: queue(),
           received_available = 0              :: non_neg_integer(),
-          received_buffer_size = infinity     :: non_neg_integer(),
+          receive_buffer_size = infinity      :: non_neg_integer(),
           ttl = 255                           :: non_neg_integer(),
           multicast_ttl = 255                 :: non_neg_integer(),
           multicast_interface                 :: integer(),

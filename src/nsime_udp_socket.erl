@@ -24,6 +24,7 @@
 -author("Saravanan Vijayakumaran").
 
 -include("nsime_packet.hrl").
+-include("nsime_ipv4_packet_info_tag.hrl").
 -include("nsime_udp_socket_state.hrl").
 
 -behaviour(gen_server).
@@ -100,7 +101,17 @@ recv(SocketPid, MaxSize, Flags) ->
     gen_server:call(SocketPid, {recv, MaxSize, Flags}).
 
 recv_from(SocketPid, MaxSize, Flags) ->
-    gen_server:call(SocketPid, {recv_from, MaxSize, Flags}).
+    case recv(SocketPid, MaxSize, Flags) of
+        none ->
+            none;
+        Packet = #nsime_packet{tags = Tags} ->
+            case proplists:get_value(socket_address_tag, Tags) of
+                undefined ->
+                    none;
+                {Address, Port} ->
+                    {Packet, {Address, Port}}
+            end
+    end.
 
 multicast_join_group(_SocketPid, _InterfaceIndex, _GroupAddress) ->
     ok.
@@ -124,10 +135,7 @@ set_icmp_callback(SocketPid, Callback) ->
     gen_server:call(SocketPid, {set_icmp_callback, Callback}).
 
 forward_icmp(SocketPid, Source, TTL, Type, Code, Info) ->
-    gen_server:call(
-        SocketPid,
-        {forward_icmp, Source, TTL, Type, Code, Info}
-    ).
+    gen_server:call(SocketPid, {forward_icmp, Source, TTL, Type, Code, Info}).
 
 destroy_endpoint(SocketPid) ->
     gen_server:call(SocketPid, destroy_endpoint).
@@ -261,7 +269,7 @@ handle_call(get_received_available, _From, SocketState) ->
     ReceivedAvailable = SocketState#nsime_udp_socket_state.received_available,
     {reply, ReceivedAvailable, SocketState};
 
-handle_call({recv, MaxSize, Flags}, _From, SocketState) ->
+handle_call({recv, MaxSize, _Flags}, _From, SocketState) ->
     DeliveryQueue = SocketState#nsime_udp_socket_state.delivery_queue,
     case queue:is_empty(DeliveryQueue) of
         true ->
@@ -291,35 +299,76 @@ handle_call({bind_to_netdevice, DevicePid}, _From, SocketState) ->
     },
     {reply, ok, NewSocketState};
 
-handle_call({set_icmp_callback, Callback}, _From, SocketState) ->
+handle_call({set_allow_broadcast, AllowBroadcast}, _From, SocketState) ->
     NewSocketState = SocketState#nsime_udp_socket_state{
-        icmp_callback = Callback
+        allow_broadcast = AllowBroadcast
     },
     {reply, ok, NewSocketState};
 
-handle_call({forward_up, Packet, Header, Port, Interface}, _From, SocketState) ->
-    {Module, Function, Arguments}
-        = SocketState#nsime_udp_socket_state.receive_callback,
-    Event = #nsime_event{
-        module = Module,
-        function = Function,
-        arguments = lists:append(Arguments, [Packet, Header, Port, Interface]),
-        eventid = make_ref()
-    },
-    nsime_simulator:schedule_now(Event),
-    {reply, ok, SocketState};
+handle_call(get_allow_broadcast, _From, SocketState) ->
+    AllowBroadcast = SocketState#nsime_udp_socket_state.allow_broadcast,
+    {reply, AllowBroadcast, SocketState};
 
 handle_call({forward_icmp, Source, TTL, Type, Code, Info}, _From, SocketState) ->
-    {Module, Function, Arguments}
-        = SocketState#nsime_udp_socket_state.icmp_callback,
-    Event = #nsime_event{
-        module = Module,
-        function = Function,
-        arguments = lists:append(Arguments, [Source, TTL, Type, Code, Info]),
-        eventid = make_ref()
-    },
-    nsime_simulator:schedule_now(Event),
-    {reply, ok, SocketState};
+    case SocketState#nsime_udp_socket_state.icmp_callback of
+        undefined ->
+            {reply, none, SocketState};
+        {Module, Function, Arguments} ->
+            erlang:apply(
+                Module,
+                Function,
+                lists:append(Arguments, [Source, TTL, Type, Code, Info])
+            ),
+            {reply, ok, SocketState}
+    end;
+
+handle_call({forward_up, Packet, Header, Port, Interface}, _From, SocketState) ->
+    case SocketState#nsime_udp_socket_state.shutdown_receive of
+        true ->
+            {reply, none, SocketState};
+        false ->
+            NewPacket = case SocketState#nsime_udp_socket_state.receive_packet_info of
+                true ->
+                    Tags = Packet#nsime_packet.tags,
+                    PacketInfoTag = #nsime_ipv4_packet_info_tag{
+                        interface_index =
+                            nsime_netdevice:get_interface_index(
+                                nsime_ipv4_interface:get_device(Interface)
+                            )
+                    },
+                    NewTags = [
+                        {ipv4_packet_info_tag, PacketInfoTag} |
+                        proplists:delete(ipv4_packet_info_tag, Tags)
+                    ],
+                    Packet#nsime_packet{tags = NewTags}
+                false ->
+                    Packet
+            end,
+            ReceivedAvailable = SocketState#nsime_udp_socket_state.received_available,
+            ReceiveBufferSize = SocketState#nsime_udp_socket_state.receive_buffer_size,
+            case (ReceivedAvailable + NewPacket#nsime_packet.size =< ReceiveBufferSize) of
+                true ->
+                    SocketAddress = {nsime_ipv4_header:get_source(Header), Port},
+                    Tags = NewPacket#nsime_packet.tags,
+                    NewTags = [{socket_address_tag, SocketAddress} | Tags],
+                    NewerPacket = NewPacket#nsime_packet{
+                        tags = NewTags
+                    },
+                    DeliveryQueue = SocketState#nsime_udp_socket_state.delivery_queue,
+                    NewDeliveryQueue = queue:in(NewerPacket, DeliveryQueue),
+                    NewSocketState = SocketState#nsime_udp_socket_state{
+                        delivery_queue = NewerDeliveryQueue,
+                        received_available =
+                            ReceivedAvailable + NewerPacket#nsime_packet.size,
+                    },
+                    {reply, ok, NewSocketState};
+                false ->
+                    {Module, Function, Arguments} =
+                        SocketState#nsime_udp_socket_state.drop_trace_callback,
+                    erlang:apply(Module, Function, lists:append(Arguments, [NewPacket]))
+                    {reply, dropped, SocketState}
+            end
+    end;
 
 handle_call(destroy_endpoint, _From, SocketState) ->
     UdpProtocolPid = SocketState#nsime_udp_socket_state.udp_protocol,
