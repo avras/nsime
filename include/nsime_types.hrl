@@ -67,3 +67,5 @@
                             | error_nodev
                             | error_addrnotavail
                             | error_addrinuse.
+
+-type nsime_socket_address() :: {inet:ip_address(), inet:port_number()}.

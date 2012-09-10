@@ -23,6 +23,7 @@
 -record(nsime_packet,
         {
             id          :: reference(),
-            size        :: integer(),
-            data        :: binary()
+            size        :: non_neg_integer(),
+            data        :: binary(),
+            tags = []   :: list()
         }).
