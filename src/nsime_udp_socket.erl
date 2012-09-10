@@ -263,7 +263,18 @@ handle_call({send, Packet, _Flags}, _From, SocketState) ->
     end;
 
 handle_call({send_to, Packet, _Flags, SocketAddress = {Address, Port}}, _From, SocketState) ->
-    do_send_to(Packet, SocketState);
+    case is_pid(SocketState#nsime_udp_socket_state.ip_endpoint) of
+        true ->
+            do_send_to(Packet, Address, Port, SocketState);
+        false ->
+            UdpProtocolPid = SocketState#nsime_udp_socket_state.udp_protocol,
+            EndpointPid = nsime_udp_protocol:allocate(UdpProtocolPid),
+            set_endpoint_callbacks(EndpointPid),
+            NewSocketState = SocketState#nsime_udp_socket_state{
+                ip_endpoint = EndpointPid
+            },
+            do_send_to(Packet, Address, Port, NewSocketState)
+    end;
 
 handle_call(get_received_available, _From, SocketState) ->
     ReceivedAvailable = SocketState#nsime_udp_socket_state.received_available,
@@ -427,9 +438,31 @@ set_endpoint_callbacks(EndpointPid) ->
 do_send_to(
     Packet,
     SocketState = #nsime_udp_socket_state{
-      connected = Connected,
       default_address = Address,
       default_port = Port
     }
 ) ->
-    {reply, ok, SocketState}.
+    do_send_to(Packet, Address, Port, SocketState).
+
+do_send_to(Packet, Address, Port, SocketState) ->
+    case SocketState#nsime_udp_socket_state.shutdown_send of
+        true ->
+            NewSocketState = SocketState#nsime_udp_socket_state{
+                socket_error = error_shutdown
+            },
+            {reply, error_shutdown, NewSocketState};
+        false ->
+            case
+                Packet#nsime_packet.size >
+                nsime_udp_socket:get_transmit_available()
+            of
+            true ->
+                NewSocketState = SocketState#nsime_udp_socket_state{
+                    socket_error = error_msgsize
+                },
+                {reply, error_msgsize, NewSocketState};
+            false ->
+                Ipv4Protocol = nsime_node:get_object(nsime_ipv4_protocol),
+
+            end
+    end.
