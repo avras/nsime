@@ -55,7 +55,7 @@ test_creation_shutdown(_) ->
     ?assertEqual(nsime_ptp_netdevice:get_node(DevicePid), undefined),
     ?assertEqual(nsime_ptp_netdevice:get_address(DevicePid), undefined),
     ?assertEqual(nsime_ptp_netdevice:get_channel(DevicePid), undefined),
-    ?assertEqual(nsime_ptp_netdevice:get_queue_module(DevicePid), nsime_drop_tail_queue),
+    ?assertEqual(nsime_ptp_netdevice:get_queue_module(DevicePid), nsime_droptail_queue),
     ?assert(is_pid(nsime_ptp_netdevice:get_queue(DevicePid))),
     ?assertNot(nsime_ptp_netdevice:is_link_up(DevicePid)),
     ?assertEqual(nsime_ptp_netdevice:get_mtu(DevicePid), 1500),

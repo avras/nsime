@@ -179,9 +179,9 @@ receive_packet(_DevicePid, _Packet = #nsime_packet{}) ->
     ok.
 
 init([]) ->
-    Queue = nsime_drop_tail_queue:create(),
+    Queue = nsime_droptail_queue:create(),
     DeviceState = #nsime_ptp_netdevice_state{
-        queue_module = nsime_drop_tail_queue,
+        queue_module = nsime_droptail_queue,
         queue = Queue
     },
     {ok, DeviceState};

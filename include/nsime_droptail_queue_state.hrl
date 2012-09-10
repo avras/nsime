@@ -20,16 +20,16 @@
 %% Purpose : Node drop tail queue state record
 %% Author : Saravanan Vijayakumaran
 
--record(nsime_dtq_state,
+-record(nsime_droptail_queue_state,
         {
-          current_packet_count = 0      :: integer(),
-          current_byte_count = 0        :: integer(),
-          received_packet_count = 0     :: integer(),
-          received_byte_count = 0       :: integer(),
-          dropped_packet_count = 0      :: integer(),
-          dropped_byte_count = 0        :: integer(),
-          max_byte_count = 0            :: integer(),
-          max_packet_count = 0          :: integer(),
+          current_packet_count = 0      :: non_neg_integer(),
+          current_byte_count = 0        :: non_neg_integer(),
+          received_packet_count = 0     :: non_neg_integer(),
+          received_byte_count = 0       :: non_neg_integer(),
+          dropped_packet_count = 0      :: non_neg_integer(),
+          dropped_byte_count = 0        :: non_neg_integer(),
+          max_byte_count = infinity     :: non_neg_integer(),
+          max_packet_count = infinity   :: non_neg_integer(),
           device_id = undefined         :: pid(),
           packets = queue:new()         :: queue()
         }).

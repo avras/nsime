@@ -20,10 +20,10 @@
 %% Purpose : Drop tail queue module
 %% Author : Saravanan Vijayakumaran
 
--module(nsime_drop_tail_queue).
+-module(nsime_droptail_queue).
 -author("Saravanan Vijayakumaran").
 
--include("nsime_dtq_state.hrl").
+-include("nsime_droptail_queue_state.hrl").
 -include("nsime_packet.hrl").
 
 -behaviour(gen_server).
@@ -40,7 +40,7 @@ create() ->
     {ok, Pid} = gen_server:start(?MODULE, [], []),
     Pid.
 
-create(QueueState = #nsime_dtq_state{}) ->
+create(QueueState = #nsime_droptail_queue_state{}) ->
     {ok, Pid} = gen_server:start(?MODULE, QueueState, []),
     Pid.
 
@@ -80,37 +80,34 @@ reset_statistics(QueuePid) ->
     gen_server:call(QueuePid, reset_statistics).
 
 init([]) ->
-    QueueState = #nsime_dtq_state{
-        max_packet_count = infinity,
-        max_byte_count = infinity
-    },
+    QueueState = #nsime_droptail_queue_state{},
     {ok, QueueState};
 
-init(QueueState = #nsime_dtq_state{}) ->
+init(QueueState = #nsime_droptail_queue_state{}) ->
     {ok, QueueState}.
 
 handle_call(is_empty, _From, QueueState) ->
-    IsEmpty = queue:is_empty(QueueState#nsime_dtq_state.packets),
+    IsEmpty = queue:is_empty(QueueState#nsime_droptail_queue_state.packets),
     {reply, IsEmpty, QueueState};
 
 handle_call(get_device_id, _From, QueueState) ->
-    DeviceId = QueueState#nsime_dtq_state.device_id,
+    DeviceId = QueueState#nsime_droptail_queue_state.device_id,
     {reply, DeviceId, QueueState};
 
 handle_call({set_device_id, DeviceId}, _From, QueueState) ->
-    NewQueueState = QueueState#nsime_dtq_state{device_id = DeviceId},
+    NewQueueState = QueueState#nsime_droptail_queue_state{device_id = DeviceId},
     {reply, ok, NewQueueState};
 
 handle_call({enqueue_packet, Packet}, _From, QueueState) ->
-    CurrentPacketCount = QueueState#nsime_dtq_state.current_packet_count,
-    MaxPacketCount = QueueState#nsime_dtq_state.max_packet_count,
+    CurrentPacketCount = QueueState#nsime_droptail_queue_state.current_packet_count,
+    MaxPacketCount = QueueState#nsime_droptail_queue_state.max_packet_count,
     case CurrentPacketCount >= MaxPacketCount of
         false ->
-            NewPacketQueue = queue:in(Packet, QueueState#nsime_dtq_state.packets),
-            CurrentByteCount = QueueState#nsime_dtq_state.current_byte_count,
-            ReceivedByteCount = QueueState#nsime_dtq_state.received_byte_count,
-            ReceivedPacketCount = QueueState#nsime_dtq_state.received_packet_count,
-            NewQueueState = QueueState#nsime_dtq_state{
+            NewPacketQueue = queue:in(Packet, QueueState#nsime_droptail_queue_state.packets),
+            CurrentByteCount = QueueState#nsime_droptail_queue_state.current_byte_count,
+            ReceivedByteCount = QueueState#nsime_droptail_queue_state.received_byte_count,
+            ReceivedPacketCount = QueueState#nsime_droptail_queue_state.received_packet_count,
+            NewQueueState = QueueState#nsime_droptail_queue_state{
                                 packets = NewPacketQueue,
                                 current_byte_count = CurrentByteCount + Packet#nsime_packet.size,
                                 current_packet_count = CurrentPacketCount + 1,
@@ -119,9 +116,9 @@ handle_call({enqueue_packet, Packet}, _From, QueueState) ->
             },
             {reply, ok, NewQueueState};
         true ->
-            DroppedByteCount = QueueState#nsime_dtq_state.dropped_byte_count,
-            DroppedPacketCount = QueueState#nsime_dtq_state.dropped_packet_count,
-            NewQueueState = QueueState#nsime_dtq_state{
+            DroppedByteCount = QueueState#nsime_droptail_queue_state.dropped_byte_count,
+            DroppedPacketCount = QueueState#nsime_droptail_queue_state.dropped_packet_count,
+            NewQueueState = QueueState#nsime_droptail_queue_state{
                                 dropped_byte_count = DroppedByteCount + Packet#nsime_packet.size,
                                 dropped_packet_count = DroppedPacketCount + 1
             },
@@ -129,11 +126,11 @@ handle_call({enqueue_packet, Packet}, _From, QueueState) ->
     end;
 
 handle_call(dequeue_packet, _From, QueueState) ->
-    case queue:out(QueueState#nsime_dtq_state.packets) of
+    case queue:out(QueueState#nsime_droptail_queue_state.packets) of
         {{value, Packet}, NewPacketQueue} ->
-            CurrentPacketCount = QueueState#nsime_dtq_state.current_packet_count,
-            CurrentByteCount = QueueState#nsime_dtq_state.current_byte_count,
-            NewQueueState = QueueState#nsime_dtq_state{
+            CurrentPacketCount = QueueState#nsime_droptail_queue_state.current_packet_count,
+            CurrentByteCount = QueueState#nsime_droptail_queue_state.current_byte_count,
+            NewQueueState = QueueState#nsime_droptail_queue_state{
                                 packets = NewPacketQueue,
                                 current_byte_count = CurrentByteCount - Packet#nsime_packet.size,
                                 current_packet_count = CurrentPacketCount - 1
@@ -153,19 +150,19 @@ handle_call({drop_packet, PacketId}, _From, QueueState) ->
                 false
         end
     end,
-    MatchingPackets = queue:filter(FilterFun, QueueState#nsime_dtq_state.packets),
+    MatchingPackets = queue:filter(FilterFun, QueueState#nsime_droptail_queue_state.packets),
     case queue:len(MatchingPackets) of
         0 ->
             {reply, none, QueueState};
         1 ->
             {{value, DroppedPacket}, _} = queue:out(MatchingPackets),
             InverseFilterFun = fun(Packet) -> not(FilterFun(Packet)) end,
-            NewPacketQueue = queue:filter(InverseFilterFun, QueueState#nsime_dtq_state.packets),
-            CurrentPacketCount = QueueState#nsime_dtq_state.current_packet_count,
-            CurrentByteCount = QueueState#nsime_dtq_state.current_byte_count,
-            DroppedByteCount = QueueState#nsime_dtq_state.dropped_byte_count,
-            DroppedPacketCount = QueueState#nsime_dtq_state.dropped_packet_count,
-            NewQueueState = QueueState#nsime_dtq_state{
+            NewPacketQueue = queue:filter(InverseFilterFun, QueueState#nsime_droptail_queue_state.packets),
+            CurrentPacketCount = QueueState#nsime_droptail_queue_state.current_packet_count,
+            CurrentByteCount = QueueState#nsime_droptail_queue_state.current_byte_count,
+            DroppedByteCount = QueueState#nsime_droptail_queue_state.dropped_byte_count,
+            DroppedPacketCount = QueueState#nsime_droptail_queue_state.dropped_packet_count,
+            NewQueueState = QueueState#nsime_droptail_queue_state{
                                 packets = NewPacketQueue,
                                 current_byte_count = CurrentByteCount - DroppedPacket#nsime_packet.size,
                                 current_packet_count = CurrentPacketCount - 1,
@@ -178,11 +175,11 @@ handle_call({drop_packet, PacketId}, _From, QueueState) ->
     end;
 
 handle_call(get_statistics, _From, QueueState) ->
-    QueueStateWithoutPackets = QueueState#nsime_dtq_state{packets = queue:new()},
+    QueueStateWithoutPackets = QueueState#nsime_droptail_queue_state{packets = queue:new()},
     {reply, QueueStateWithoutPackets, QueueState};
     
 handle_call(reset_statistics, _From, QueueState) ->
-    NewQueueState = QueueState#nsime_dtq_state{
+    NewQueueState = QueueState#nsime_droptail_queue_state{
                         current_packet_count = 0,
                         current_byte_count = 0,
                         received_packet_count = 0,
