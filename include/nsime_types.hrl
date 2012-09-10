@@ -49,3 +49,21 @@
 
 -type nsime_netdevice_packet_type() :: packet_host | packet_broadcast |
                                        packet_multicast | packet_otherhost.
+
+-type nsime_socket_type() :: sock_stream | sock_seqpacket |
+                             sock_dgram | sock_raw.
+
+-type nsime_socket_error() :: error_noterror
+                            | error_isconn
+                            | error_notconn
+                            | error_msgsize
+                            | error_again
+                            | error_shutdown
+                            | error_opnotsupp
+                            | error_afnosupport
+                            | error_inval
+                            | error_badf
+                            | error_noroutetohost
+                            | error_nodev
+                            | error_addrnotavail
+                            | error_addrinuse.
