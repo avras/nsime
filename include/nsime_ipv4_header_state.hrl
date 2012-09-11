@@ -23,16 +23,16 @@
 -record(nsime_ipv4_header_state,
         {
           calculate_checksum = false      :: boolean(),
-          payload_size = 0                :: non_neg_integer(),
-          identification = 0              :: non_neg_integer(),
-          tos = 0                         :: non_neg_integer(),
-          ttl = 0                         :: non_neg_integer(),
-          protocol = 0                    :: non_neg_integer(),
-          flags = 0                       :: non_neg_integer(),
-          fragment_offset = 0             :: non_neg_integer(),
+          payload_size = 0                :: 0..65535,
+          identification = 0              :: 0..65535,
+          tos = 0                         :: 0..255,
+          ttl = 0                         :: 0..255,
+          protocol = 0                    :: 0..255,
+          flags = 0                       :: 0..7,
+          fragment_offset = 0             :: 0..65535,
           source_address                  :: inet:ip4_address(),
           destination_address             :: inet:ip4_address(),
           checksum = 0                    :: non_neg_integer(),
           checksum_correct = false        :: boolean(),
-          header_size = 20                :: non_neg_integer()
+          header_size = 20                :: 0..65535
         }).
