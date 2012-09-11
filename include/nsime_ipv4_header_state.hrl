@@ -34,5 +34,5 @@
           destination_address             :: inet:ip4_address(),
           checksum = 0                    :: non_neg_integer(),
           checksum_correct = false        :: boolean(),
-          header_size = 20                :: 0..65535
+          header_length = 5               :: 0..15
         }).
