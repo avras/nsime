@@ -11,13 +11,14 @@
                   nsime_netdevice,
                   nsime_ptp_channel,
                   nsime_ptp_netdevice,
-                  nsime_drop_tail_queue,
+                  nsime_droptail_queue,
                   nsime_ipv4_address,
                   nsime_ipv4_mask,
                   nsime_ipv4_interface_address,
                   nsime_ipv4_interface,
                   nsime_ip_endpoint,
                   nsime_ip_endpoint_demux,
+                  nsime_udp_socket,
                   nsime_udp_echo_client,
                   nsime_udp_echo_server
                 ]
