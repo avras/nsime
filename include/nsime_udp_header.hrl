@@ -17,22 +17,13 @@
 %%  along with nsime.  If not, see <http://www.gnu.org/licenses/>.
 %%
 
-%% Purpose : IPv4 header record
+%% Purpose : UDP header record
 %% Author : Saravanan Vijayakumaran
 
--record(nsime_ipv4_header,
+-record(nsime_udp_header,
         {
-          header_length = 5               :: 5..15,
-          tos = 0                         :: 0..255,
-          total_length = 0                :: 0..65535,
-          identification = 0              :: 0..65535,
-          flags = 0                       :: 0..7,
-          fragment_offset = 0             :: 0..8191,
-          ttl = 0                         :: 0..255,
-          protocol = 0                    :: 0..255,
-          checksum = 0                    :: integer(),
-          source_address                  :: inet:ip4_address(),
-          destination_address             :: inet:ip4_address(),
-          calculate_checksum = false      :: boolean(),
-          checksum_correct = false        :: boolean()
+          source_port                     :: inet:port_number(),
+          destination_port                :: inet:port_number(),
+          length                          :: 0..65535,
+          checksum                        :: integer()
         }).
