@@ -14,6 +14,7 @@
                   nsime_droptail_queue,
                   nsime_ipv4_address,
                   nsime_ipv4_mask,
+                  nsime_ipv4_header,
                   nsime_ipv4_interface_address,
                   nsime_ipv4_interface,
                   nsime_ip_endpoint,

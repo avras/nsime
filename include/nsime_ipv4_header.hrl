@@ -17,22 +17,22 @@
 %%  along with nsime.  If not, see <http://www.gnu.org/licenses/>.
 %%
 
-%% Purpose :IPv4 header state record
+%% Purpose :IPv4 header record
 %% Author : Saravanan Vijayakumaran
 
--record(nsime_ipv4_header_state,
+-record(nsime_ipv4_header,
         {
-          calculate_checksum = false      :: boolean(),
-          payload_size = 0                :: 0..65535,
-          identification = 0              :: 0..65535,
+          header_length = 5               :: 5..15,
           tos = 0                         :: 0..255,
+          total_length = 0                :: 0..65535,
+          identification = 0              :: 0..65535,
+          flags = 0                       :: 0..7,
+          fragment_offset = 0             :: 0..8191,
           ttl = 0                         :: 0..255,
           protocol = 0                    :: 0..255,
-          flags = 0                       :: 0..7,
-          fragment_offset = 0             :: 0..65535,
+          checksum = 0                    :: non_neg_integer(),
           source_address                  :: inet:ip4_address(),
           destination_address             :: inet:ip4_address(),
-          checksum = 0                    :: non_neg_integer(),
-          checksum_correct = false        :: boolean(),
-          header_length = 5               :: 0..15
+          calculate_checksum = false      :: boolean(),
+          checksum_correct = false        :: boolean()
         }).

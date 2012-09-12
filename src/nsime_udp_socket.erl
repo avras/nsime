@@ -25,7 +25,7 @@
 
 -include("nsime_types.hrl").
 -include("nsime_packet.hrl").
--include("nsime_ipv4_header_state.hrl").
+-include("nsime_ipv4_header.hrl").
 -include("nsime_ipv4_packet_info_tag.hrl").
 -include("nsime_udp_socket_state.hrl").
 
@@ -377,7 +377,7 @@ handle_call({forward_up, Packet, Header, Port, Interface}, _From, SocketState) -
             ReceiveBufferSize = SocketState#nsime_udp_socket_state.receive_buffer_size,
             case (ReceivedAvailable + NewPacket#nsime_packet.size =< ReceiveBufferSize) of
                 true ->
-                    SocketAddress = {nsime_ipv4_header:get_source(Header), Port},
+                    SocketAddress = {nsime_ipv4_header:get_source_address(Header), Port},
                     Tags2 = NewPacket#nsime_packet.tags,
                     NewTags2 = [
                         {socket_address_tag, SocketAddress} |
@@ -626,12 +626,10 @@ do_send_to(Packet, DestAddress, DestPort, SocketState) ->
                                             },
                                             {reply, error_noroutetohost, NewSocketState};
                                         true ->
-                                            Ipv4Header = nsime_ipv4_header:create(
-                                                #nsime_ipv4_header_state{
+                                            Ipv4Header = #nsime_ipv4_header{
                                                     destination_address = DestAddress,
                                                     protocol = nsime_udp_protocol:protocol_number()
-                                                }
-                                            ),
+                                            },
                                             Netdevice = SocketState#nsime_udp_socket_state.bound_netdevice,
                                             case
                                                 nsime_ipv4_routing_protocol:route_output(
