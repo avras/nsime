@@ -23,9 +23,9 @@
 -record(nsime_udp_protocol_state,
         {
           node                      :: pid(),
-          ipv4_endpoints = []       :: list(),
-          ipv6_endpoints = []       :: list(),
-          sockets = []              :: list(),
-          layer3_send_ipv4          :: {module(), fun()},
-          layer3_send_ipv6          :: {module(), fun()}
+          ipv4_endpoints = []       :: [pid()],
+          ipv6_endpoints = []       :: [pid()],
+          sockets = []              :: [pid()],
+          ipv4_down_target          :: nsime_callback(),
+          ipv6_down_target          :: nsime_callback()
         }).
