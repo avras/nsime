@@ -26,16 +26,24 @@
 -include("nsime_packet.hrl").
 -include("nsime_udp_header.hrl").
 
--export([serialize/1, deserialize/1,
-         calculate_header_checksum/7]).
+-export([serialize/1, serialize/4, deserialize/1,
+         calculate_checksum/1, calculate_checksum/7]).
 
 serialize(Header) ->
-        <<
-            (Header#nsime_udp_header.source_port):16,
-            (Header#nsime_udp_header.destination_port):16,
-            (Header#nsime_udp_header.length):16,
-            (Header#nsime_udp_header.checksum):16
-        >>.
+    <<
+        (Header#nsime_udp_header.source_port):16,
+        (Header#nsime_udp_header.destination_port):16,
+        (Header#nsime_udp_header.length):16,
+        (Header#nsime_udp_header.checksum):16
+    >>.
+
+serialize(SourcePort, DestinationPort, Length, Checksum) ->
+    <<
+        (SourcePort):16,
+        (DestinationPort):16,
+        (Length):16,
+        (Checksum):16
+    >>.
 
 deserialize(HeaderBinary) ->
     <<SourcePort:16, DestinationPort:16, Length:16, Checksum:16>>
@@ -47,7 +55,7 @@ deserialize(HeaderBinary) ->
         checksum = Checksum
     }.
 
-calculate_header_checksum(
+calculate_checksum(
     Packet,
     SourceAddress,
     DestinationAddress,
@@ -61,20 +69,50 @@ calculate_header_checksum(
             S = binary:list_to_bin(tuple_to_list(SourceAddress)),
             D = binary:list_to_bin(tuple_to_list(DestinationAddress)),
             Data = Packet#nsime_packet.data,
-            Sum = halfword_sum(
+            calculate_checksum(
                 <<
                     S/binary, D/binary, 0:8, Protocol:8, Length:16,
                     SourcePort:16, DestinationPort:16, Length:16,
                     Data/binary
                 >>
-            ),
-            <<Checksum:16>> = <<bnot((Sum band 65535) + (Sum bsr 16)):16>>,
-            Checksum;
+            );
         {6, 6} ->
             erlang:error(ipv6_not_supported);
         {_, _} ->
             erlang:error(invalid_argument)
     end.
+
+calculate_checksum(Binary) when is_binary(Binary) ->
+    Sum = halfword_sum(Binary),
+    <<Checksum:16>> = <<bnot((Sum band 65535) + (Sum bsr 16)):16>>,
+    Checksum;
+
+calculate_checksum(Packet = #nsime_packet{
+    tags = Tags,
+    data = Data
+    }
+) ->
+    S = binary:list_to_bin(
+        tuple_to_list(
+            proplists:get_value(
+                source_address,
+                Tags
+            )
+        )
+    ),
+    D = binary:list_to_bin(
+        tuple_to_list(
+            proplists:get_value(
+                destination_address,
+                Tags
+            )
+        )
+    ),
+    <<_Ports:32, Length:16, _Rest/binary>> = Data,
+    Protocol = nsime_udp_protocol:protocol_number(),
+    calculate_checksum(
+        <<S/binary, D/binary, 0:8, Protocol:8, Length:16, Data/binary>>
+    ).
 
 %% Helper methods %%
 

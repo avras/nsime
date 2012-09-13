@@ -20,6 +20,7 @@
                   nsime_ip_endpoint,
                   nsime_ip_endpoint_demux,
                   nsime_udp_header,
+                  nsime_udp_protocol,
                   nsime_udp_socket,
                   nsime_udp_echo_client,
                   nsime_udp_echo_server

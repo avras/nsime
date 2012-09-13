@@ -69,3 +69,8 @@
                             | error_addrinuse.
 
 -type nsime_socket_address() :: {inet:ip_address(), inet:port_number()}.
+
+-type nsime_layer4_receive_status() :: rx_ok
+                                     | rx_csum_failed
+                                     | rx_endpoint_closed
+                                     | rx_endpoint_unreach.
