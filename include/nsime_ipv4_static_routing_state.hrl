@@ -17,14 +17,11 @@
 %%  along with nsime.  If not, see <http://www.gnu.org/licenses/>.
 %%
 
-%% Purpose : IPv4 routing table entry record
+%% Purpose : IPv4 static routing protocol record
 %% Author : Saravanan Vijayakumaran
 
--record(nsime_ipv4_routing_table_entry,
+-record(nsime_ipv4_static_routing_state,
         {
-          destination                             :: inet:ip4_address(),
-          network_mask = {255, 255, 255, 255}     :: nsime_ipv4_mask(),
-          gateway = {0, 0, 0, 0}                  :: inet:ip4_address(),
-          interface_index                         :: non_neg_integer(),
-          metric = 0                              :: non_neg_integer()
+          network_routes = []     :: [#nsime_ipv4_routing_table_entry{}]
+          ipv4_protocol           :: pid()
         }).
