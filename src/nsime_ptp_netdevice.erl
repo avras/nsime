@@ -42,7 +42,7 @@
          set_queue/2, get_queue/1,
          set_queue_module/2, get_queue_module/1,
          set_mtu/2, get_mtu/1, attach_channel/2,
-         set_interface_index/2, get_interface_index/1,
+         set_interface/2, get_interface/1,
          is_link_up/1, is_bridge/1, is_ptp/1,
          is_broadcast/1, get_broadcast_address/1,
          is_multicast/1, get_multicast_address/2,
@@ -133,11 +133,11 @@ get_mtu(DevicePid) ->
 attach_channel(DevicePid, ChannelPid) ->
     gen_server:call(DevicePid, {attach_channel, ChannelPid}).
 
-set_interface_index(DevicePid, DeviceIndex) ->
-    gen_server:call(DevicePid, {set_interface_index, DeviceIndex}).
+set_interface(DevicePid, InterfacePid) ->
+    gen_server:call(DevicePid, {set_interface, InterfacePid}).
 
-get_interface_index(DevicePid) ->
-    gen_server:call(DevicePid, get_interface_index).
+get_interface(DevicePid) ->
+    gen_server:call(DevicePid, get_interface).
 
 is_link_up(DevicePid) ->
     gen_server:call(DevicePid, is_link_up).
@@ -258,13 +258,13 @@ handle_call({attach_channel, ChannelPid}, _From, DeviceState) ->
            {reply, none, DeviceState}
     end;
 
-handle_call({set_interface_index, DeviceIndex}, _From, DeviceState) ->
-    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{interface_index = DeviceIndex},
+handle_call({set_interface, InterfacePid}, _From, DeviceState) ->
+    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{interface = InterfacePid},
     {reply, ok, NewDeviceState};
 
-handle_call(get_interface_index, _From, DeviceState) ->
-    DeviceIndex = DeviceState#nsime_ptp_netdevice_state.interface_index,
-    {reply, DeviceIndex, DeviceState};
+handle_call(get_interface, _From, DeviceState) ->
+    InterfacePid = DeviceState#nsime_ptp_netdevice_state.interface,
+    {reply, InterfacePid, DeviceState};
 
 handle_call(is_link_up, _From, DeviceState) ->
     IsLinkUp = DeviceState#nsime_ptp_netdevice_state.link_up,

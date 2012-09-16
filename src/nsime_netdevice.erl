@@ -24,7 +24,7 @@
 -author("Saravanan Vijayakumaran").
 
 -export([get_device_type/1,
-         set_interface_index/2, get_interface_index/1,
+         set_interface/2, get_interface/1,
          set_address/2, get_address/1,
          get_channel/1, set_mtu/2, get_mtu/1,
          is_link_up/1, is_bridge/1, is_ptp/1,
@@ -37,11 +37,11 @@
 get_device_type(DevicePid) ->
     gen_server:call(DevicePid, get_device_type).
 
-set_interface_index(DevicePid, DeviceIndex) ->
-    gen_server:call(DevicePid, {set_device_index, DeviceIndex}).
+set_interface(DevicePid, InterfacePid) ->
+    gen_server:call(DevicePid, {set_device_index, InterfacePid}).
 
-get_interface_index(DevicePid) ->
-    gen_server:call(DevicePid, get_interface_index).
+get_interface(DevicePid) ->
+    gen_server:call(DevicePid, get_interface).
 
 set_address(DevicePid, Address) ->
     gen_server:call(DevicePid, {set_address, Address}).

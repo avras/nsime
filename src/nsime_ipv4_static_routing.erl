@@ -23,6 +23,9 @@
 -module(nsime_ipv4_static_routing).
 -author("Saravanan Vijayakumaran").
 
+-include("nsime_types.hrl").
+-include("nsime_ipv4_route.hrl").
+-include("nsime_ipv4_routing_table_entry.hrl").
 -include("nsime_ipv4_static_routing_state.hrl").
 
 -behaviour(gen_server).
@@ -182,10 +185,7 @@ handle_call(
     RoutingState
 ) ->
     Ipv4ProtocolPid = RoutingState#nsime_ipv4_static_routing_state.ipv4_protocol,
-    InterfacePid = nsime_ipv4_protocol:get_interface_for_device(
-        Ipv4ProtocolPid,
-        IngressNetdevice
-    ),
+    InterfacePid = nsime_netdevice:get_interface(IngressNetdevice),
     DestinationAddress = nsime_ipv4_header:get_destination_address(Ipv4Header),
     case
         nsime_ipv4_address:is_multicast(DestinationAddress) bor
@@ -215,24 +215,24 @@ handle_call(
             case FirstMatchingAddress == [] of
                 false ->
                     {Mod, Fun, Args} = LocalDeliverCallback,
-                    NewArgs = lists:flatten([Args, [Packet, Ipv4Header, InterfacePid]),
+                    NewArgs = lists:flatten([Args, [Packet, Ipv4Header, InterfacePid]]),
                     erlang:apply(Mod, Fun, NewArgs),
                     {reply, true, RoutingState};
                 true ->
                     case nsime_ipv4_interface:is_forwarding(InterfacePid) of
                         false ->
                             {Mod, Fun, Args} = ErrorCallback,
-                            NewArgs = lists:flatten([Args, [Packet, Ipv4Header, error_noroutetohost]),
+                            NewArgs = lists:flatten([Args, [Packet, Ipv4Header, error_noroutetohost]]),
                             erlang:apply(Mod, Fun, NewArgs),
                             {reply, false, RoutingState};
                         true ->
-                            Route = lookup_static(DestinationAddress, undefined),
+                            Route = lookup_static(DestinationAddress, undefined, RoutingState),
                             case Route of
                                 undefined ->
                                     {reply, false, RoutingState};
                                 _ ->
                                     {Mod, Fun, Args} = UnicastForwardCallback,
-                                    NewArgs = lists:flatten([Args, [Route, Packet, Ipv4Header]),
+                                    NewArgs = lists:flatten([Args, [Route, Packet, Ipv4Header]]),
                                     erlang:apply(Mod, Fun, NewArgs),
                                     {reply, true, RoutingState}
                             end
@@ -242,7 +242,7 @@ handle_call(
 
 handle_call({route_output, _Packet, Ipv4Header, OutputNetdevice}, _From, RoutingState) ->
     DestinationAddress = nsime_ipv4_header:get_destination_address(Ipv4Header),
-    Route = lookup_static(DestinationAddress, OutputNetdevice),
+    Route = lookup_static(DestinationAddress, OutputNetdevice, RoutingState),
     case Route of
         undefined ->
             {reply, {error_noroutetohost, undefined}, RoutingState};
@@ -252,6 +252,7 @@ handle_call({route_output, _Packet, Ipv4Header, OutputNetdevice}, _From, Routing
 
 handle_call({notify_interface_up, InterfacePid}, _From, RoutingState) ->
     AddressList = nsime_ipv4_interface:get_address_list(InterfacePid),
+    NetworkRoutes = RoutingState#nsime_ipv4_static_routing_state.network_routes,
     NewRoutes = lists:foldl(
         fun(A, CurrentRoutes) ->
             case
@@ -277,11 +278,11 @@ handle_call({notify_interface_up, InterfacePid}, _From, RoutingState) ->
         [],
         AddressList
     ),
-    NewNetworkRoutes = lists:flatten([NewRoutes | NewNetworkRoutes]),
+    NewNetworkRoutes = lists:flatten([NewRoutes | NetworkRoutes]),
     NewRoutingState = RoutingState#nsime_ipv4_static_routing_state{
         network_routes = NewNetworkRoutes
     },
-    {reply, ok, RoutingState};
+    {reply, ok, NewRoutingState};
 
 handle_call({notify_interface_down, InterfacePid}, _From, RoutingState) ->
     NetworkRoutes = RoutingState#nsime_ipv4_static_routing_state.network_routes,
@@ -402,7 +403,7 @@ handle_call(
         InterfacePid,
         Metric
     ),
-    NewNetworkRoutes = [Route | NewNetworkRoutes],
+    NewNetworkRoutes = [Route | NetworkRoutes],
     NewRoutingState = RoutingState#nsime_ipv4_static_routing_state{
         network_routes = NewNetworkRoutes
     },
@@ -428,7 +429,7 @@ handle_call(
         InterfacePid,
         Metric
     ),
-    NewNetworkRoutes = [Route | NewNetworkRoutes],
+    NewNetworkRoutes = [Route | NetworkRoutes],
     NewRoutingState = RoutingState#nsime_ipv4_static_routing_state{
         network_routes = NewNetworkRoutes
     },
@@ -452,3 +453,118 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVersion, RoutingState, _Extra) ->
     {ok, RoutingState}.
+
+%% Helper methods %%
+
+lookup_static(DestinationAddress, OutputNetdevice, RoutingState) ->
+    case nsime_ipv4_adddress:is_local_multicast(DestinationAddress) of
+        true ->
+            InterfacePid = nsime_netdevice:get_interface(OutputNetdevice),
+            [FirstAddressPid | _] = nsime_ipv4_interface:get_address_list(InterfacePid),
+            SrcAddress = nsime_ipv4_interface_address:get_local_address(FirstAddressPid),
+            #nsime_ipv4_route{
+                destination = DestinationAddress,
+                source = SrcAddress,
+                gateway = nsime_ipv4_address:get_zero(),
+                output_device = OutputNetdevice
+            };
+        false ->
+            NetworkRoutes = RoutingState#nsime_ipv4_static_routing_state.network_routes,
+            {BestMatchRoute, _, _} = lists:foldl(
+                fun(R, {BestRoute, BestMaskLength, ShortestMetric}) ->
+                    Mask = R#nsime_ipv4_routing_table_entry.network_mask,
+                    Metric = R#nsime_ipv4_routing_table_entry.metric,
+                    MaskLength = nsime_ipv4_mask:get_prefix_length(Mask),
+                    CandidateAddress = R#nsime_ipv4_routing_table_entry.destination,
+                    case (nsime_ipv4_address:combine_mask(DestinationAddress, Mask) ==
+                          nsime_ipv4_address:combine_mask(CandidateAddress, Mask))
+                    of
+                        false ->
+                            {BestRoute, BestMaskLength, ShortestMetric};
+                        true ->
+                            case
+                            is_pid(OutputNetdevice) band
+                            (
+                                OutputNetdevice =/=
+                                    nsime_ipv4_interface:get_device(
+                                        R#nsime_ipv4_routing_table_entry.interface
+                                    )
+                            )
+                            of
+                                true ->
+                                    {BestRoute, BestMaskLength, ShortestMetric};
+                                false ->
+                                    case MaskLength < BestMaskLength of
+                                        true ->
+                                            {BestRoute, BestMaskLength, ShortestMetric};
+                                        false ->
+                                            NewShortestMetric =
+                                            case MaskLength > BestMaskLength of
+                                                true ->
+                                                    infinity;
+                                                false ->
+                                                    ShortestMetric
+                                            end,
+                                            NewBestMaskLength = MaskLength,
+                                            case Metric > NewShortestMetric of
+                                                true ->
+                                                    {BestRoute, NewBestMaskLength, NewShortestMetric};
+                                                false ->
+                                                    InterfacePid = R#nsime_ipv4_routing_table_entry.interface,
+                                                    SrcAddress = source_address_selection(
+                                                        InterfacePid,
+                                                        CandidateAddress
+                                                    ),
+                                                    NewBestRoute = #nsime_ipv4_route{
+                                                        destination = CandidateAddress,
+                                                        source = SrcAddress,
+                                                        gateway = R#nsime_ipv4_routing_table_entry.gateway,
+                                                        output_device = OutputNetdevice
+                                                    },
+                                                    {NewBestRoute, NewBestMaskLength, NewShortestMetric}
+                                            end
+                                    end
+                            end
+                    end
+                end,
+                {undefined, 0, infinity},
+                NetworkRoutes
+            ),
+            BestMatchRoute
+    end.
+
+source_address_selection(InterfacePid, Address) ->
+    InterfaceAddressList = nsime_ipv4_interface:get_address_list(InterfacePid),
+    CandidateAddress = nsime_ipv4_interface_address:get_local_address(hd(InterfaceAddressList)),
+    MatchingInterfaceAddresses = lists:filter(
+        fun(A) ->
+            Mask = nsime_ipv4_interface_address:get_mask(A),
+            case
+                nsime_ipv4_address:combine_mask(
+                    nsime_ipv4_interface_address:get_local_address(A),
+                    Mask
+                ) ==
+                nsime_ipv4_address:combine_mask(
+                    Address,
+                    Mask
+                )
+            of
+                true ->
+                    case nsime_ipv4_interface_address:is_secondary(A) of
+                        false ->
+                            true;
+                        true ->
+                            false
+                    end;
+                false ->
+                    false
+            end
+        end,
+        InterfaceAddressList
+    ),
+    case length(MatchingInterfaceAddresses) > 0 of
+        false ->
+            CandidateAddress;
+        true ->
+            nsime_ipv4_interface_address:get_local_address(hd(MatchingInterfaceAddresses))
+    end.
