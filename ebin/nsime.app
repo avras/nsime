@@ -20,6 +20,7 @@
                   nsime_ipv4_routing_table_entry,
                   nsime_ipv4_routing_protocol,
                   nsime_ipv4_static_routing,
+                  nsime_ipv4_list_routing,
                   nsime_ip_endpoint,
                   nsime_ip_endpoint_demux,
                   nsime_udp_header,

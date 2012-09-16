@@ -214,10 +214,15 @@ handle_call(
             [FirstMatchingAddress | _] = MatchingAddressList,
             case FirstMatchingAddress == [] of
                 false ->
-                    {Mod, Fun, Args} = LocalDeliverCallback,
-                    NewArgs = lists:flatten([Args, [Packet, Ipv4Header, InterfacePid]]),
-                    erlang:apply(Mod, Fun, NewArgs),
-                    {reply, true, RoutingState};
+                    case LocalDeliverCallback of
+                        undefined ->
+                            {reply, true, RoutingState};
+                        _ ->
+                            {Mod, Fun, Args} = LocalDeliverCallback,
+                            NewArgs = lists:flatten([Args, [Packet, Ipv4Header, InterfacePid]]),
+                            erlang:apply(Mod, Fun, NewArgs),
+                            {reply, true, RoutingState}
+                    end;
                 true ->
                     case nsime_ipv4_interface:is_forwarding(InterfacePid) of
                         false ->

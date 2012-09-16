@@ -60,21 +60,21 @@ route_output(
                                          OutputNetdevice
                                         }).
 
-notify_interface_up(RoutingProtocolPid, InterfaceIndex) ->
-    gen_server:call(RoutingProtocolPid, {notify_interface_up, InterfaceIndex}).
+notify_interface_up(RoutingProtocolPid, InterfacePid) ->
+    gen_server:call(RoutingProtocolPid, {notify_interface_up, InterfacePid}).
 
-notify_interface_down(RoutingProtocolPid, InterfaceIndex) ->
-    gen_server:call(RoutingProtocolPid, {notify_interface_down, InterfaceIndex}).
+notify_interface_down(RoutingProtocolPid, InterfacePid) ->
+    gen_server:call(RoutingProtocolPid, {notify_interface_down, InterfacePid}).
 
-notify_add_address(RoutingProtocolPid, InterfaceIndex, InterfaceAddress) ->
+notify_add_address(RoutingProtocolPid, InterfacePid, InterfaceAddress) ->
     gen_server:call(RoutingProtocolPid, {notify_add_address,
-                                         InterfaceIndex,
+                                         InterfacePid,
                                          InterfaceAddress
                                         }).
 
-notify_remove_address(RoutingProtocolPid, InterfaceIndex, InterfaceAddress) ->
+notify_remove_address(RoutingProtocolPid, InterfacePid, InterfaceAddress) ->
     gen_server:call(RoutingProtocolPid, {notify_remove_address,
-                                         InterfaceIndex,
+                                         InterfacePid,
                                          InterfaceAddress
                                         }).
 
