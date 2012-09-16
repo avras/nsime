@@ -74,21 +74,21 @@ route_output(
                                  OutputNetdevice
                                 }).
 
-notify_interface_up(RoutingPid, InterfaceIndex) ->
-    gen_server:call(RoutingPid, {notify_interface_up, InterfaceIndex}).
+notify_interface_up(RoutingPid, InterfacePid) ->
+    gen_server:call(RoutingPid, {notify_interface_up, InterfacePid}).
 
-notify_interface_down(RoutingPid, InterfaceIndex) ->
-    gen_server:call(RoutingPid, {notify_interface_down, InterfaceIndex}).
+notify_interface_down(RoutingPid, InterfacePid) ->
+    gen_server:call(RoutingPid, {notify_interface_down, InterfacePid}).
 
-notify_add_address(RoutingPid, InterfaceIndex, InterfaceAddress) ->
+notify_add_address(RoutingPid, InterfacePid, InterfaceAddress) ->
     gen_server:call(RoutingPid, {notify_add_address,
-                                 InterfaceIndex,
+                                 InterfacePid,
                                  InterfaceAddress
                                 }).
 
-notify_remove_address(RoutingPid, InterfaceIndex, InterfaceAddress) ->
+notify_remove_address(RoutingPid, InterfacePid, InterfaceAddress) ->
     gen_server:call(RoutingPid, {notify_remove_address,
-                                 InterfaceIndex,
+                                 InterfacePid,
                                  InterfaceAddress
                                 }).
 
@@ -99,13 +99,13 @@ add_network_route(
     RoutingPid,
     NetworkAddress,
     NetworkMask,
-    InterfaceIndex,
+    InterfacePid,
     Metric
 ) ->
     gen_server:call(RoutingPid, {add_network_route,
                                  NetworkAddress,
                                  NetworkMask,
-                                 InterfaceIndex,
+                                 InterfacePid,
                                  Metric
                                 }).
 
@@ -114,23 +114,23 @@ add_network_route(
     NetworkAddress,
     NetworkMask,
     NextHopAddress,
-    InterfaceIndex,
+    InterfacePid,
     Metric
 ) ->
     gen_server:call(RoutingPid, {add_network_route,
                                  NetworkAddress,
                                  NetworkMask,
                                  NextHopAddress,
-                                 InterfaceIndex,
+                                 InterfacePid,
                                  Metric
                                 }).
 
-add_host_route(RoutingPid, DestinationAddress, InterfaceIndex, Metric) ->
+add_host_route(RoutingPid, DestinationAddress, InterfacePid, Metric) ->
     add_network_route(
         RoutingPid, 
         DestinationAddress,
         nsime_ipv4_mask:get_ones(),
-        InterfaceIndex,
+        InterfacePid,
         Metric
     ).
 
@@ -138,7 +138,7 @@ add_host_route(
     RoutingPid,
     DestinationAddress,
     NextHopAddress,
-    InterfaceIndex,
+    InterfacePid,
     Metric
 ) ->
     add_network_route(
@@ -146,17 +146,17 @@ add_host_route(
         DestinationAddress,
         nsime_ipv4_mask:get_ones(),
         NextHopAddress,
-        InterfaceIndex,
+        InterfacePid,
         Metric
     ).
 
-set_default_route(RoutingPid, NextHopAddress, InterfaceIndex, Metric) ->
+set_default_route(RoutingPid, NextHopAddress, InterfacePid, Metric) ->
     add_network_route(
         RoutingPid,
         nsime_ipv4_adddress:get_zero(),
         nsime_ipv4_mask:get_zero(),
         NextHopAddress,
-        InterfaceIndex,
+        InterfacePid,
         Metric
     ).
 
@@ -166,6 +166,179 @@ get_network_routes(RoutingPid) ->
 init([]) ->
     RoutingState = #nsime_ipv4_static_routing_state{},
     {ok, RoutingState}.
+
+handle_call(
+    {
+        route_input,
+        Packet,
+        Ipv4Header,
+        IngressNetdevice,
+        UnicastForwardCallback,
+        _MulticastForwardCallback,
+        LocalDeliverCallback,
+        ErrorCallback
+    },
+    _From,
+    RoutingState
+) ->
+    Ipv4ProtocolPid =
+        RoutingState#nsime_ipv4_static_routing_state.ipv4_protocol,
+    InterfacePid = nsime_ipv4_protocol:get_interface_for_device(
+        Ipv4ProtocolPid,
+        IngressNetdevice
+    ),
+    DestinationAddress = nsime_ipv4_header:get_destination_address(
+        Ipv4Header
+    ),
+    case
+        nsime_ipv4_address:is_multicast(DestinationAddress) bor
+        nsime_ipv4_address:is_broadcast(DestinationAddress)
+    of
+        true ->
+            erlang:error(options_not_supported);
+        false ->
+    end
+    {reply, false, RoutingState};
+
+handle_call(
+    {
+        route_output,
+        Packet,
+        Ipv4Header,
+        OutputNetdevice
+    },
+    _From,
+    RoutingState
+) ->
+    {reply, false, RoutingState};
+
+handle_call({notify_interface_up, InterfacePid}, _From, RoutingState) ->
+    AddressList = nsime_ipv4_interface:get_address_list(InterfacePid),
+    NewRoutes = lists:foldl(
+        fun(A, CurrentRoutes) ->
+            case
+                (nsime_ipv4_interface_address:get_local_address(A) =/= undefined) and
+                (nsime_ipv4_interface_address:get_mask(A) =/= undefined) and
+                (nsime_ipv4_interface_address:get_mask(A) =/= nsime_ipv4_mask:get_ones())
+            of
+                true ->
+                    Route = nsime_ipv4_routing_table_entry:create_network_route(
+                        nsime_ipv4_adddress:combine_mask(
+                            nsime_ipv4_interface_address:get_local_address(A),
+                            nsime_ipv4_interface_address:get_mask(A)
+                        ),
+                        nsime_ipv4_interface_address:get_mask(A),
+                        InterfacePid,
+                        0
+                    ),
+                    [Route | CurrentRoutes];
+                false ->
+                    CurrentRoutes
+            end
+        end,
+        [],
+        AddressList
+    ),
+    NewNetworkRoutes = lists:flatten([NewRoutes | NewNetworkRoutes]),
+    NewRoutingState = RoutingState#nsime_ipv4_static_routing_state{
+        network_routes = NewNetworkRoutes
+    },
+    {reply, ok, RoutingState};
+
+handle_call({notify_interface_down, InterfacePid}, _From, RoutingState) ->
+    NetworkRoutes = RoutingState#nsime_ipv4_static_routing_state.network_routes,
+    NewNetworkRoutes = lists:filter(
+        fun(R) ->
+            case R#nsime_ipv4_routing_table_entry.interface == InterfacePid of
+                true ->
+                    false;
+                false ->
+                    true
+            end
+        end,
+        NetworkRoutes
+    ),
+    NewRoutingState = RoutingState#nsime_ipv4_static_routing_state{
+        network_routes = NewNetworkRoutes
+    },
+    {reply, ok, NewRoutingState};
+
+handle_call({notify_add_address, InterfacePid, InterfaceAddress}, _From, RoutingState) ->
+    case nsime_ipv4_interface:is_up(InterfacePid) == false of
+        true ->
+            {reply, ok, RoutingState};
+        false ->
+            case
+                (nsime_ipv4_interface_address:get_local_address(InterfaceAddress)
+                    =/= undefined) and
+                (nsime_ipv4_interface_address:get_mask(InterfaceAddress) =/= undefined)
+            of
+                false ->
+                    {reply, ok, RoutingState};
+                true ->
+                    NetworkRoutes =
+                        RoutingState#nsime_ipv4_static_routing_state.network_routes,
+                    Route = nsime_ipv4_routing_table_entry:create_network_route(
+                          nsime_ipv4_adddress:combine_mask(
+                              nsime_ipv4_interface_address:get_local_address(
+                                  InterfaceAddress
+                              ),
+                              nsime_ipv4_interface_address:get_mask(InterfaceAddress)
+                          ),
+                          nsime_ipv4_interface_address:get_mask(InterfaceAddress),
+                          InterfacePid,
+                          0
+                    ),
+                    NewNetworkRoutes = [Route | NetworkRoutes],
+                    NewRoutingState = RoutingState#nsime_ipv4_static_routing_state{
+                        network_routes = NewNetworkRoutes
+                    },
+                    {reply, ok, NewRoutingState}
+            end
+    end;
+
+handle_call(
+    {
+        notify_remove_address,
+        InterfacePid,
+        InterfaceAddress
+    },
+    _From,
+    RoutingState
+) ->
+    case nsime_ipv4_interface:is_up(InterfacePid) == false of
+        true ->
+            {reply, ok, RoutingState};
+        false ->
+            NetworkRoutes = RoutingState#nsime_ipv4_static_routing_state.network_routes,
+            NewNetworkRoutes = list:filter(
+                fun(R) ->
+                    NetworkMask = nsime_ipv4_interface_address:get_mask(InterfaceAddress),
+                    NetworkAddress = nsime_ipv4_adddress:combine_mask(
+                        nsime_ipv4_interface_address:get_local_address(
+                            InterfaceAddress
+                        ),
+                        NetworkMask
+                    ),
+                    case
+                        (R#nsime_ipv4_routing_table_entry.interface == InterfacePid) and
+                        (nsime_ipv4_routing_table_entry:is_network(R)) and
+                        (R#nsime_ipv4_routing_table_entry.destination == NetworkAddress) and
+                        (R#nsime_ipv4_routing_table_entry.network_mask == NetworkMask)
+                    of
+                        true ->
+                            false;
+                        false ->
+                            true
+                    end
+                end,
+                NetworkRoutes
+            ),
+            NewRoutingState = RoutingState#nsime_ipv4_static_routing_state{
+                network_routes = NewNetworkRoutes
+            },
+            {reply, ok, NewRoutingState}
+    end;
 
 handle_call({set_ipv4_protocol, Ipv4ProtocolPid}, _From, RoutingState) ->
     NewRoutingState = RoutingState#nsime_ipv4_static_routing_state{
@@ -178,7 +351,7 @@ handle_call(
         add_network_route,
         NetworkAddress,
         NetworkMask,
-        InterfaceIndex,
+        InterfacePid,
         Metric
     },
     _From,
@@ -188,7 +361,8 @@ handle_call(
     Route = nsime_ipv4_routing_table_entry:create_network_route(
         NetworkAddress,
         NetworkMask,
-        InterfaceIndex
+        InterfacePid,
+        Metric
     ),
     NewNetworkRoutes = [Route | NewNetworkRoutes],
     NewRoutingState = RoutingState#nsime_ipv4_static_routing_state{
@@ -202,7 +376,7 @@ handle_call(
         NetworkAddress,
         NetworkMask,
         NextHopAddress,
-        InterfaceIndex,
+        InterfacePid,
         Metric
     },
     _From,
@@ -213,7 +387,8 @@ handle_call(
         NetworkAddress,
         NetworkMask,
         NextHopAddress,
-        InterfaceIndex
+        InterfacePid,
+        Metric
     ),
     NewNetworkRoutes = [Route | NewNetworkRoutes],
     NewRoutingState = RoutingState#nsime_ipv4_static_routing_state{

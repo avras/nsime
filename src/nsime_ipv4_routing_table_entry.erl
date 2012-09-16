@@ -27,8 +27,8 @@
 -include("nsime_ipv4_routing_table_entry.hrl").
 
 -export([is_host/1, is_network/1, is_default/1, is_gateway/1,
-         create_host_route/2, create_host_route/3,
-         create_network_route/3, create_network_route/4,
+         create_host_route/3, create_host_route/4,
+         create_network_route/4, create_network_route/5,
          create_default_route/2]).
 
 is_host(#nsime_ipv4_routing_table_entry{network_mask = DestNetworkMask}) ->
@@ -43,44 +43,48 @@ is_default(#nsime_ipv4_routing_table_entry{destination = Destination}) ->
 is_gateway(#nsime_ipv4_routing_table_entry{gateway = Gateway}) ->
     Gateway =/= nsime_ipv4_address:get_zero().
 
-create_host_route(Destination, InterfaceIndex) ->
+create_host_route(Destination, InterfacePid, Metric) ->
     #nsime_ipv4_routing_table_entry{
         destination = Destination,
         network_mask = nsime_ipv4_mask:get_ones(),
         gateway = nsime_ipv4_address:get_zero(),
-        interface_index = InterfaceIndex
+        interface = InterfacePid,
+        metric = Metric
     }.
 
-create_host_route(Destination, NextHop, InterfaceIndex) ->
+create_host_route(Destination, NextHop, InterfacePid, Metric) ->
     #nsime_ipv4_routing_table_entry{
         destination = Destination,
         network_mask = nsime_ipv4_mask:get_ones(),
         gateway = NextHop,
-        interface_index = InterfaceIndex
+        interface = InterfacePid,
+        metric = Metric
     }.
 
-create_network_route(Network, NetworkMask, InterfaceIndex) ->
+create_network_route(Network, NetworkMask, InterfacePid, Metric) ->
     #nsime_ipv4_routing_table_entry{
         destination = Network,
         network_mask = NetworkMask,
         gateway = nsime_ipv4_address:get_zero(),
-        interface_index = InterfaceIndex
+        interface = InterfacePid,
+        metric = Metric
     }.
 
-create_network_route(Network, NetworkMask, NextHop, InterfaceIndex) ->
+create_network_route(Network, NetworkMask, NextHop, InterfacePid, Metric) ->
     #nsime_ipv4_routing_table_entry{
         destination = Network,
         network_mask = NetworkMask,
         gateway = NextHop,
-        interface_index = InterfaceIndex
+        interface = InterfacePid,
+        metric = Metric
     }.
 
-create_default_route(NextHop, InterfaceIndex) ->
+create_default_route(NextHop, InterfacePid) ->
     #nsime_ipv4_routing_table_entry{
         destination = nsime_ipv4_address:get_zero(),
         network_mask = nsime_ipv4_mask:get_ones(),
         gateway = NextHop,
-        interface_index = InterfaceIndex
+        interface = InterfacePid
     }.
 
 
