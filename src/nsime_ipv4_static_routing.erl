@@ -181,15 +181,12 @@ handle_call(
     _From,
     RoutingState
 ) ->
-    Ipv4ProtocolPid =
-        RoutingState#nsime_ipv4_static_routing_state.ipv4_protocol,
+    Ipv4ProtocolPid = RoutingState#nsime_ipv4_static_routing_state.ipv4_protocol,
     InterfacePid = nsime_ipv4_protocol:get_interface_for_device(
         Ipv4ProtocolPid,
         IngressNetdevice
     ),
-    DestinationAddress = nsime_ipv4_header:get_destination_address(
-        Ipv4Header
-    ),
+    DestinationAddress = nsime_ipv4_header:get_destination_address(Ipv4Header),
     case
         nsime_ipv4_address:is_multicast(DestinationAddress) bor
         nsime_ipv4_address:is_broadcast(DestinationAddress)
@@ -197,20 +194,61 @@ handle_call(
         true ->
             erlang:error(options_not_supported);
         false ->
-    end
-    {reply, false, RoutingState};
+            InterfaceList = nsime_ipv4_protocol:get_interface_list(Ipv4ProtocolPid),
+            MatchingAddressList = lists:foldl(
+                fun(I, MatchingAddresses) ->
+                    AddressList = nsime_ipv4_interface:get_address_list(I),
+                    NewAddressList = lists:filter(
+                        fun(A) ->
+                            (nsime_ipv4_interface_address:get_local_address(A) == DestinationAddress)
+                            bor
+                            (nsime_ipv4_interface_address:get_broadcast_address(A) == DestinationAddress)
+                        end,
+                        AddressList
+                    ),
+                    lists:flatten([NewAddressList | MatchingAddresses])
+                end,
+                [],
+                InterfaceList
+            ),
+            [FirstMatchingAddress | _] = MatchingAddressList,
+            case FirstMatchingAddress == [] of
+                false ->
+                    {Mod, Fun, Args} = LocalDeliverCallback,
+                    NewArgs = lists:flatten([Args, [Packet, Ipv4Header, InterfacePid]),
+                    erlang:apply(Mod, Fun, NewArgs),
+                    {reply, true, RoutingState};
+                true ->
+                    case nsime_ipv4_interface:is_forwarding(InterfacePid) of
+                        false ->
+                            {Mod, Fun, Args} = ErrorCallback,
+                            NewArgs = lists:flatten([Args, [Packet, Ipv4Header, error_noroutetohost]),
+                            erlang:apply(Mod, Fun, NewArgs),
+                            {reply, false, RoutingState};
+                        true ->
+                            Route = lookup_static(DestinationAddress, undefined),
+                            case Route of
+                                undefined ->
+                                    {reply, false, RoutingState};
+                                _ ->
+                                    {Mod, Fun, Args} = UnicastForwardCallback,
+                                    NewArgs = lists:flatten([Args, [Route, Packet, Ipv4Header]),
+                                    erlang:apply(Mod, Fun, NewArgs),
+                                    {reply, true, RoutingState}
+                            end
+                    end
+            end
+    end;
 
-handle_call(
-    {
-        route_output,
-        Packet,
-        Ipv4Header,
-        OutputNetdevice
-    },
-    _From,
-    RoutingState
-) ->
-    {reply, false, RoutingState};
+handle_call({route_output, _Packet, Ipv4Header, OutputNetdevice}, _From, RoutingState) ->
+    DestinationAddress = nsime_ipv4_header:get_destination_address(Ipv4Header),
+    Route = lookup_static(DestinationAddress, OutputNetdevice),
+    case Route of
+        undefined ->
+            {reply, {error_noroutetohost, undefined}, RoutingState};
+        _ ->
+            {reply, {error_noterror, Route}, RoutingState}
+    end;
 
 handle_call({notify_interface_up, InterfacePid}, _From, RoutingState) ->
     AddressList = nsime_ipv4_interface:get_address_list(InterfacePid),
