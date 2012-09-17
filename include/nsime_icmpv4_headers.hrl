@@ -48,11 +48,11 @@
 -define(ICMPv4_FRAG_NEEDED, 4).
 -define(ICMPv4_SOURCE_ROUTE_FAILED, 5).
 
--record(nsime_icmpv4_destination_unreachable_header,
+-record(nsime_icmpv4_dest_unreachable_header,
         {
           next_hop_mtu = 0                :: 0..65535,
           header                          :: #nsime_ipv4_header{},
-          data                            :: binary()
+          data = <<0:64>>                 :: binary()
         }).
 
 
