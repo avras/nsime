@@ -25,6 +25,7 @@
                   nsime_icmpv4_echo_header,
                   nsime_icmpv4_dest_unreachable_header,
                   nsime_icmpv4_time_exceeded_header,
+                  nsime_icmpv4_protocol,
                   nsime_ip_endpoint,
                   nsime_ip_endpoint_demux,
                   nsime_udp_header,

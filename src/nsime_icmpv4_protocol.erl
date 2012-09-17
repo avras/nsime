@@ -1,4 +1,3 @@
-
 %%
 %%  Copyright (C) 2012 Saravanan Vijayakumaran <sarva.v@gmail.com>
 %%
@@ -24,6 +23,11 @@
 -module(nsime_icmpv4_protocol).
 -author("Saravanan Vijayakumaran").
 
+-include("nsime_types.hrl").
+-include("nsime_packet.hrl").
+-include("nsime_ipv4_header.hrl").
+-include("nsime_ipv4_route.hrl").
+-include("nsime_icmpv4_headers.hrl").
 -include("nsime_icmpv4_protocol_state.hrl").
 
 -behaviour(gen_server).
@@ -31,8 +35,7 @@
          terminate/2, code_change/3]).
 
 -export([create/0, destroy/1, set_node/2, protocol_number/1,
-         recv/4, send_dest_unreach_frag_needed/4,
-         send_time_exceeded_ttl/3, send_dest_unreach_port/3,
+         recv/4, send_time_exceeded_ttl/3, send_dest_unreach_port/3,
          set_ipv4_down_target/2, get_ipv4_down_target/1]).
 
 -define(ICMPv4_PROTOCOL_NUMBER, 1).
@@ -50,18 +53,14 @@ set_node(ProtocolPid, NodePid) ->
 protocol_number(ProtocolPid) ->
     gen_server:call(ProtocolPid, protocol_number).
 
-recv(ProtocolPid, Packet, Header, Interface) ->
-    gen_server:call(ProtocolPid, {recv, Packet, Header, Interface}).
+recv(ProtocolPid, Packet, Ipv4Header, Interface) ->
+    gen_server:call(ProtocolPid, {recv, Packet, Ipv4Header, Interface}).
 
-send(ProtocolPid, Packet, SrcAddress, DestAddress, SrcPort, DestPort, Route) ->
-    gen_server:call(ProtocolPid, {send,
-                                  Packet,
-                                  SrcAddress,
-                                  DestAddress,
-                                  SrcPort,
-                                  DestPort,
-                                  Route
-                                 }).
+send_time_exceeded_ttl(ProtocolPid, Ipv4Header, Packet) ->
+    gen_server:call(ProtocolPid, {send_time_exceeded_ttl, Ipv4Header, Packet}).
+
+send_dest_unreach_port(ProtocolPid, Ipv4Header, Packet) ->
+    gen_server:call(ProtocolPid, {send_dest_unreach_port, Ipv4Header, Packet}).
 
 set_ipv4_down_target(ProtocolPid, Callback) ->
     gen_server:call(ProtocolPid, {set_ipv4_down_target, Callback}).
@@ -80,37 +79,49 @@ handle_call({set_node, NodePid}, _From, ProtocolState) ->
 handle_call(protocol_number, _From, ProtocolState) ->
     {reply, ?ICMPv4_PROTOCOL_NUMBER, ProtocolState};
 
-handle_call({recv, Packet, Header, Interface}, _From, ProtocolState) ->
+handle_call({recv, Packet, Ipv4Header, _Interface}, _From, ProtocolState) ->
     Data = Packet#nsime_packet.data,
     IcmpHeader = nsime_icmpv4_header:deserialize(Data),
-    SrcAddress = nsime_ipv4_header:get_source_address(Header),
-    DestAddress = nsime_ipv4_header:get_destination_address(Header),
+    SrcAddress = nsime_ipv4_header:get_source_address(Ipv4Header),
+    DestAddress = nsime_ipv4_header:get_destination_address(Ipv4Header),
     case IcmpHeader#nsime_icmpv4_header.type of
         ?ICMPv4_ECHO ->
-            handle_echo(Packet, IcmpHeader, SrcAddress, DestAddress),
+            handle_echo(Packet, IcmpHeader, SrcAddress, DestAddress, ProtocolState),
             {reply, rx_ok, ProtocolState};
         ?ICMPv4_DEST_UNREACH ->
-            handle_dest_unreach(Packet, IcmpHeader, SrcAddress, DestAddress),
+            handle_dest_unreach(Packet, IcmpHeader, SrcAddress, DestAddress, ProtocolState),
             {reply, rx_ok, ProtocolState};
         ?ICMPv4_TIME_EXCEEDED ->
-            handle_time_exceeded(Packet, IcmpHeader, SrcAddress, DestAddress),
+            handle_time_exceeded(Packet, IcmpHeader, SrcAddress, DestAddress, ProtocolState),
             {reply, rx_ok, ProtocolState};
         _ ->
             {reply, rx_ok, ProtocolState}
     end;
 
-handle_call(
-    {send,
-        Packet,
-        SrcAddress,
-        DestAddress,
-        SrcPort,
-        DestPort,
-        Route
+handle_call({send_time_exceeded_ttl, Ipv4Header, Packet}, _From, ProtocolState) ->
+    HeaderBinary = nsime_icmpv4_time_exceeded_header:serialize(
+        nsime_icmpv4_time_exceeded_header:set_data(
+            #nsime_icmpv4_time_exceeded_header{
+              header = Ipv4Header
+            },
+            Packet
+        )
+    ),
+    Data = Packet#nsime_packet.data,
+    NewPacket = Packet#nsime_packet{
+        data = <<HeaderBinary/binary, Data/binary>>
     },
-    _From,
-    ProtocolState
-) ->
+    send_message(
+        NewPacket,
+        nsime_ipv4_header:get_source_address(Ipv4Header),
+        ?ICMPv4_TIME_EXCEEDED,
+        ?ICMPv4_TIME_TO_LIVE,
+        ProtocolState
+    ),
+    {reply, ok, ProtocolState};
+
+handle_call({send_dest_unreach_port, Ipv4Header, Packet}, _From, ProtocolState) ->
+    send_dest_unreach(Ipv4Header, Packet, ?ICMPv4_PORT_UNREACHABLE, 0, ProtocolState),
     {reply, ok, ProtocolState};
 
 handle_call({set_ipv4_down_target, Callback}, _From, ProtocolState) ->
@@ -140,7 +151,124 @@ code_change(_OldVersion, ProtocolState, _Extra) ->
 
 %% Helper methods %%
 
-handle_echo(Packet, IcmpHeader, SrcAddress, DestAddress) ->
+handle_echo(Packet, _IcmpHeader, SrcAddress, DestAddress, ProtocolState) ->
     <<EchoHeaderBinary:32, _Payload/binary>> = Packet#nsime_packet.data,
     ReplyPacket = #nsime_packet{data = EchoHeaderBinary, size = 4},
-    send_message(ReplyPacket, DestAddress, SrcAddress, ?ICMPv4_ECHO_REPLY, 0, 0).
+    send_message(ReplyPacket, DestAddress, SrcAddress, ?ICMPv4_ECHO_REPLY, 0, 0, ProtocolState).
+
+handle_dest_unreach(Packet, IcmpHeader, SrcAddress, _DestAddress, ProtocolState) ->
+    DestUnreachableHeader = nsime_icmpv4_dest_unreachable:deserialize(
+        Packet#nsime_packet.data
+    ),
+    forward(
+        SrcAddress,
+        IcmpHeader,
+        nsime_icmpv4_dest_unreachable:get_next_hop_mtu(DestUnreachableHeader),
+        nsime_icmpv4_dest_unreachable:get_header(DestUnreachableHeader),
+        nsime_icmpv4_dest_unreachable:get_data(DestUnreachableHeader),
+        ProtocolState
+    ).
+
+handle_time_exceeded(Packet, IcmpHeader, SrcAddress, _DestAddress, ProtocolState) ->
+    TimeExceededHeader = nsime_icmpv4_time_exceeded_header:deserialize(
+        Packet#nsime_packet.data
+    ),
+    forward(
+        SrcAddress,
+        IcmpHeader,
+        0,
+        nsime_icmpv4_dest_unreachable:get_header(TimeExceededHeader),
+        nsime_icmpv4_dest_unreachable:get_data(TimeExceededHeader),
+        ProtocolState
+    ).
+
+forward(SrcAddress, IcmpHeader, Info, Ipv4Header, Payload, ProtocolState) ->
+    NodePid = ProtocolState#nsime_icmpv4_protocol_state.node,
+    Ipv4ProtocolPid = nsime_node:get_object(NodePid, nsime_ipv4_protocol),
+    Layer4ProtocolPid = nsime_ipv4_protocol:get_protocol(
+        Ipv4ProtocolPid,
+        nsime_ipv4_header:get_protocol(Ipv4Header)
+    ),
+    case is_pid(Layer4ProtocolPid) of
+        true ->
+            nsime_layer4_protocol:receive_icmp(
+                Layer4ProtocolPid,
+                SrcAddress,
+                nsime_ipv4_header:get_ttl(Ipv4Header),
+                nsime_icmpv4_header:get_type(IcmpHeader),
+                nsime_icmpv4_header:get_code(IcmpHeader),
+                Info,
+                nsime_ipv4_header:get_source_address(Ipv4Header),
+                nsime_ipv4_header:get_destination_address(Ipv4Header),
+                Payload
+            );
+        false ->
+            ok
+    end.
+
+send_message(Packet, DestAddress, IcmpType, IcmpCode, ProtocolState) ->
+    NodePid = ProtocolState#nsime_icmpv4_protocol_state.node,
+    Ipv4ProtocolPid = nsime_node:get_object(NodePid, nsime_ipv4_protocol),
+    Ipv4Header = #nsime_ipv4_header{
+        destination_address = DestAddress,
+        protocol = ?ICMPv4_PROTOCOL_NUMBER
+    },
+    case
+    nsime_ipv4_routing_protocol:route_output(
+        nsime_ipv4_protocol:get_routing_protocol(Ipv4ProtocolPid),
+        Packet,
+        Ipv4Header,
+        none
+    )
+    of
+        {error_noroutetohost, undefined} ->
+            none;
+        {error_noterror, Route} ->
+            send_message(
+                Packet,
+                Route#nsime_ipv4_route.source,
+                DestAddress,
+                IcmpType,
+                IcmpCode,
+                Route,
+                ProtocolState
+            )
+    end.
+
+send_message(Packet, SrcAddress, DestAddress, IcmpType, IcmpCode, Route, ProtocolState) ->
+    HeaderBinary = nsime_icmpv4_header:serialize(
+        #nsime_icmpv4_header{
+            type = IcmpType,
+            code = IcmpCode,
+            calculate_checksum = true
+        }
+    ),
+    Data = Packet#nsime_packet.data,
+    NewPacket = Packet#nsime_packet{
+        data = <<HeaderBinary/binary, Data/binary>>
+    },
+    {Mod, Fun, Args} = ProtocolState#nsime_icmpv4_protocol_state.ipv4_down_target,
+    NewArgs = lists:flatten([Args, [NewPacket, SrcAddress, DestAddress, ?ICMPv4_PROTOCOL_NUMBER, Route]]),
+    erlang:apply(Mod, Fun, NewArgs).
+
+send_dest_unreach(Ipv4Header, Packet, IcmpCode, NextHopMtu, ProtocolState) ->
+    HeaderBinary = nsime_icmpv4_dest_unreachable_header:serialize(
+        nsime_icmpv4_dest_unreachable_header:set_data(
+            #nsime_icmpv4_dest_unreachable_header{
+              header = Ipv4Header,
+              next_hop_mtu = NextHopMtu
+            },
+            Packet
+        )
+    ),
+    Data = Packet#nsime_packet.data,
+    NewPacket = Packet#nsime_packet{
+        data = <<HeaderBinary/binary, Data/binary>>
+    },
+    send_message(
+        NewPacket,
+        nsime_ipv4_header:get_source_address(Ipv4Header),
+        ?ICMPv4_DEST_UNREACH,
+        IcmpCode,
+        ProtocolState
+    ).
