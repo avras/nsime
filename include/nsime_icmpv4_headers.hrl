@@ -61,7 +61,6 @@
 
 -record(nsime_icmpv4_time_exceeded_header,
         {
-          next_hop_mtu = 0                :: 0..65535,
           header                          :: #nsime_ipv4_header{},
-          data                            :: binary()
+          data = <<0:64>>                 :: binary()
         }).
