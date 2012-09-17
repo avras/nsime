@@ -29,7 +29,7 @@
         {
           type = 0                        :: 0..255,
           code = 0                        :: 0..255,
-          calculate_checksum = false      :: boolean(),
+          calculate_checksum = false      :: boolean()
         }).
 
 -record(nsime_icmpv4_echo_header,
