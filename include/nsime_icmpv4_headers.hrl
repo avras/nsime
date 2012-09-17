@@ -35,7 +35,7 @@
 -record(nsime_icmpv4_echo_header,
         {
           identifier = 0                  :: 0..65535,
-          sequence = 0                    :: 0..65535,
+          sequence_number = 0             :: 0..65535,
           data                            :: binary(),
           data_size = 0                   :: non_neg_integer()
         }).
