@@ -17,13 +17,14 @@
 %%  along with nsime.  If not, see <http://www.gnu.org/licenses/>.
 %%
 
-%% Purpose : UDP protocol state record
+%% Purpose : IPv4 protocol state record
 %% Author : Saravanan Vijayakumaran
 
 -record(nsime_ipv4_protocol_state,
         {
           node                                      :: pid(),
           layer4_protocols = []                     :: [pid()],
+          interfaces = []                           :: [pid()],
           routing_protocol                          :: pid(),
           raw_sockets = []                          :: [pid()],
           ip_forward = false                        :: boolean(),
