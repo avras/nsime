@@ -146,14 +146,14 @@ get_netdevice(ProtocolPid, InterfacePid) ->
 set_fragment_expiration_timeout(ProtocolPid, Timeout) ->
     gen_server:call(ProtocolPid, {set_fragment_expiration_timeout, Timeout}).
 
-set_transmit_trace(ProtocolPid, Callback) ->
-    gen_server:call(ProtocolPid, {set_transmit_trace, Callback}).
+set_transmit_trace(ProtocolPid, TraceCallback) ->
+    gen_server:call(ProtocolPid, {set_transmit_trace, TraceCallback}).
 
-set_receive_trace(ProtocolPid, Callback) ->
-    gen_server:call(ProtocolPid, {set_receive_trace, Callback}).
+set_receive_trace(ProtocolPid, TraceCallback) ->
+    gen_server:call(ProtocolPid, {set_receive_trace, TraceCallback}).
 
-set_drop_trace(ProtocolPid, Callback) ->
-    gen_server:call(ProtocolPid, {set_drop_trace, Callback}).
+set_drop_trace(ProtocolPid, TraceCallback) ->
+    gen_server:call(ProtocolPid, {set_drop_trace, TraceCallback}).
 
 set_send_outgoing_trace(ProtocolPid, TraceCallback) ->
     gen_server:call(ProtocolPid, {set_send_outgoing_trace, TraceCallback}).
@@ -413,6 +413,100 @@ handle_call({get_interface_address_list, InterfacePid}, _From, ProtocolState) ->
 
 handle_call({select_source_address, DevicePid, DestAddress, InterfaceAddressScope}, _From, ProtocolState) ->
     {reply, ok, ProtocolState};
+
+handle_call({set_metric, InterfacePid, Metric}, _From, ProtocolState) ->
+    nsime_ipv4_interface:set_metric(InterfacePid, Metric),
+    {reply, ok, ProtocolState};
+
+handle_call({get_metric, InterfacePid}, _From, ProtocolState) ->
+    {reply, nsime_ipv4_interface:get_metric(InterfacePid), ProtocolState};
+
+handle_call({get_mtu, InterfacePid}, _From, ProtocolState) ->
+    Mtu = nsime_netdevice:get_mtu(nsime_ipv4_interface:get_device(InterfacePid)),
+    {reply, Mtu, ProtocolState};
+
+handle_call({is_up, InterfacePid}, _From, ProtocolState) ->
+    {reply, nsime_ipv4_interface:is_up(InterfacePid), ProtocolState};
+
+handle_call({set_up, InterfacePid}, _From, ProtocolState) ->
+    nsime_ipv4_interface:set_up(InterfacePid),
+    RoutingProtocolPid = ProtocolState#nsime_ipv4_protocol_state.routing_protocol,
+    case is_pid(RoutingProtocolPid) of
+        true ->
+            nsime_ipv4_routing_protocol:notify_interface_up(
+                RoutingProtocolPid,
+                InterfacePid
+            ),
+            {reply, ok, ProtocolState};
+        false ->
+            {reply, ok, ProtocolState};
+    end;
+
+handle_call({set_down, InterfacePid}, _From, ProtocolState) ->
+    nsime_ipv4_interface:set_down(InterfacePid),
+    RoutingProtocolPid = ProtocolState#nsime_ipv4_protocol_state.routing_protocol,
+    case is_pid(RoutingProtocolPid) of
+        true ->
+            nsime_ipv4_routing_protocol:notify_interface_down(
+                RoutingProtocolPid,
+                InterfacePid
+            ),
+            {reply, ok, ProtocolState};
+        false ->
+            {reply, ok, ProtocolState};
+    end;
+
+handle_call({is_forwarding, InterfacePid}, _From, ProtocolState) ->
+    {reply, nsime_ipv4_interface:is_forwarding(InterfacePid), ProtocolState};
+
+handle_call({set_forwarding, InterfacePid, Forwarding}, _From, ProtocolState) ->
+    nsime_ipv4_interface:set_forwarding(InterfacePid, Forwarding),
+    {reply, ok, ProtocolState};
+
+handle_call({get_netdevice, InterfacePid}, _From, ProtocolState) ->
+    {reply, nsime_ipv4_interface:get_device(InterfacePid), ProtocolState};
+
+handle_call({set_fragment_expiration_timeout, Timeout}, _From, ProtocolState) ->
+    NewProtocolState = ProtocolState#nsime_ipv4_protocol_state{
+        fragment_expiration_timeout = Timeout
+    },
+    {reply, ok, NewProtocolState};
+
+handle_call({set_transmit_trace, TraceCallback}, _From, ProtocolState) ->
+    NewProtocolState = ProtocolState#nsime_ipv4_protocol_state{
+        transmit_trace = TraceCallback
+    },
+    {reply, ok, NewProtocolState};
+
+handle_call({set_receive_trace, TraceCallback}, _From, ProtocolState) ->
+    NewProtocolState = ProtocolState#nsime_ipv4_protocol_state{
+        receive_trace = TraceCallback
+    },
+    {reply, ok, NewProtocolState};
+
+handle_call({set_drop_trace, TraceCallback}, _From, ProtocolState) ->
+    NewProtocolState = ProtocolState#nsime_ipv4_protocol_state{
+        drop_trace = TraceCallback
+    },
+    {reply, ok, NewProtocolState};
+
+handle_call({set_send_outgoing_trace, TraceCallback}, _From, ProtocolState) ->
+    NewProtocolState = ProtocolState#nsime_ipv4_protocol_state{
+        send_outgoing_trace = TraceCallback
+    },
+    {reply, ok, NewProtocolState};
+
+handle_call({set_unicast_forward_trace, TraceCallback}, _From, ProtocolState) ->
+    NewProtocolState = ProtocolState#nsime_ipv4_protocol_state{
+        unicast_forward_trace = TraceCallback
+    },
+    {reply, ok, NewProtocolState};
+
+handle_call({set_local_deliver_trace, TraceCallback}, _From, ProtocolState) ->
+    NewProtocolState = ProtocolState#nsime_ipv4_protocol_state{
+        local_deliver_trace = TraceCallback
+    },
+    {reply, ok, NewProtocolState};
 
 handle_call(terminate, _From, ProtocolState) ->
     lists:foreach(
