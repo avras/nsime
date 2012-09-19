@@ -37,7 +37,7 @@
           transmit_trace                            :: nsime_callback(),
           receive_trace                             :: nsime_callback(),
           drop_trace                                :: nsime_callback(),
-          fragments = []                            :: [#nsime_ipv4_fragment{}],
+          fragments = []                            :: list(),
           fragment_expiration_timeout = {30, sec}   :: nsime_time(),
           fragment_timers = []                      :: [#nsime_event{}]
         }).

@@ -75,9 +75,9 @@
                                      | rx_endpoint_closed
                                      | rx_endpoint_unreach.
 
--type nsime_ipv4_drop_reason() :: drop_ttl_expired,
-                                | drop_no_route,
-                                | drop_bad_checksum,
-                                | drop_interface_down,
-                                | drop_route_error,
+-type nsime_ipv4_drop_reason() :: drop_ttl_expired
+                                | drop_no_route
+                                | drop_bad_checksum
+                                | drop_interface_down
+                                | drop_route_error
                                 | drop_fragment_timeout.

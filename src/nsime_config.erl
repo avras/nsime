@@ -30,7 +30,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([start/0, stop/0, enable_checksum/0, disable_checksum/0
+-export([start/0, stop/0, enable_checksum/0, disable_checksum/0,
          checksum_enabled/0]).
 
 start() ->
@@ -85,8 +85,6 @@ handle_info(_Request, ConfigState) ->
     {noreply, ConfigState}.
 
 terminate(_Reason, ConfigState) ->
-    Scheduler = ConfigState#nsime_config_state.scheduler,
-    Scheduler:stop(),
     ok.
 
 code_change(_OldVersion, ConfigState, _Extra) ->

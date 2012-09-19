@@ -3,6 +3,7 @@
       {vsn, "0.1"},
       {modules, [
                   nsime_simulator,
+                  nsime_config,
                   nsime_node,
                   nsime_node_list,
                   nsime_time,
@@ -21,6 +22,7 @@
                   nsime_ipv4_routing_protocol,
                   nsime_ipv4_static_routing,
                   nsime_ipv4_list_routing,
+                  nsime_ipv4_protocol,
                   nsime_icmpv4_header,
                   nsime_icmpv4_echo_header,
                   nsime_icmpv4_dest_unreachable_header,

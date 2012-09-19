@@ -34,7 +34,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([create/0, destroy/1, set_node/2, protocol_number/1,
+-export([create/0, destroy/1, set_node/2, protocol_number/0,
          recv/4, send_time_exceeded_ttl/3, send_dest_unreach_port/3,
          set_ipv4_down_target/2, get_ipv4_down_target/1]).
 
