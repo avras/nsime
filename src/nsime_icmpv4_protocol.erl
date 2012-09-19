@@ -240,7 +240,7 @@ send_message(Packet, SrcAddress, DestAddress, IcmpType, IcmpCode, Route, Protoco
         #nsime_icmpv4_header{
             type = IcmpType,
             code = IcmpCode,
-            calculate_checksum = true
+            calculate_checksum = nsime_config:checksum_enabled()
         }
     ),
     Data = Packet#nsime_packet.data,
