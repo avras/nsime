@@ -50,8 +50,8 @@ destroy(ProtocolPid) ->
 set_node(ProtocolPid, NodePid) ->
     gen_server:call(ProtocolPid, {set_node, NodePid}).
 
-protocol_number(ProtocolPid) ->
-    gen_server:call(ProtocolPid, protocol_number).
+protocol_number() ->
+    ?ICMPv4_PROTOCOL_NUMBER.
 
 recv(ProtocolPid, Packet, Ipv4Header, Interface) ->
     gen_server:call(ProtocolPid, {recv, Packet, Ipv4Header, Interface}).
