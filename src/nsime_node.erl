@@ -30,9 +30,8 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([create/0, create/1, destroy/1,
-         add_netdevice/2, get_netdevices/1,
-         add_application/2, get_applications/1,
+-export([create/0, create/1, destroy/1, add_object/3, get_object/2,
+         add_netdevice/2, get_netdevices/1, add_application/2, get_applications/1,
          register_protocol_handler/5, unregister_protocol_handler/2,
          receive_from_device/8, promisc_receive_from_device/7,
          nonpromisc_receive_from_device/5]).
@@ -46,11 +45,17 @@ create(NumNodes) ->
         0 ->
             [];
         _ ->
-            lists:map(fun() -> create() end, lists:seq(1, NumNodes))
+            lists:map(fun(_) -> create() end, lists:seq(1, NumNodes))
     end.
 
 destroy(NodePid) ->
     gen_server:call(NodePid, terminate).
+
+add_object(NodePid, ObjectName, ObjectPid) ->
+    gen_server:call(NodePid, {add_object, ObjectName, ObjectPid}).
+
+get_object(NodePid, ObjectName) ->
+    gen_server:call(NodePid, {get_object, ObjectName}).
 
 add_netdevice(NodePid, DevicePid) ->
     gen_server:call(NodePid, {add_netdevice, DevicePid}).
@@ -98,6 +103,17 @@ nonpromisc_receive_from_device(NodePid, DevicePid, Packet, Protocol, FromAddress
 init([]) ->
     NodeState = #nsime_node_state{},
     {ok, NodeState}.
+
+handle_call({add_object, ObjectName, ObjectPid}, _From, NodeState) ->
+    ObjectList = NodeState#nsime_node_state.objects,
+    NewObjectList = [{ObjectName, ObjectPid} | ObjectList],
+    NewNodeState = NodeState#nsime_node_state{objects = NewObjectList},
+    {reply, ok, NewNodeState};
+
+handle_call({get_object, ObjectName}, _From, NodeState) ->
+    ObjectList = NodeState#nsime_node_state.objects,
+    ObjectPid = proplists:get_value(ObjectName, ObjectList),
+    {reply, ObjectPid, NodeState};
 
 handle_call({add_netdevice, DevicePid}, _From, NodeState) ->
     nsime_netdevice:set_node(DevicePid, self()),

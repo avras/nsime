@@ -175,7 +175,6 @@ handle_call({send, Packet, DestAddress}, _From, InterfaceState) ->
             {reply, interface_down, InterfaceState};
         true ->
             Device = InterfaceState#nsime_ipv4_interface_state.device,
-
             case (nsime_netdevice:get_device_type(Device) == nsime_loopback_netdevice) of
                 true ->
                     nsime_netdevice:send(
@@ -194,7 +193,8 @@ handle_call({send, Packet, DestAddress}, _From, InterfaceState) ->
                     ),
                     case is_pid(MatchingAddress) of
                         false ->
-                            IPv4Protocol = nsime_node:get_pid(nsime_ipv4_protocol),
+                            NodePid = InterfaceState#nsime_ipv4_interface_state.node,
+                            IPv4Protocol = nsime_node:get_object(NodePid, nsime_ipv4_protocol),
                             nsime_ipv4_protocol:receive_packet(
                                 IPv4Protocol,
                                 Device,

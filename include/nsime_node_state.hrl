@@ -32,5 +32,6 @@
         {
           applications = []       :: [pid()],
           netdevices = []         :: [pid()],
-          protocol_handlers = []  :: [#nsime_protocol_handler_record{}]
+          protocol_handlers = []  :: [#nsime_protocol_handler_record{}],
+          objects = []            :: list()
         }).
