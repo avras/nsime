@@ -209,6 +209,22 @@ handle_call(get_address, _From, DeviceState) ->
     Address = DeviceState#nsime_ptp_netdevice_state.address,
     {reply, Address, DeviceState};
 
+handle_call({set_receive_callback, Callback}, _From, DeviceState) ->
+    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{receive_callback = Callback},
+    {reply, ok, NewDeviceState};
+
+handle_call(get_receive_callback, _From, DeviceState) ->
+    Address = DeviceState#nsime_ptp_netdevice_state.receive_callback,
+    {reply, Address, DeviceState};
+
+handle_call({set_promisc_receive_callback, Callback}, _From, DeviceState) ->
+    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{promisc_receive_callback = Callback},
+    {reply, ok, NewDeviceState};
+
+handle_call(get_promisc_receive_callback, _From, DeviceState) ->
+    Address = DeviceState#nsime_ptp_netdevice_state.promisc_receive_callback,
+    {reply, Address, DeviceState};
+
 handle_call({set_data_rate, DataRate}, _From, DeviceState) ->
     NewDeviceState = DeviceState#nsime_ptp_netdevice_state{data_rate = DataRate},
     {reply, ok, NewDeviceState};

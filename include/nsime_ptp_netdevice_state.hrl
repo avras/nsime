@@ -25,6 +25,8 @@
             device_type = nsime_ptp_netdevice         :: atom(),
             node                                      :: pid(),
             address                                   :: binary(),
+            receive_callback                          :: nsime_callback(),
+            promisc_receive_callback                  :: nsime_callback(),
             tx_state = ready                          :: nsime_tx_device_state(),
             data_rate                                 :: nsime_data_rate(),
             interframe_gap = {0, sec}                 :: nsime_time(),

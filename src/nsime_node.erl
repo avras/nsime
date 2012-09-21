@@ -42,7 +42,7 @@ create(NumNodes) ->
         0 ->
             [];
         _ ->
-            [create() | create(NumNodes-1)]
+            lists:map(fun() -> create() end, lists:seq(1, NumNodes))
     end.
 
 destroy(NodePid) ->

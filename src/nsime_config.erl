@@ -84,7 +84,7 @@ handle_cast(_Request, ConfigState) ->
 handle_info(_Request, ConfigState) ->
     {noreply, ConfigState}.
 
-terminate(_Reason, ConfigState) ->
+terminate(_Reason, _ConfigState) ->
     ok.
 
 code_change(_OldVersion, ConfigState, _Extra) ->

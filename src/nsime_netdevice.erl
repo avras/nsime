@@ -26,6 +26,8 @@
 -export([get_device_type/1,
          set_interface/2, get_interface/1,
          set_address/2, get_address/1,
+         set_receive_callback/2, get_receive_callback/1,
+         set_promisc_receive_callback/2, get_promisc_receive_callback/1,
          get_channel/1, set_mtu/2, get_mtu/1,
          is_link_up/1, is_bridge/1, is_ptp/1,
          is_broadcast/1, get_broadcast_address/1,
@@ -48,6 +50,18 @@ set_address(DevicePid, Address) ->
 
 get_address(DevicePid) ->
     gen_server:call(DevicePid, get_address).
+
+set_receive_callback(DevicePid, Callback) ->
+    gen_server:call(DevicePid, {set_receive_callback, Callback}).
+
+get_receive_callback(DevicePid) ->
+    gen_server:call(DevicePid, get_receive_callback).
+
+set_promisc_receive_callback(DevicePid, Callback) ->
+    gen_server:call(DevicePid, {set_promisc_receive_callback, Callback}).
+
+get_promisc_receive_callback(DevicePid) ->
+    gen_server:call(DevicePid, get_promisc_receive_callback).
 
 get_channel(DevicePid) ->
     gen_server:call(DevicePid, get_channel).
