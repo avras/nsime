@@ -83,7 +83,7 @@ test_creation_with_initial_state(_) ->
     ?assertEqual(QueueStats#nsime_droptail_queue_state.dropped_packet_count, 0),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.dropped_byte_count, 0),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.max_packet_count, 2),
-    ?assertEqual(QueueStats#nsime_droptail_queue_state.max_byte_count, 0),
+    ?assertEqual(QueueStats#nsime_droptail_queue_state.max_byte_count, infinity),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.device_id, undefined),
     ?assert(queue:is_empty(QueueStats#nsime_droptail_queue_state.packets)),
     ?assertEqual(nsime_droptail_queue:destroy(QueuePid), stopped).

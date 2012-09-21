@@ -111,7 +111,7 @@ test_set_get_components(_) ->
     MTU = 1000,
     ?assertEqual(nsime_ptp_netdevice:set_mtu(DevicePid, MTU), ok),
     ?assertEqual(nsime_ptp_netdevice:get_mtu(DevicePid), MTU),
-    InterfacePid = pid(1,1,1),
+    InterfacePid = list_to_pid("<0.0.0>"),
     ?assertEqual(nsime_ptp_netdevice:set_interface(DevicePid, InterfacePid), ok),
     ?assertEqual(nsime_ptp_netdevice:get_interface(DevicePid), InterfacePid).
 
