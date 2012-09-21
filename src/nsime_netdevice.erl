@@ -23,7 +23,7 @@
 -module(nsime_netdevice).
 -author("Saravanan Vijayakumaran").
 
--export([get_device_type/1,
+-export([destroy/1, get_device_type/1,
          set_interface/2, get_interface/1,
          set_address/2, get_address/1,
          set_receive_callback/2, get_receive_callback/1,
@@ -35,6 +35,9 @@
          set_node/2, get_node/1,
          needs_arp/1, supports_send_from/1,
          send/4]).
+
+destroy(DevicePid) ->
+    gen_server:call(DevicePid, terminate).
 
 get_device_type(DevicePid) ->
     gen_server:call(DevicePid, get_device_type).

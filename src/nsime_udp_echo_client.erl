@@ -54,13 +54,7 @@ set_node(ClientPid, NodePid) ->
     gen_server:call(ClientPid, {set_node, NodePid}).
 
 schedule_start(ClientPid, Time) ->
-    StartEvent = #nsime_event{
-        module = ?MODULE,
-        function = start,
-        arguments = [ClientPid],
-        eventid = make_ref()
-    },
-    nsime_simulator:schedule(Time, StartEvent).
+    gen_server:call(ClientPid, {schedule_start, Time}).
 
 set_remote(ClientPid, Address, Port) when 
     is_list(Address), 
@@ -122,6 +116,16 @@ handle_call(get_node, _From, ClientState) ->
 handle_call({set_node, NodePid}, _From, ClientState) ->
     NewClientState = ClientState#nsime_udp_echo_client_state{node = NodePid},
     {reply, ok, NewClientState};
+
+handle_call({schedule_start, Time}, _From, ClientState) ->
+    StartEvent = #nsime_event{
+        module = ?MODULE,
+        function = start,
+        arguments = [self()],
+        eventid = make_ref()
+    },
+    nsime_simulator:schedule(Time, StartEvent),
+    {reply, ok, ClientState};
 
 handle_call({set_remote, Address, Port}, _From, ClientState) ->
     case inet_parse:address(Address) of

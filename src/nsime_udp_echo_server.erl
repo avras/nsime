@@ -51,13 +51,7 @@ set_node(ServerPid, NodePid) ->
     gen_server:call(ServerPid, {set_node, NodePid}).
 
 schedule_start(ServerPid, Time) ->
-    StartEvent = #nsime_event{
-        module = ?MODULE,
-        function = start,
-        arguments = [ServerPid],
-        eventid = make_ref()
-    },
-    nsime_simulator:schedule(Time, StartEvent).
+    gen_server:call(ServerPid, {schedule_start, Time}).
 
 set_listen_port(ServerPid, Port) when
     is_integer(Port),
@@ -101,6 +95,16 @@ handle_call(get_node, _From, ServerState) ->
 handle_call({set_node, NodePid}, _From, ServerState) ->
     NewServerState = ServerState#nsime_udp_echo_server_state{node = NodePid},
     {reply, ok, NewServerState};
+
+handle_call({schedule_start, Time}, _From, ServerState) ->
+    StartEvent = #nsime_event{
+        module = ?MODULE,
+        function = start,
+        arguments = [self()],
+        eventid = make_ref()
+    },
+    nsime_simulator:schedule(Time, StartEvent),
+    {reply, ok, ServerState};
 
 handle_call({set_listen_port, Port}, _From, ServerState) ->
     NewServerState = ServerState#nsime_udp_echo_server_state{listen_port = Port},

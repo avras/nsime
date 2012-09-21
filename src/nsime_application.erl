@@ -17,20 +17,31 @@
 %%  along with nsime.  If not, see <http://www.gnu.org/licenses/>.
 %%
 
-%% Purpose : Node state record
+%% Purpose : Application module
 %% Author : Saravanan Vijayakumaran
 
--record(nsime_protocol_handler_record,
-        {
-          handler                 :: nsime_callback(),
-          device                  :: pid(),
-          protocol                :: 0..65535,
-          promiscuous             :: boolean()
-        }).
+-module(nsime_application).
+-author("Saravanan Vijayakumaran").
 
--record(nsime_node_state,
-        {
-          applications = []       :: [pid()],
-          netdevices = []         :: [pid()],
-          protocol_handlers = []  :: [#nsime_protocol_handler_record{}]
-        }).
+-export([destroy/1, set_node/2, get_node/1, schedule_start/2,
+         start/1, stop/1]).
+
+destroy(ApplicationPid) ->
+    gen_server:call(ApplicationPid, terminate).
+
+set_node(ApplicationPid, NodePid) ->
+    gen_server:call(ApplicationPid, {set_node, NodePid}).
+
+get_node(ApplicationPid) ->
+    gen_server:call(ApplicationPid, get_node).
+
+schedule_start(ApplicationPid, Time) ->
+    gen_server:call(ApplicationPid, {schedule_start, Time}).
+
+start(ApplicationPid) ->
+    gen_server:call(ApplicationPid, start).
+
+stop(ApplicationPid) ->
+    gen_server:call(ApplicationPid, stop).
+
+
