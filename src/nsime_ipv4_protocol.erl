@@ -35,7 +35,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([create/0, destroy/1, set_node/2,
+-export([create/0, destroy/1, set_node/2, protocol_number/0,
          set_routing_protocol/2, get_routing_protocol/1,
          create_raw_socket/1, delete_raw_socket/2,
          insert_layer4_protocol/2, get_layer4_protocol/2,
@@ -66,6 +66,9 @@ destroy(ProtocolPid) ->
 
 set_node(ProtocolPid, NodePid) ->
     gen_server:call(ProtocolPid, {set_node, NodePid}).
+
+protocol_number() ->
+    ?IPv4_PROTOCOL_NUMBER.
 
 set_routing_protocol(ProtocolPid, RoutingPid) ->
     gen_server:call(ProtocolPid, {set_routing_protocol, RoutingPid}).
@@ -194,6 +197,9 @@ init([]) ->
 handle_call({set_node, NodePid}, _From, ProtocolState) ->
     NewProtocolState = ProtocolState#nsime_ipv4_protocol_state{node = NodePid},
     {reply, ok, NewProtocolState};
+
+handle_call(protocol_number, _From, ProtocolState) ->
+    {reply, ?IPv4_PROTOCOL_NUMBER, ProtocolState};
 
 handle_call({set_routing_protocol, RoutingPid}, _From, ProtocolState) ->
     NewProtocolState = ProtocolState#nsime_ipv4_protocol_state{
