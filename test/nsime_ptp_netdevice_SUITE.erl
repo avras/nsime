@@ -126,9 +126,15 @@ test_attach_channel(_) ->
     ?assert(is_pid(DevicePid2)),
     DevicePid3 = nsime_ptp_netdevice:create(),
     ?assert(is_pid(DevicePid3)),
+    ?assertNot(nsime_ptp_netdevice:is_link_up(DevicePid1)),
+    ?assertNot(nsime_ptp_netdevice:is_link_up(DevicePid2)),
+    ?assertNot(nsime_ptp_netdevice:is_link_up(DevicePid3)),
     ?assertEqual(nsime_ptp_netdevice:attach_channel(DevicePid1, ChannelPid), ok),
+    ?assert(nsime_ptp_netdevice:is_link_up(DevicePid1)),
     ?assertEqual(nsime_ptp_netdevice:attach_channel(DevicePid2, ChannelPid), ok),
-    ?assertEqual(nsime_ptp_netdevice:attach_channel(DevicePid3, ChannelPid), none).
+    ?assert(nsime_ptp_netdevice:is_link_up(DevicePid2)),
+    ?assertEqual(nsime_ptp_netdevice:attach_channel(DevicePid3, ChannelPid), none),
+    ?assertNot(nsime_ptp_netdevice:is_link_up(DevicePid3)).
 
 test_transmit_start(_) ->
    ChannelPid = nsime_ptp_channel:create(),

@@ -43,7 +43,7 @@ get_device_type(DevicePid) ->
     gen_server:call(DevicePid, get_device_type).
 
 set_interface(DevicePid, InterfacePid) ->
-    gen_server:call(DevicePid, {set_device_index, InterfacePid}).
+    gen_server:call(DevicePid, {set_interface, InterfacePid}).
 
 get_interface(DevicePid) ->
     gen_server:call(DevicePid, get_interface).

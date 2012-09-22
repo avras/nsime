@@ -87,7 +87,7 @@ calculate_checksum(Binary) when is_binary(Binary) ->
     <<Checksum:16>> = <<bnot((Sum band 65535) + (Sum bsr 16)):16>>,
     Checksum;
 
-calculate_checksum(Packet = #nsime_packet{
+calculate_checksum(#nsime_packet{
     tags = Tags,
     data = Data
     }
