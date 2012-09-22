@@ -39,6 +39,8 @@ all() -> [
             test_set_get_components,
             test_attach_channel,
             test_transmit_start,
+            test_device_properties,
+            test_set_get_callbacks,
             test_cast_info_codechange
          ].
 
@@ -136,6 +138,9 @@ test_transmit_start(_) ->
     DevicePid2 = nsime_ptp_netdevice:create(),
     ?assert(is_pid(DevicePid2)),
     ?assertEqual(nsime_ptp_netdevice:transmit_start(DevicePid1, #nsime_packet{}), false),
+    Data = <<0:160>>,
+    Packet = create_packet(make_ref(), 20, Data),
+    ?assertEqual(nsime_ptp_netdevice:send(DevicePid1, Packet, address, 16#86DD), false),
     ?assertEqual(nsime_ptp_netdevice:transmit_complete(DevicePid1), false),
     ?assertEqual(nsime_ptp_netdevice:attach_channel(DevicePid1, ChannelPid), ok),
     ?assertEqual(nsime_ptp_netdevice:attach_channel(DevicePid2, ChannelPid), ok),
@@ -146,8 +151,6 @@ test_transmit_start(_) ->
     ?assertEqual(nsime_ptp_netdevice:set_interframe_gap(DevicePid1, InterFrameGap), ok),
 
     nsime_simulator:start(),
-    Data = <<0:160>>,
-    Packet = create_packet(make_ref(), 20, Data),
     ?assertEqual(nsime_ptp_netdevice:transmit_start(DevicePid1, Packet), true),
     ?assertEqual(nsime_simulator:run(), simulation_complete),
 
@@ -156,10 +159,39 @@ test_transmit_start(_) ->
     ?assertEqual(nsime_ptp_netdevice:send(DevicePid1, Packet, address, 16#86DD), true),
     ?assertEqual(nsime_simulator:run(), simulation_complete),
 
+    ?assertEqual(nsime_ptp_netdevice:send(DevicePid1, Packet, address, 16#86DD), true),
+    ?assertEqual(nsime_simulator:run(), simulation_complete),
+
     ?assertEqual(nsime_simulator:stop(), stopped),
     ?assertEqual(nsime_ptp_channel:destroy(ChannelPid), stopped),
     ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid1), stopped),
     ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid2), stopped).
+
+test_device_properties(_) ->
+    DevicePid = nsime_ptp_netdevice:create(),
+    ?assert(is_pid(DevicePid)),
+    ?assertEqual(nsime_ptp_netdevice:get_device_type(DevicePid), nsime_ptp_netdevice),
+    ?assertNot(nsime_ptp_netdevice:is_bridge(DevicePid)),
+    ?assert(nsime_ptp_netdevice:is_ptp(DevicePid)),
+    ?assert(nsime_ptp_netdevice:is_broadcast(DevicePid)),
+    ?assertEqual(nsime_ptp_netdevice:get_broadcast_address(DevicePid), <<16#FF, 16#FF, 16#FF, 16#FF, 16#FF, 16#FF>>),
+    ?assert(nsime_ptp_netdevice:is_multicast(DevicePid)),
+    ?assertEqual(nsime_ptp_netdevice:get_multicast_address(DevicePid, {0,0,0,0}), <<16#01, 16#00, 16#5E, 16#00, 16#00, 16#00>>),
+    ?assertEqual(nsime_ptp_netdevice:get_multicast_address(DevicePid, {0,0,0,0,0,0}), <<16#33, 16#33, 16#33, 16#00, 16#00, 16#00>>),
+    ?assertNot(nsime_ptp_netdevice:needs_arp(DevicePid)),
+    ?assertNot(nsime_ptp_netdevice:supports_send_from(DevicePid)),
+    ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid), stopped).
+
+test_set_get_callbacks(_) ->
+    DevicePid = nsime_ptp_netdevice:create(),
+    ?assert(is_pid(DevicePid)),
+    Callback1 = {erlang, date, []},
+    ?assertEqual(nsime_netdevice:set_receive_callback(DevicePid, Callback1), ok),
+    ?assertEqual(nsime_netdevice:get_receive_callback(DevicePid), Callback1),
+    Callback2 = {erlang, date, []},
+    ?assertEqual(nsime_netdevice:set_promisc_receive_callback(DevicePid, Callback2), ok),
+    ?assertEqual(nsime_netdevice:get_promisc_receive_callback(DevicePid), Callback2),
+    ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid), stopped).
 
 test_cast_info_codechange(_) ->
     DevicePid = nsime_ptp_netdevice:create(),
