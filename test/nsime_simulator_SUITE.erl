@@ -107,6 +107,9 @@ test_cancel_event(_) ->
     ?assert(lists:member(nsime_simulator, erlang:registered())),
     ?assert(lists:member(nsime_gbtrees_scheduler, erlang:registered())),
 
+    Time0 = {0, sec},
+    Ref0 = make_ref(),
+    Event0 = create_event(event0, Ref0, Time0),
     Time1 = {1, sec},
     Ref1 = make_ref(),
     Event1 = create_event(event1, Ref1, Time1),
@@ -116,11 +119,16 @@ test_cancel_event(_) ->
     Time3 = {6, sec},
     Ref3 = make_ref(),
     Event3 = create_event(event3, Ref3, Time3),
+    ?assertEqual(nsime_simulator:schedule_now(Event0), Event0),
     ?assertEqual(nsime_simulator:schedule(Time2, Event2), Event2),
     ?assertEqual(nsime_simulator:schedule(Time3, Event3), Event3),
     ?assertEqual(nsime_simulator:schedule(Time1, Event1), Event1),
     ?assertEqual(nsime_simulator:cancel(Event2#nsime_event{time = Time2}), ok),
     ?assertEqual(nsime_simulator:run(), simulation_complete),
+    receive
+        {event0, Ref0} ->
+            ok
+    end,
     receive
         {event1, Ref1} ->
             ok
