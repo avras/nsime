@@ -41,7 +41,8 @@
       {registered, [
                       nsime_simulator,
                       nsime_node_list,
-                      nsime_gbtrees_scheduler
+                      nsime_gbtrees_scheduler,
+                      nsime_config
                    ]
       }
     ]
