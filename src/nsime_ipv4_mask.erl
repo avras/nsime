@@ -42,8 +42,8 @@ get_prefix_length(Mask) ->
         lists:takewhile(
             fun(N) ->
                 RestSize = 32-N,
-                <<OnesPrefix:N, _Rest:RestSize>> = AllOnes,
-                <<BinaryMaskPrefix:N, _Rest:RestSize>> = BinaryMask,
+                <<OnesPrefix:N, _:RestSize>> = AllOnes,
+                <<BinaryMaskPrefix:N, _:RestSize>> = BinaryMask,
                 OnesPrefix == BinaryMaskPrefix
             end,
             Lengths
