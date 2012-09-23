@@ -20,6 +20,10 @@
 %% Purpose : IPv4 header record
 %% Author : Saravanan Vijayakumaran
 
+-define(IP_VERSION, 4).
+-define(DONT_FRAGMENT, 1).
+-define(MORE_FRAGMENTS, 2).
+
 -record(nsime_ipv4_header,
         {
           header_length = 5               :: 5..15,
@@ -33,6 +37,6 @@
           checksum = 0                    :: integer(),
           source_address                  :: inet:ip4_address(),
           destination_address             :: inet:ip4_address(),
-          calculate_checksum = false      :: boolean(),
+          calculate_checksum = true       :: boolean(),
           checksum_correct = false        :: boolean()
         }).

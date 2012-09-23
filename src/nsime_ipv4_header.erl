@@ -38,10 +38,6 @@
          set_source_address/2, get_source_address/1,
          set_destination_address/2, get_destination_address/1]).
 
--define(IP_VERSION, 4).
--define(DONT_FRAGMENT, 1).
--define(MORE_FRAGMENTS, 2).
-
 serialize(Header) ->
     SrcAddress = binary:list_to_bin(
         tuple_to_list(
@@ -65,8 +61,8 @@ serialize(Header) ->
             (Header#nsime_ipv4_header.ttl):8,
             (Header#nsime_ipv4_header.protocol):8,
             0:16,
-            SrcAddress:32,
-            DestAddress:32
+            SrcAddress/binary,
+            DestAddress/binary
         >>,
     case Header#nsime_ipv4_header.calculate_checksum of
         false ->
@@ -83,7 +79,7 @@ deserialize(HeaderBinary) ->
         ?IP_VERSION:4, HL:4, TOS:8,
         TotalLength:16, Id:16, Flags:3, FragmentOffset:13,
         TTL:8, Protocol:8, HeaderChecksum:16,
-        SrcAddress:32, DestAddress:32, _Rest/binary
+        SrcAddress:32, DestAddress:32
     >> = HeaderBinary,
     #nsime_ipv4_header{
         header_length = HL,
@@ -95,9 +91,9 @@ deserialize(HeaderBinary) ->
         ttl = TTL,
         protocol = Protocol,
         checksum = HeaderChecksum,
-        source_address = list_to_tuple(binary:bin_to_list(SrcAddress)),
-        destination_address = list_to_tuple(binary:bin_to_list(DestAddress)),
-        checksum_correct = is_checksum_ok(HeaderBinary)
+        source_address = list_to_tuple(binary:bin_to_list(<<SrcAddress:32>>)),
+        destination_address = list_to_tuple(binary:bin_to_list(<<DestAddress:32>>)),
+        checksum_correct = (calculate_header_checksum(HeaderBinary) == 0)
     }.
 
 enable_checksum(Header) ->
@@ -222,9 +218,9 @@ set_source_address(Header, SrcAddress) ->
 get_source_address(Header) ->
     Header#nsime_ipv4_header.source_address.
 
-set_destination_address(Header, SrcAddress) ->
+set_destination_address(Header, DestAddress) ->
     Header#nsime_ipv4_header{
-        destination_address = SrcAddress
+        destination_address = DestAddress
     }.
 
 get_destination_address(Header) ->
@@ -233,7 +229,7 @@ get_destination_address(Header) ->
 %% Helper methods %%
 
 calculate_header_checksum(HeaderBinary) ->
-    <<A1:16, A2:16, A3:16, A4:16, A5:16>> = HeaderBinary,
-    Sum = A1+A2+A3+A4+A5,
+    <<A1:16, A2:16, A3:16, A4:16, A5:16, A6:16, A7:16, A8:16, A9:16, A10:16>> = HeaderBinary,
+    Sum = A1+A2+A3+A4+A5+A6+A7+A8+A9+A10,
     <<Checksum:16>> = <<bnot((Sum band 65535) + (Sum bsr 16)):16>>,
     Checksum.
