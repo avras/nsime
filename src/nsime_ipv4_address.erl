@@ -47,7 +47,7 @@ is_local_multicast({A1, A2, A3, _A4}) ->
     (A1 == 224) and (A2 == 0) and (A3 == 0).
 
 combine_mask({A1, A2, A3, A4}, {M1, M2, M3, M4}) ->
-    {A1 band M1, A2 band M2, A3 band M3, A4 and M4}.
+    {A1 band M1, A2 band M2, A3 band M3, A4 band M4}.
 
 get_subnet_directed_broadcast(
     {A1, A2, A3, A4}, 

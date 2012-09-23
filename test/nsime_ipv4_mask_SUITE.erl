@@ -64,7 +64,6 @@ test_creation(_) ->
     ?assertEqual(nsime_ipv4_mask:create("255.255.255.255"), {255, 255, 255, 255}),
     ?assertError(invalid_argument, nsime_ipv4_mask:create("junk")).
 
-
 test_prefix_length(_) ->
     ?assertEqual(nsime_ipv4_mask:get_prefix_length({128, 0, 0, 0}), 1),
     ?assertEqual(nsime_ipv4_mask:get_prefix_length({192, 0, 0, 0}), 2),
@@ -79,9 +78,9 @@ test_prefix_length(_) ->
     ?assertEqual(nsime_ipv4_mask:get_prefix_length({255, 224, 0, 0}), 11),
     ?assertEqual(nsime_ipv4_mask:get_prefix_length({255, 240, 0, 0}), 12),
     ?assertEqual(nsime_ipv4_mask:get_prefix_length({255, 248, 0, 0}), 13),
-    ?assertEqual(nsime_ipv4_mask:get_prefix_length({255, 252, 0, 0}), 14),
-    ?assertEqual(nsime_ipv4_mask:get_prefix_length({255, 254, 0, 0}), 15),
-    ?assertEqual(nsime_ipv4_mask:get_prefix_length({255, 255, 0, 0}), 16).
+    ?assertEqual(nsime_ipv4_mask:get_prefix_length({255, 255, 0, 0}), 16),
+    ?assertEqual(nsime_ipv4_mask:get_prefix_length({255, 255, 255, 0}), 24),
+    ?assertEqual(nsime_ipv4_mask:get_prefix_length({255, 255, 255, 255}), 32).
 
 test_values(_) ->
     ?assertEqual(nsime_ipv4_mask:get_loopback(), {255, 0, 0, 0}),
