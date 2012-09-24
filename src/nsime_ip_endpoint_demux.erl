@@ -95,7 +95,12 @@ allocate(DemuxPid, AddressOrPort) ->
     end.
 
 allocate(DemuxPid, Address, Port) ->
-    gen_server:call(DemuxPid, {allocate, Address, Port}).
+    case gen_server:call(DemuxPid, {allocate, Address, Port}) of
+        duplicate_address_port ->
+            erlang:error(duplicate_address_port);
+        EndpointPid ->
+            EndpointPid
+    end.
 
 allocate(DemuxPid, LocalAddress, LocalPort, PeerAddress, PeerPort) ->
     gen_server:call(DemuxPid, {allocate, LocalAddress, LocalPort, PeerAddress, PeerPort}).
@@ -364,7 +369,7 @@ handle_call({allocate, Address, Port}, _From, DemuxState) ->
         Endpoints
     ) of
         true ->
-            erlang:error(duplicate_address_port);
+            {reply, duplicate_address_port, DemuxState};
         false ->
             NewEndpoint = nsime_ip_endpoint:create(Address, Port),
             NewDemuxState = DemuxState#nsime_ip_endpoint_demux_state{
@@ -389,7 +394,7 @@ handle_call(
         Endpoints
     ) of
         true ->
-            erlang:error(duplicate_address_port);
+            {reply, duplicate_address_port, DemuxState};
         false ->
             NewEndpoint = nsime_ip_endpoint:create(LocalAddress, LocalPort),
             nsime_ip_endpoint:set_peer(NewEndpoint, PeerAddress, PeerPort),
@@ -402,12 +407,20 @@ handle_call(
 handle_call({deallocate, EndpointPid}, _From, DemuxState) ->
     Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
     NewEndpoints = lists:delete(EndpointPid, Endpoints),
+    nsime_ip_endpoint:destroy(EndpointPid),
     NewDemuxState = DemuxState#nsime_ip_endpoint_demux_state{
         endpoints = NewEndpoints
     },
     {reply, ok, NewDemuxState};
 
 handle_call(terminate, _From, DemuxState) ->
+    Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
+    lists:foreach(
+        fun(E) ->
+            nsime_ip_endpoint:destroy(E)
+        end,
+        Endpoints
+    ),
     {stop, normal, stopped, DemuxState}.
 
 handle_cast(_Request, DemuxState) ->
@@ -437,7 +450,7 @@ allocate_ephemeral_port(DemuxState, Count) ->
             EphemeralPort = DemuxState#nsime_ip_endpoint_demux_state.ephemeral_port,
             FirstPort = DemuxState#nsime_ip_endpoint_demux_state.first_port,
             LastPort = DemuxState#nsime_ip_endpoint_demux_state.last_port,
-            Port = case ((EphemeralPort+1 < FirstPort) bor (EphemeralPort+1 > LastPort)) of
+            Port = case ((EphemeralPort+1 < FirstPort) or (EphemeralPort+1 > LastPort)) of
                 true ->
                     FirstPort;
                 false ->
