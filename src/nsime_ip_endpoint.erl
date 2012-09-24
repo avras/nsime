@@ -134,8 +134,8 @@ handle_call({set_local_port, Port}, _From, EndpointState) ->
 
 handle_call({set_peer, Address, Port}, _From, EndpointState) ->
     NewEndpointState = EndpointState#nsime_ip_endpoint_state{
-        local_address = Address,
-        local_port = Port
+        peer_address = Address,
+        peer_port = Port
     },
     {reply, ok, NewEndpointState};
 
@@ -181,7 +181,7 @@ handle_call({forward_up, Packet, Header, Port, Interface}, _From, EndpointState)
     Event = #nsime_event{
         module = Module,
         function = Function,
-        arguments = lists:append(Arguments, [Packet, Header, Port, Interface]),
+        arguments = lists:flatten([Arguments | [Packet, Header, Port, Interface]]),
         eventid = make_ref()
     },
     nsime_simulator:schedule_now(Event),
@@ -193,7 +193,7 @@ handle_call({forward_icmp, Source, TTL, Type, Code, Info}, _From, EndpointState)
     Event = #nsime_event{
         module = Module,
         function = Function,
-        arguments = lists:append(Arguments, [Source, TTL, Type, Code, Info]),
+        arguments = lists:flatten([Arguments | [Source, TTL, Type, Code, Info]]),
         eventid = make_ref()
     },
     nsime_simulator:schedule_now(Event),
