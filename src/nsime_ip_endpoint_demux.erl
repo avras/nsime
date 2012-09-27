@@ -103,7 +103,12 @@ allocate(DemuxPid, Address, Port) ->
     end.
 
 allocate(DemuxPid, LocalAddress, LocalPort, PeerAddress, PeerPort) ->
-    gen_server:call(DemuxPid, {allocate, LocalAddress, LocalPort, PeerAddress, PeerPort}).
+    case gen_server:call(DemuxPid, {allocate, LocalAddress, LocalPort, PeerAddress, PeerPort}) of
+        duplicate_address_port ->
+            erlang:error(duplicate_address_port);
+        EndpointPid ->
+            EndpointPid
+    end.
 
 deallocate(DemuxPid, EndpointPid) ->
     gen_server:call(DemuxPid, {deallocate, EndpointPid}).

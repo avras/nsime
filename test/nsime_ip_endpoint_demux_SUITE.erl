@@ -33,6 +33,7 @@
 all() -> [
             test_creation_shutdown,
             test_endpoint_allocation,
+            test_lookup,
             test_cast_info_codechange
          ].
 
@@ -112,6 +113,111 @@ test_endpoint_allocation(_) ->
         Port3
     ),
 
+    Address2 = {10, 107, 1, 2},
+    Port4 = Port3 + 1,
+    EndpointPid4 = nsime_ip_endpoint_demux:allocate(DemuxPid, Address2, Port4),
+    ?assert(is_pid(EndpointPid4)),
+    ?assert(
+        lists:member(
+            EndpointPid4,
+            nsime_ip_endpoint_demux:get_all_endpoints(DemuxPid)
+        )
+    ),
+    ?assertEqual(
+        nsime_ip_endpoint:get_local_address(EndpointPid4),
+        Address2
+    ),
+    ?assertEqual(
+        nsime_ip_endpoint:get_local_port(EndpointPid4),
+        Port4
+    ),
+
+    Address3 = {10, 107, 1, 3},
+    Port5 = Port4 + 1,
+    PeerAddress = {192, 168, 0, 1},
+    PeerPort = 80,
+    EndpointPid5 = nsime_ip_endpoint_demux:allocate(
+        DemuxPid,
+        Address3,
+        Port5,
+        PeerAddress,
+        PeerPort
+    ),
+    ?assert(is_pid(EndpointPid5)),
+    ?assert(
+        lists:member(
+            EndpointPid5,
+            nsime_ip_endpoint_demux:get_all_endpoints(DemuxPid)
+        )
+    ),
+    ?assertEqual(
+        nsime_ip_endpoint:get_local_address(EndpointPid5),
+        Address3
+    ),
+    ?assertEqual(
+        nsime_ip_endpoint:get_local_port(EndpointPid5),
+        Port5
+    ),
+    ?assertEqual(
+        nsime_ip_endpoint:get_peer_address(EndpointPid5),
+        PeerAddress
+    ),
+    ?assertEqual(
+        nsime_ip_endpoint:get_peer_port(EndpointPid5),
+        PeerPort
+    ),
+    ?assertError(
+        duplicate_address_port,
+        nsime_ip_endpoint_demux:allocate(
+            DemuxPid,
+            Address3,
+            Port5,
+            PeerAddress,
+            PeerPort
+        )
+    ),
+
+    ?assertEqual(nsime_ip_endpoint_demux:deallocate(DemuxPid, EndpointPid1), ok),
+    ?assertNot(
+        lists:member(
+            EndpointPid1,
+            nsime_ip_endpoint_demux:get_all_endpoints(DemuxPid)
+        )
+    ),
+    ?assert(
+        lists:foldl(
+            fun(E, Acc) ->
+                case Acc of
+                    false ->
+                        false;
+                    true ->
+                        lists:member(E,
+                            nsime_ip_endpoint_demux:get_all_endpoints(DemuxPid)
+                        )
+                end
+            end,
+            true,
+            [EndpointPid2, EndpointPid3, EndpointPid4, EndpointPid5]
+        )
+    ),
+
+    ?assertEqual(nsime_ip_endpoint_demux:destroy(DemuxPid), stopped).
+
+test_lookup(_) ->
+    DemuxPid = nsime_ip_endpoint_demux:create(),
+    ?assert(is_pid(DemuxPid)),
+    ?assertEqual(nsime_ip_endpoint_demux:get_all_endpoints(DemuxPid), []),
+    EndpointPid1 = nsime_ip_endpoint_demux:allocate(DemuxPid),
+    Port1 = nsime_ip_endpoint:get_local_port(EndpointPid1),
+    ?assert(nsime_ip_endpoint_demux:lookup_port_local(DemuxPid, Port1)),
+    ?assert(nsime_ip_endpoint_demux:lookup_local(DemuxPid, nsime_ipv4_address:get_any(), Port1)),
+    ?assertNot(nsime_ip_endpoint_demux:lookup_local(DemuxPid, nsime_ipv4_address:get_any(), Port1+1)),
+    ?assertNot(nsime_ip_endpoint_demux:lookup_local(DemuxPid, nsime_ipv4_address:get_broadcast(), Port1)),
+    ?assertNot(nsime_ip_endpoint_demux:lookup_port_local(DemuxPid, Port1+1)),
+    EndpointPid2 = nsime_ip_endpoint_demux:allocate(DemuxPid),
+    nsime_ip_endpoint_demux:deallocate(DemuxPid, EndpointPid1),
+    ?assertNot(nsime_ip_endpoint_demux:lookup_port_local(DemuxPid, Port1)),
+    ?assertNot(nsime_ip_endpoint_demux:lookup_local(DemuxPid, nsime_ipv4_address:get_any(), Port1)),
     ?assertEqual(nsime_ip_endpoint_demux:destroy(DemuxPid), stopped).
 
 test_cast_info_codechange(_) ->
