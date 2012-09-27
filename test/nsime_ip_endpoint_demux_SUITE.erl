@@ -191,7 +191,8 @@ test_endpoint_allocation(_) ->
                     false ->
                         false;
                     true ->
-                        lists:member(E,
+                        lists:member(
+                            E,
                             nsime_ip_endpoint_demux:get_all_endpoints(DemuxPid)
                         )
                 end
