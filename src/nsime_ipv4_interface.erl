@@ -36,7 +36,7 @@
          is_up/1, is_down/1, set_up/1, set_down/1,
          is_forwarding/1, set_forwarding/2,
          send/3, add_address/2, remove_address/2,
-         get_address/2, get_address_list/1]).
+         get_address_list/1]).
 
 create() ->
     {ok, Pid} = gen_server:start(?MODULE, [], []),
@@ -87,14 +87,11 @@ set_forwarding(InterfacePid, Forwarding) ->
 send(InterfacePid, Packet, DestAddress) ->
     gen_server:call(InterfacePid, {send, Packet, DestAddress}).
 
-add_address(InterfacePid, Address) ->
-    gen_server:call(InterfacePid, {add_address, Address}).
+add_address(InterfacePid, AddressPid) ->
+    gen_server:call(InterfacePid, {add_address, AddressPid}).
 
-remove_address(InterfacePid, Address) ->
-    gen_server:call(InterfacePid, {remove_address, Address}).
-
-get_address(InterfacePid, Index) ->
-    gen_server:call(InterfacePid, {get_address, Index}).
+remove_address(InterfacePid, AddressPid) ->
+    gen_server:call(InterfacePid, {remove_address, AddressPid}).
 
 get_address_list(InterfacePid) ->
     gen_server:call(InterfacePid, get_address_list).
@@ -267,23 +264,19 @@ handle_call({send, Packet, DestAddress}, _From, InterfaceState) ->
             end
     end;
 
-handle_call({add_address, Address}, _From, InterfaceState) ->
+handle_call({add_address, AddressPid}, _From, InterfaceState) ->
     AddressList = InterfaceState#nsime_ipv4_interface_state.address_list,
     NewInterfaceState = InterfaceState#nsime_ipv4_interface_state{
-        address_list = [Address | AddressList]
+        address_list = [AddressPid | AddressList]
     },
     {reply, ok, NewInterfaceState};
 
-handle_call({remove_address, Address}, _From, InterfaceState) ->
+handle_call({remove_address, AddressPid}, _From, InterfaceState) ->
     AddressList = InterfaceState#nsime_ipv4_interface_state.address_list,
     NewInterfaceState = InterfaceState#nsime_ipv4_interface_state{
-        address_list = lists:delete(Address, AddressList)
+        address_list = lists:delete(AddressPid, AddressList)
     },
     {reply, ok, NewInterfaceState};
-
-handle_call({get_address, Index}, _From, InterfaceState) ->
-    AddressList = InterfaceState#nsime_ipv4_interface_state.address_list,
-    {reply, lists:nth(Index, AddressList), InterfaceState};
 
 handle_call(get_address_list, _From, InterfaceState) ->
     AddressList = InterfaceState#nsime_ipv4_interface_state.address_list,
