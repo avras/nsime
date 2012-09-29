@@ -156,7 +156,7 @@ add_host_route(
 set_default_route(RoutingPid, NextHopAddress, InterfacePid, Metric) ->
     add_network_route(
         RoutingPid,
-        nsime_ipv4_adddress:get_zero(),
+        nsime_ipv4_address:get_zero(),
         nsime_ipv4_mask:get_zero(),
         NextHopAddress,
         InterfacePid,
@@ -188,7 +188,7 @@ handle_call(
     InterfacePid = nsime_netdevice:get_interface(IngressNetdevice),
     DestinationAddress = nsime_ipv4_header:get_destination_address(Ipv4Header),
     case
-        nsime_ipv4_address:is_multicast(DestinationAddress) bor
+        nsime_ipv4_address:is_multicast(DestinationAddress) or
         nsime_ipv4_address:is_broadcast(DestinationAddress)
     of
         true ->
@@ -201,7 +201,7 @@ handle_call(
                     NewAddressList = lists:filter(
                         fun(A) ->
                             (nsime_ipv4_interface_address:get_local_address(A) == DestinationAddress)
-                            bor
+                            or
                             (nsime_ipv4_interface_address:get_broadcast_address(A) == DestinationAddress)
                         end,
                         AddressList
@@ -267,7 +267,7 @@ handle_call({notify_interface_up, InterfacePid}, _From, RoutingState) ->
             of
                 true ->
                     Route = nsime_ipv4_routing_table_entry:create_network_route(
-                        nsime_ipv4_adddress:combine_mask(
+                        nsime_ipv4_address:combine_mask(
                             nsime_ipv4_interface_address:get_local_address(A),
                             nsime_ipv4_interface_address:get_mask(A)
                         ),
@@ -308,10 +308,10 @@ handle_call({notify_interface_down, InterfacePid}, _From, RoutingState) ->
     {reply, ok, NewRoutingState};
 
 handle_call({notify_add_address, InterfacePid, InterfaceAddress}, _From, RoutingState) ->
-    case nsime_ipv4_interface:is_up(InterfacePid) == false of
-        true ->
-            {reply, ok, RoutingState};
+    case nsime_ipv4_interface:is_up(InterfacePid) of
         false ->
+            {reply, ok, RoutingState};
+        true ->
             case
                 (nsime_ipv4_interface_address:get_local_address(InterfaceAddress)
                     =/= undefined) and
@@ -323,7 +323,7 @@ handle_call({notify_add_address, InterfacePid, InterfaceAddress}, _From, Routing
                     NetworkRoutes =
                         RoutingState#nsime_ipv4_static_routing_state.network_routes,
                     Route = nsime_ipv4_routing_table_entry:create_network_route(
-                          nsime_ipv4_adddress:combine_mask(
+                          nsime_ipv4_address:combine_mask(
                               nsime_ipv4_interface_address:get_local_address(
                                   InterfaceAddress
                               ),
@@ -350,15 +350,15 @@ handle_call(
     _From,
     RoutingState
 ) ->
-    case nsime_ipv4_interface:is_up(InterfacePid) == false of
-        true ->
-            {reply, ok, RoutingState};
+    case nsime_ipv4_interface:is_up(InterfacePid) of
         false ->
+            {reply, ok, RoutingState};
+        true ->
             NetworkRoutes = RoutingState#nsime_ipv4_static_routing_state.network_routes,
-            NewNetworkRoutes = list:filter(
+            NewNetworkRoutes = lists:filter(
                 fun(R) ->
                     NetworkMask = nsime_ipv4_interface_address:get_mask(InterfaceAddress),
-                    NetworkAddress = nsime_ipv4_adddress:combine_mask(
+                    NetworkAddress = nsime_ipv4_address:combine_mask(
                         nsime_ipv4_interface_address:get_local_address(
                             InterfaceAddress
                         ),
@@ -462,7 +462,7 @@ code_change(_OldVersion, RoutingState, _Extra) ->
 %% Helper methods %%
 
 lookup_static(DestinationAddress, OutputNetdevice, RoutingState) ->
-    case nsime_ipv4_adddress:is_local_multicast(DestinationAddress) of
+    case nsime_ipv4_address:is_local_multicast(DestinationAddress) of
         true ->
             InterfacePid = nsime_netdevice:get_interface(OutputNetdevice),
             [FirstAddressPid | _] = nsime_ipv4_interface:get_address_list(InterfacePid),
@@ -488,7 +488,7 @@ lookup_static(DestinationAddress, OutputNetdevice, RoutingState) ->
                             {BestRoute, BestMaskLength, ShortestMetric};
                         true ->
                             case
-                            is_pid(OutputNetdevice) band
+                            is_pid(OutputNetdevice) and
                             (
                                 OutputNetdevice =/=
                                     nsime_ipv4_interface:get_device(

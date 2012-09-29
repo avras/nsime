@@ -184,7 +184,7 @@ handle_call(
     case {size(DestAddress), size(SrcAddress)} of
         {4, 4} ->
             Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
-            DestinationDevice = nsime_ip_interface:get_netdevice(IncomingInterface),
+            DestinationDevice = nsime_ipv4_interface:get_device(IncomingInterface),
             RelevantEndpoints = lists:filter(
                 fun(X) ->
                     (nsime_ip_endpoint:get_local_port(X) == DestPort) and
@@ -216,8 +216,7 @@ handle_call(
                         )
                     }
             end,
-            IsBroadcast =
-                nsime_ipv4_address:is_broadcast(DestAddress) bor SubnetDirected,
+            IsBroadcast = nsime_ipv4_address:is_broadcast(DestAddress) or SubnetDirected,
             EndpointsListWithProperties = lists:map(
                 fun(E) ->
                     LocalAddress = nsime_ip_endpoint:get_local_address(E),
@@ -225,7 +224,7 @@ handle_call(
                         (LocalAddress == nsime_ipv4_address:get_any()),
                     LocalAddressMatchesDestAddress = (LocalAddress == DestAddress),
                     LocalAddressMatchesExact =
-                        case (IsBroadcast band not(LocalAddressMatchesWildcard)) of
+                        case (IsBroadcast and not(LocalAddressMatchesWildcard)) of
                             true ->
                                 (nsime_ip_endpoint:get_local_address(E) ==
                                     IncomingInterfaceAddress);
@@ -258,11 +257,11 @@ handle_call(
             FilteredEndpointsListWithProperties = lists:filter(
                 fun({LAME, LAMW, RPME, RPMW, RAME, RAMW, _E}) ->
                     if
-                        not(LAME bor LAMW) ->
+                        not(LAME or LAMW) ->
                             false;
-                        not(RPME bor RPMW) ->
+                        not(RPME or RPMW) ->
                             false;
-                        not(RAME bor RAMW) ->
+                        not(RAME or RAMW) ->
                             false;
                         true ->
                             true
@@ -275,7 +274,7 @@ handle_call(
                     if
                         LAMW and RPMW and RAMW ->
                             {[E|L1], L2, L3, L4};
-                        (LAME bor (IsBroadcast band LAMW)) and RPMW and RAMW ->
+                        (LAME or (IsBroadcast band LAMW)) and RPMW and RAMW ->
                             {L1, [E|L2], L3, L4};
                         LAMW and RPME and RAME ->
                             {L1, L2, [E|L3], L4};
