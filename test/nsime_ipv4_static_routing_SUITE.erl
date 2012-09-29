@@ -29,6 +29,9 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -include("nsime_types.hrl").
+-include("nsime_packet.hrl").
+-include("nsime_ipv4_header.hrl").
+-include("nsime_ipv4_route.hrl").
 -include("nsime_ipv4_routing_table_entry.hrl").
 -include("nsime_ipv4_static_routing_state.hrl").
 
@@ -37,6 +40,7 @@ all() -> [
             test_add_routes,
             test_notify_interfaces_updown,
             test_add_remove_addresses,
+            test_route_output,
             test_cast_info_codechange
          ].
 
@@ -325,6 +329,210 @@ test_add_remove_addresses(_) ->
             AddressPid
         ),
         ok
+    ),
+    ?assertEqual(nsime_ipv4_static_routing:destroy(RoutingPid), stopped).
+
+test_route_output(_) ->
+    RoutingPid = nsime_ipv4_static_routing:create(),
+    ?assert(is_pid(RoutingPid)),
+    InterfacePid1 = nsime_ipv4_interface:create(),
+    Address1 = {10, 107, 1, 1},
+    Mask1 = {255, 255, 255, 0},
+    AddressPid1 = nsime_ipv4_interface_address:create(Address1, Mask1),
+    ?assert(is_pid(AddressPid1)),
+    ?assertEqual(nsime_ipv4_interface:add_address(InterfacePid1, AddressPid1), ok),
+    ?assertEqual(
+        nsime_ipv4_static_routing:notify_interface_up(
+            RoutingPid,
+            InterfacePid1
+        ),
+        ok
+    ),
+    DestinationAddress = {224, 0, 0, 1},
+    Ipv4Header = #nsime_ipv4_header{
+        destination_address = DestinationAddress
+    },
+    Packet = #nsime_packet{},
+    DevicePid = nsime_ptp_netdevice:create(),
+    ?assert(is_pid(DevicePid)),
+    ?assertEqual(nsime_ptp_netdevice:set_interface(DevicePid, InterfacePid1), ok),
+    ?assertEqual(nsime_ipv4_interface:set_device(InterfacePid1, DevicePid), ok),
+    Route = #nsime_ipv4_route{
+        destination = DestinationAddress,
+        source = Address1,
+        gateway = nsime_ipv4_address:get_zero(),
+        output_device = DevicePid
+    },
+    ?assertMatch(
+        {error_noterror, Route},
+        nsime_ipv4_static_routing:route_output(
+            RoutingPid,
+            Packet,
+            Ipv4Header,
+            DevicePid
+        )
+    ),
+    DestinationAddress1 = {192, 168, 1, 1},
+    ?assertMatch(
+        {error_noroutetohost, undefined},
+        nsime_ipv4_static_routing:route_output(
+            RoutingPid,
+            Packet,
+            Ipv4Header#nsime_ipv4_header{
+                destination_address = DestinationAddress1
+            },
+            DevicePid
+        )
+    ),
+    ?assertMatch(
+        {error_noroutetohost, undefined},
+        nsime_ipv4_static_routing:route_output(
+            RoutingPid,
+            Packet,
+            Ipv4Header#nsime_ipv4_header{
+                destination_address = Address1
+            },
+            list_to_pid("<0.0.0>")
+        )
+    ),
+    Mask2 = {255, 255, 0, 0},
+    AddressPid2 = nsime_ipv4_interface_address:create(Address1, Mask2),
+    ?assert(is_pid(AddressPid2)),
+    ?assertEqual(nsime_ipv4_interface:set_up(InterfacePid1), ok),
+    ?assertEqual(
+        nsime_ipv4_static_routing:notify_add_address(
+            RoutingPid,
+            InterfacePid1,
+            AddressPid2
+        ),
+        ok
+    ),
+    Route2 = #nsime_ipv4_route{
+        destination = nsime_ipv4_address:combine_mask(
+            Address1,
+            Mask1
+        ),
+        source = Address1,
+        gateway = nsime_ipv4_address:get_zero(),
+        output_device = DevicePid
+    },
+    ?assertMatch(
+        {error_noterror, Route2},
+        nsime_ipv4_static_routing:route_output(
+            RoutingPid,
+            Packet,
+            Ipv4Header#nsime_ipv4_header{
+                destination_address = Address1
+            },
+            DevicePid
+        )
+    ),
+    ?assertEqual(nsime_ipv4_interface_address:set_secondary(AddressPid1), ok),
+    Route3 = #nsime_ipv4_route{
+        destination = nsime_ipv4_address:combine_mask(
+            Address1,
+            Mask1
+        ),
+        source = Address1,
+        gateway = nsime_ipv4_address:get_zero(),
+        output_device = DevicePid
+    },
+    ?assertMatch(
+        {error_noterror, Route3},
+        nsime_ipv4_static_routing:route_output(
+            RoutingPid,
+            Packet,
+            Ipv4Header#nsime_ipv4_header{
+                destination_address = Address1
+            },
+            DevicePid
+        )
+    ),
+
+    Mask3 = {255, 255, 255, 128},
+    AddressPid3 = nsime_ipv4_interface_address:create(Address1, Mask3),
+    ?assert(is_pid(AddressPid3)),
+    ?assertEqual(
+        nsime_ipv4_static_routing:notify_add_address(
+            RoutingPid,
+            InterfacePid1,
+            AddressPid3
+        ),
+        ok
+    ),
+    ?assertEqual(nsime_ipv4_interface_address:set_primary(AddressPid1), ok),
+    ?assertMatch(
+        {error_noterror, Route3},
+        nsime_ipv4_static_routing:route_output(
+            RoutingPid,
+            Packet,
+            Ipv4Header#nsime_ipv4_header{
+                destination_address = Address1
+            },
+            DevicePid
+        )
+    ),
+    AddressPid4 = nsime_ipv4_interface_address:create(Address1, Mask3),
+    ?assert(is_pid(AddressPid4)),
+    ?assertEqual(
+        nsime_ipv4_static_routing:notify_add_address(
+            RoutingPid,
+            InterfacePid1,
+            AddressPid4
+        ),
+        ok
+    ),
+    ?assertMatch(
+        {error_noterror, Route3},
+        nsime_ipv4_static_routing:route_output(
+            RoutingPid,
+            Packet,
+            Ipv4Header#nsime_ipv4_header{
+                destination_address = Address1
+            },
+            DevicePid
+        )
+    ),
+
+    Gateway1 = {10, 250, 1, 1},
+    ?assertEqual(
+        nsime_ipv4_static_routing:add_host_route(
+            RoutingPid,
+            Address1,
+            Gateway1,
+            InterfacePid1,
+            50
+        ),
+        ok
+    ),
+    Gateway2 = {10, 250, 1, 2},
+    ?assertEqual(
+        nsime_ipv4_static_routing:add_host_route(
+            RoutingPid,
+            Address1,
+            Gateway2,
+            InterfacePid1,
+            10
+        ),
+        ok
+    ),
+
+    Route4 = #nsime_ipv4_route{
+        destination = Address1,
+        source = Address1,
+        gateway = Gateway2,
+        output_device = DevicePid
+    },
+    ?assertMatch(
+        {error_noterror, Route4},
+        nsime_ipv4_static_routing:route_output(
+            RoutingPid,
+            Packet,
+            Ipv4Header#nsime_ipv4_header{
+                destination_address = Address1
+            },
+            DevicePid
+        )
     ),
     ?assertEqual(nsime_ipv4_static_routing:destroy(RoutingPid), stopped).
 

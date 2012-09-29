@@ -526,7 +526,7 @@ lookup_static(DestinationAddress, OutputNetdevice, RoutingState) ->
                                                         gateway = R#nsime_ipv4_routing_table_entry.gateway,
                                                         output_device = OutputNetdevice
                                                     },
-                                                    {NewBestRoute, NewBestMaskLength, NewShortestMetric}
+                                                    {NewBestRoute, NewBestMaskLength, Metric}
                                             end
                                     end
                             end
