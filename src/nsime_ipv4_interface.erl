@@ -158,7 +158,7 @@ handle_call(set_down, _From, InterfaceState) ->
 
 handle_call(is_forwarding, _From, InterfaceState) ->
     Forwarding = InterfaceState#nsime_ipv4_interface_state.forwarding,
-    {reply, Forwarding == true, InterfaceState};
+    {reply, Forwarding, InterfaceState};
 
 handle_call({set_forwarding, Forwarding}, _From, InterfaceState) ->
     NewInterfaceState = InterfaceState#nsime_ipv4_interface_state{

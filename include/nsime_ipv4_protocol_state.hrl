@@ -20,6 +20,8 @@
 %% Purpose : IPv4 protocol state record
 %% Author : Saravanan Vijayakumaran
 
+-define(IPv4_PROTOCOL_NUMBER, 16#0800).
+
 -record(nsime_ipv4_protocol_state,
         {
           node                                      :: pid(),

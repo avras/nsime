@@ -48,14 +48,12 @@
          get_interface_address_list/2, select_source_address/4,
          set_metric/3, get_metric/2,
          get_mtu/2, is_up/2, set_up/2, set_down/2, is_forwarding/2,
-         set_forwarding/2, get_netdevice/2,
+         set_forwarding/3, get_netdevice/2,
          set_fragment_expiration_timeout/2, set_transmit_trace/2,
          set_receive_trace/2, set_drop_trace/2,
          set_send_outgoing_trace/2, set_unicast_forward_trace/2,
          set_local_deliver_trace/2, ip_forward/4, local_deliver/4,
          route_input_error/3]).
-
--define(IPv4_PROTOCOL_NUMBER, 16#0800).
 
 create() ->
     {ok, Pid} = gen_server:start(?MODULE, [], []),
@@ -154,8 +152,8 @@ set_down(ProtocolPid, InterfacePid) ->
 is_forwarding(ProtocolPid, InterfacePid) ->
     gen_server:call(ProtocolPid, {is_forwarding, InterfacePid}).
 
-set_forwarding(ProtocolPid, Forwarding) ->
-    gen_server:call(ProtocolPid, {set_forwarding, Forwarding}).
+set_forwarding(ProtocolPid, InterfacePid, Forwarding) ->
+    gen_server:call(ProtocolPid, {set_forwarding, InterfacePid, Forwarding}).
 
 get_netdevice(ProtocolPid, InterfacePid) ->
     gen_server:call(ProtocolPid, {get_netdevice, InterfacePid}).
@@ -526,7 +524,8 @@ handle_call({add_interface, DevicePid}, _From, ProtocolState) ->
             [self()]
         },
         ?IPv4_PROTOCOL_NUMBER,
-        DevicePid
+        DevicePid,
+        false
     ),
     InterfacePid = nsime_ipv4_interface:create(),
     nsime_ipv4_interface:set_node(InterfacePid, NodePid),
@@ -634,7 +633,7 @@ handle_call({is_destination_address, Ipv4Address, InterfacePid}, _From, Protocol
                     true;
                 false ->
                     (nsime_ipv4_interface_address:get_local_address(A) == Ipv4Address)
-                    bor
+                    or
                     (nsime_ipv4_interface_address:get_broadcast_address(A) == Ipv4Address)
             end
         end,
@@ -709,8 +708,7 @@ handle_call({select_source_address, _DevicePid, _DestAddress, _InterfaceAddressS
     {reply, ok, ProtocolState};
 
 handle_call({set_metric, InterfacePid, Metric}, _From, ProtocolState) ->
-    nsime_ipv4_interface:set_metric(InterfacePid, Metric),
-    {reply, ok, ProtocolState};
+    {reply, nsime_ipv4_interface:set_metric(InterfacePid, Metric), ProtocolState};
 
 handle_call({get_metric, InterfacePid}, _From, ProtocolState) ->
     {reply, nsime_ipv4_interface:get_metric(InterfacePid), ProtocolState};
