@@ -49,6 +49,7 @@
          set_metric/3, get_metric/2,
          get_mtu/2, is_up/2, set_up/2, set_down/2, is_forwarding/2,
          set_forwarding/3, get_netdevice/2,
+         set_weak_es_model/2, get_weak_es_model/1,
          set_fragment_expiration_timeout/2, set_transmit_trace/2,
          set_receive_trace/2, set_drop_trace/2,
          set_send_outgoing_trace/2, set_unicast_forward_trace/2,
@@ -157,6 +158,12 @@ set_forwarding(ProtocolPid, InterfacePid, Forwarding) ->
 
 get_netdevice(ProtocolPid, InterfacePid) ->
     gen_server:call(ProtocolPid, {get_netdevice, InterfacePid}).
+
+set_weak_es_model(ProtocolPid, WeakEsModel) ->
+    gen_server:call(ProtocolPid, {set_weak_es_model, WeakEsModel}).
+
+get_weak_es_model(ProtocolPid) ->
+    gen_server:call(ProtocolPid, get_weak_es_model).
 
 set_fragment_expiration_timeout(ProtocolPid, Timeout) ->
     gen_server:call(ProtocolPid, {set_fragment_expiration_timeout, Timeout}).
@@ -327,7 +334,7 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
             {DefaulTTL, Tags}
     end,
     NewPacket = Packet#nsime_packet{tags = NewTags},
-    case nsime_ipv4_address:is_broadcast(DestAddress) bor nsime_ipv4_address:is_local_multicast(DestAddress) of
+    case nsime_ipv4_address:is_broadcast(DestAddress) or nsime_ipv4_address:is_local_multicast(DestAddress) of
         true ->
             {Ipv4Header, NewProtocolState} = build_header(
                 SrcAddress,
@@ -645,7 +652,7 @@ handle_call({is_destination_address, Ipv4Address, InterfacePid}, _From, Protocol
             {reply, true, ProtocolState};
         false ->
             case
-                nsime_ipv4_address:is_multicast(Ipv4Address) bor
+                nsime_ipv4_address:is_multicast(Ipv4Address) or
                 nsime_ipv4_address:is_broadcast(Ipv4Address)
             of
                 true ->
@@ -676,7 +683,7 @@ handle_call({is_destination_address, Ipv4Address, InterfacePid}, _From, Protocol
                                                             true;
                                                         false ->
                                                             (nsime_ipv4_interface_address:get_local_address(A) == Ipv4Address)
-                                                            bor
+                                                            or
                                                             (nsime_ipv4_interface_address:get_broadcast_address(A) == Ipv4Address)
                                                     end
                                                 end,
@@ -757,6 +764,15 @@ handle_call({set_forwarding, InterfacePid, Forwarding}, _From, ProtocolState) ->
 
 handle_call({get_netdevice, InterfacePid}, _From, ProtocolState) ->
     {reply, nsime_ipv4_interface:get_device(InterfacePid), ProtocolState};
+
+handle_call({set_weak_es_model, WeakEsModel}, _From, ProtocolState) ->
+    NewProtocolState = ProtocolState#nsime_ipv4_protocol_state{
+        weak_es_model = WeakEsModel
+    },
+    {reply, ok, NewProtocolState};
+
+handle_call(get_weak_es_model, _From, ProtocolState) ->
+    {reply, ProtocolState#nsime_ipv4_protocol_state.weak_es_model, ProtocolState};
 
 handle_call({set_fragment_expiration_timeout, Timeout}, _From, ProtocolState) ->
     NewProtocolState = ProtocolState#nsime_ipv4_protocol_state{
@@ -878,7 +894,7 @@ handle_call({local_deliver, Packet, Ipv4Header, InterfacePid}, _From, ProtocolSt
                 rx_endpoint_unreach ->
                     DestAddress = nsime_ipv4_header:get_destination_address(Ipv4Header),
                     case
-                        (nsime_ipv4_address:is_broadcast(DestAddress)) bor
+                        (nsime_ipv4_address:is_broadcast(DestAddress)) or
                         (nsime_ipv4_address:is_multicast(DestAddress))
                     of
                         true ->
