@@ -32,6 +32,7 @@
 -include("nsime_event.hrl").
 -include("nsime_packet.hrl").
 -include("nsime_ipv4_header.hrl").
+-include("nsime_ipv4_route.hrl").
 -include("nsime_ipv4_protocol_state.hrl").
 -include("nsime_icmpv4_protocol_state.hrl").
 -include("nsime_udp_protocol_state.hrl").
@@ -41,6 +42,10 @@ all() -> [
             test_set_get_components,
             test_route_input_error,
             test_is_destination,
+            test_ip_forward_no_ttl_error,
+            test_ip_forward_with_ttl_error,
+            test_send_with_header,
+            test_recv,
             test_cast_info_codechange
          ].
 
@@ -265,6 +270,412 @@ test_is_destination(_) ->
     ?assert(nsime_ipv4_protocol:is_destination_address(ProtocolPid, Address5, InterfacePid1)),
     ?assertEqual(nsime_ipv4_protocol:destroy(ProtocolPid), stopped).
 
+test_ip_forward_no_ttl_error(_) ->
+    ProtocolPid = nsime_ipv4_protocol:create(),
+    ?assert(is_pid(ProtocolPid)),
+    NodePid = nsime_node:create(),
+    ?assertEqual(nsime_ipv4_protocol:set_node(ProtocolPid, NodePid), ok),
+    DevicePid2 = nsime_ptp_netdevice:create(),
+    ?assert(is_pid(DevicePid2)),
+    nsime_ipv4_protocol:add_interface(ProtocolPid, DevicePid2),
+    DevicePid1 = nsime_ptp_netdevice:create(),
+    ?assert(is_pid(DevicePid1)),
+    InterfacePid1 = nsime_ipv4_protocol:add_interface(ProtocolPid, DevicePid1),
+    DevicePid3 = nsime_ptp_netdevice:create(),
+    ?assert(is_pid(DevicePid3)),
+    nsime_ipv4_protocol:add_interface(ProtocolPid, DevicePid3),
+
+    Route = #nsime_ipv4_route{
+        output_device = DevicePid1
+    },
+    Ipv4Header = #nsime_ipv4_header{
+        source_address = {10, 107, 1, 1},
+        destination_address = {192, 168, 1, 250},
+        ttl = 32
+    },
+    Packet = #nsime_packet{data = <<0:32>>, size = 4},
+    Ref1 = make_ref(),
+    UnicastCallback = {
+        ?MODULE,
+        unicast_forward_tester,
+        [self(), Ref1]
+    },
+    ?assertEqual(nsime_ipv4_protocol:set_unicast_forward_trace(ProtocolPid, UnicastCallback), ok),
+    Ref2 = make_ref(),
+    DropCallback = {
+        ?MODULE,
+        drop_trace_tester,
+        [self(), Ref2]
+    },
+    ?assertEqual(nsime_ipv4_protocol:set_drop_trace(ProtocolPid, DropCallback), ok),
+    ?assertEqual(
+        nsime_ipv4_protocol:ip_forward(
+            ProtocolPid,
+            Route,
+            Packet,
+            Ipv4Header
+        ),
+        ok
+    ),
+    receive
+        {unicast_forward_trace, Ref1} ->
+            ok
+    end,
+    receive
+        {drop_route_error, Ref2} ->
+            ok
+    end,
+    ?assertEqual(nsime_ipv4_protocol:set_up(ProtocolPid, InterfacePid1), ok),
+    Ref3 = make_ref(),
+    TransmitCallback = {
+        ?MODULE,
+        transmit_trace_tester,
+        [self(), Ref3]
+    },
+    ?assertEqual(nsime_ipv4_protocol:set_transmit_trace(ProtocolPid, TransmitCallback), ok),
+    Address1 = {10, 107, 1, 1},
+    Mask = {255, 255, 255, 0},
+    AddressPid1 = nsime_ipv4_interface_address:create(Address1, Mask),
+    ?assert(is_pid(AddressPid1)),
+    AddressPid2 = nsime_ipv4_interface_address:create(Address1, Mask),
+    ?assert(is_pid(AddressPid2)),
+    ?assertEqual(nsime_ipv4_interface:add_address(InterfacePid1, AddressPid1), ok),
+    ?assertEqual(nsime_ipv4_interface:add_address(InterfacePid1, AddressPid2), ok),
+    nsime_simulator:start(),
+    ?assert(lists:member(nsime_simulator, erlang:registered())),
+    ?assertEqual(
+        nsime_ipv4_protocol:ip_forward(
+            ProtocolPid,
+            Route,
+            Packet,
+            Ipv4Header
+        ),
+        ok
+    ),
+    receive
+        {unicast_forward_trace, Ref1} ->
+            ok
+    end,
+    receive
+        {transmit_trace, Ref3} ->
+            ok
+    end,
+    Size = nsime_ptp_netdevice:get_mtu(Route#nsime_ipv4_route.output_device) + 1,
+    BigPacket = #nsime_packet{data = <<0:(Size*8)>>, size = Size},
+    ?assertError(
+        ipv4_fragmentation_not_supported,
+        nsime_ipv4_protocol:ip_forward(
+            ProtocolPid,
+            Route,
+            BigPacket,
+            Ipv4Header
+        )
+    ),
+    NewRoute = Route#nsime_ipv4_route{gateway = nsime_ipv4_address:get_zero()},
+    ?assertEqual(
+        nsime_ipv4_protocol:ip_forward(
+            ProtocolPid,
+            NewRoute,
+            Packet,
+            Ipv4Header
+        ),
+        ok
+    ),
+    receive
+        {unicast_forward_trace, Ref1} ->
+            ok
+    end,
+    receive
+        {transmit_trace, Ref3} ->
+            ok
+    end,
+    ?assertError(
+        ipv4_fragmentation_not_supported,
+        nsime_ipv4_protocol:ip_forward(
+            ProtocolPid,
+            NewRoute,
+            BigPacket,
+            Ipv4Header
+        )
+    ),
+    ?assertEqual(nsime_ipv4_protocol:set_down(ProtocolPid, InterfacePid1), ok),
+    ?assertEqual(
+        nsime_ipv4_protocol:ip_forward(
+            ProtocolPid,
+            NewRoute,
+            Packet,
+            Ipv4Header
+        ),
+        ok
+    ),
+    receive
+        {unicast_forward_trace, Ref1} ->
+            ok
+    end,
+    receive
+        {drop_route_error, Ref2} ->
+            ok
+    end,
+    ?assertEqual(nsime_simulator:stop(), stopped),
+    ?assertEqual(nsime_ipv4_protocol:destroy(ProtocolPid), stopped).
+
+test_ip_forward_with_ttl_error(_) ->
+    ProtocolPid = nsime_ipv4_protocol:create(),
+    ?assert(is_pid(ProtocolPid)),
+    NodePid = nsime_node:create(),
+    ?assertEqual(nsime_ipv4_protocol:set_node(ProtocolPid, NodePid), ok),
+    DevicePid1 = nsime_ptp_netdevice:create(),
+    ?assert(is_pid(DevicePid1)),
+    nsime_ipv4_protocol:add_interface(ProtocolPid, DevicePid1),
+
+    Route = #nsime_ipv4_route{
+        output_device = DevicePid1
+    },
+    Ipv4Header = #nsime_ipv4_header{
+        source_address = {10, 107, 1, 1},
+        destination_address = {192, 168, 1, 250},
+        ttl = 1
+    },
+    Packet = #nsime_packet{data = <<0:32>>, size = 4},
+    Ref1 = make_ref(),
+    DropCallback = {
+        ?MODULE,
+        drop_trace_tester,
+        [self(), Ref1]
+    },
+    ?assertEqual(nsime_ipv4_protocol:set_drop_trace(ProtocolPid, DropCallback), ok),
+    ?assertError(
+        icmpv4_protocol_not_found,
+        nsime_ipv4_protocol:ip_forward(
+            ProtocolPid,
+            Route,
+            Packet,
+            Ipv4Header
+        )
+    ),
+    ?assertEqual(
+        nsime_ipv4_protocol:ip_forward(
+            ProtocolPid,
+            Route,
+            Packet,
+            Ipv4Header#nsime_ipv4_header{
+                destination_address = nsime_ipv4_address:get_broadcast()
+            }
+        ),
+        ok
+    ),
+    receive
+        {drop_route_error, Ref1} ->
+            ok
+    end,
+    ?assertEqual(nsime_ipv4_protocol:destroy(ProtocolPid), stopped).
+
+test_send_with_header(_) ->
+    ProtocolPid = nsime_ipv4_protocol:create(),
+    ?assert(is_pid(ProtocolPid)),
+    NodePid = nsime_node:create(),
+    ?assertEqual(nsime_ipv4_protocol:set_node(ProtocolPid, NodePid), ok),
+    DevicePid1 = nsime_ptp_netdevice:create(),
+    ?assert(is_pid(DevicePid1)),
+    nsime_ipv4_protocol:add_interface(ProtocolPid, DevicePid1),
+
+    Ipv4Header = #nsime_ipv4_header{
+        source_address = {10, 107, 1, 1},
+        destination_address = {192, 168, 1, 250},
+        ttl = 1
+    },
+    Packet = #nsime_packet{data = <<0:32>>, size = 4},
+    Ref1 = make_ref(),
+    DropCallback = {
+        ?MODULE,
+        drop_trace_tester,
+        [self(), Ref1]
+    },
+    ?assertEqual(nsime_ipv4_protocol:set_drop_trace(ProtocolPid, DropCallback), ok),
+    ?assertEqual(
+        nsime_ipv4_protocol:send_with_header(
+            ProtocolPid,
+            Packet,
+            Ipv4Header,
+            undefined
+        ),
+        ok
+    ),
+    receive
+        {drop_route_error, Ref1} ->
+            ok
+    end,
+    ?assertEqual(nsime_ipv4_protocol:destroy(ProtocolPid), stopped).
+
+test_recv(_) ->
+    ProtocolPid = nsime_ipv4_protocol:create(),
+    ?assert(is_pid(ProtocolPid)),
+    NodePid = nsime_node:create(),
+    ?assertEqual(nsime_ipv4_protocol:set_node(ProtocolPid, NodePid), ok),
+    DevicePid1 = nsime_ptp_netdevice:create(),
+    ?assert(is_pid(DevicePid1)),
+    InterfacePid1 = nsime_ipv4_protocol:add_interface(ProtocolPid, DevicePid1),
+    ?assertEqual(nsime_ipv4_protocol:set_down(ProtocolPid, InterfacePid1), ok),
+
+    HL = 5,
+    TOS = 200,
+    TotalLength = 60,
+    Id = 12345,
+    Flags = 5,
+    FragmentOffset = 5000,
+    TTL = 32,
+    Protocol = 100,
+    SrcAddress = {10, 107, 1, 1},
+    DestAddress = {192, 168, 0, 1},
+    Ipv4Header = #nsime_ipv4_header{
+        header_length = HL,
+        tos = TOS,
+        total_length = TotalLength,
+        identification = Id,
+        flags = Flags,
+        fragment_offset = FragmentOffset,
+        ttl = TTL,
+        protocol = Protocol,
+        checksum = 0,
+        source_address = SrcAddress,
+        destination_address = DestAddress,
+        calculate_checksum = false,
+        checksum_correct = false
+    },
+    Ipv4HeaderBinary = nsime_ipv4_header:serialize(Ipv4Header),
+    Data = <<0:160>>,
+    Packet = #nsime_packet{
+        data = <<Ipv4HeaderBinary/binary, Data/binary>>,
+        size = byte_size(Ipv4HeaderBinary) + byte_size(Data)
+    },
+    Ref1 = make_ref(),
+    DropCallback = {
+        ?MODULE,
+        drop_trace_tester,
+        [self(), Ref1]
+    },
+    ?assertEqual(nsime_ipv4_protocol:set_drop_trace(ProtocolPid, DropCallback), ok),
+    ?assertEqual(
+        nsime_ipv4_protocol:recv(
+            ProtocolPid,
+            DevicePid1,
+            Packet,
+            ?IPv4_PROTOCOL_NUMBER,
+            Ipv4Header#nsime_ipv4_header.source_address,
+            Ipv4Header#nsime_ipv4_header.destination_address,
+            undefined
+        ),
+        ok
+    ),
+    receive
+        {drop_route_error, Ref1} ->
+            ok
+    end,
+
+    nsime_config:start(),
+    ?assert(lists:member(nsime_config, erlang:registered())),
+    ?assertEqual(nsime_config:disable_checksum(), ok),
+    ?assertEqual(nsime_ipv4_protocol:set_up(ProtocolPid, InterfacePid1), ok),
+    Ref2 = make_ref(),
+    ReceiveCallback = {
+        ?MODULE,
+        receive_trace_tester,
+        [self(), Ref2]
+    },
+    ?assertEqual(nsime_ipv4_protocol:set_receive_trace(ProtocolPid, ReceiveCallback), ok),
+    ?assertEqual(
+        nsime_ipv4_protocol:recv(
+            ProtocolPid,
+            DevicePid1,
+            Packet,
+            ?IPv4_PROTOCOL_NUMBER,
+            Ipv4Header#nsime_ipv4_header.source_address,
+            Ipv4Header#nsime_ipv4_header.destination_address,
+            undefined
+        ),
+        ok
+    ),
+    receive
+        {receive_trace, Ref2} ->
+            ok
+    end,
+    receive
+        {drop_route_error, Ref1} ->
+            ok
+    end,
+
+    ?assertEqual(nsime_config:enable_checksum(), ok),
+    RoutingPid = nsime_ipv4_static_routing:create(),
+    ?assertEqual(nsime_ipv4_protocol:set_routing_protocol(ProtocolPid, RoutingPid), ok),
+    ?assertEqual(nsime_ipv4_static_routing:set_ipv4_protocol(RoutingPid, ProtocolPid), ok),
+    Ipv4Header1 = Ipv4Header#nsime_ipv4_header{calculate_checksum = true},
+    Ipv4HeaderBinary1 = nsime_ipv4_header:serialize(Ipv4Header1),
+    Packet1 = Packet#nsime_packet{data = <<Ipv4HeaderBinary1/binary, Data/binary>>},
+    ?assertEqual(
+        nsime_ipv4_protocol:recv(
+            ProtocolPid,
+            DevicePid1,
+            Packet1,
+            ?IPv4_PROTOCOL_NUMBER,
+            Ipv4Header1#nsime_ipv4_header.source_address,
+            Ipv4Header1#nsime_ipv4_header.destination_address,
+            undefined
+        ),
+        ok
+    ),
+    receive
+        {receive_trace, Ref2} ->
+            ok
+    end,
+    receive
+        {drop_route_error, Ref1} ->
+            ok
+    end,
+    receive
+        {drop_route_error, Ref1} ->
+            ok
+    end,
+
+    ?assertEqual(nsime_ipv4_interface:set_forwarding(InterfacePid1, true), ok),
+    ?assertEqual(
+        nsime_ipv4_static_routing:add_host_route(
+            RoutingPid,
+            DestAddress,
+            InterfacePid1,
+            0
+        ),
+        ok
+    ),
+    Mask = {255, 255, 255, 0},
+    AddressPid1 = nsime_ipv4_interface_address:create(DestAddress, Mask),
+    ?assert(is_pid(AddressPid1)),
+    AddressPid2 = nsime_ipv4_interface_address:create(DestAddress, Mask),
+    ?assert(is_pid(AddressPid2)),
+    ?assertEqual(nsime_ipv4_interface:add_address(InterfacePid1, AddressPid1), ok),
+    ?assertEqual(nsime_ipv4_interface:add_address(InterfacePid1, AddressPid2), ok),
+    nsime_simulator:start(),
+    ?assert(lists:member(nsime_simulator, erlang:registered())),
+    ?assertEqual(
+        nsime_ipv4_protocol:recv(
+            ProtocolPid,
+            DevicePid1,
+            Packet1,
+            ?IPv4_PROTOCOL_NUMBER,
+            Ipv4Header1#nsime_ipv4_header.source_address,
+            Ipv4Header1#nsime_ipv4_header.destination_address,
+            undefined
+        ),
+        ok
+    ),
+    receive
+        {receive_trace, Ref2} ->
+            ok
+    end,
+
+    ?assertEqual(nsime_config:stop(), stopped),
+    ?assertEqual(nsime_simulator:stop(), stopped),
+    ?assertEqual(nsime_ipv4_protocol:destroy(ProtocolPid), stopped).
+
 test_cast_info_codechange(_) ->
     ProtocolPid = nsime_ipv4_protocol:create(),
     ?assert(is_pid(ProtocolPid)),
@@ -277,3 +688,12 @@ test_cast_info_codechange(_) ->
 
 drop_trace_tester(From, Ref, _Ipv4Header, _Packet, _ErrorType, _Self, _None) ->
     spawn(fun() -> From ! {drop_route_error, Ref} end).
+
+unicast_forward_tester(From, Ref, _Ipv4Header, _Packet, _InterfacePid) ->
+    spawn(fun() -> From ! {unicast_forward_trace, Ref} end).
+
+transmit_trace_tester(From, Ref, _Ipv4Header, _Packet, _InterfacePid) ->
+    spawn(fun() -> From ! {transmit_trace, Ref} end).
+
+receive_trace_tester(From, Ref, _Ipv4Header, _Packet, _InterfacePid) ->
+    spawn(fun() -> From ! {receive_trace, Ref} end).

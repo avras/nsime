@@ -23,6 +23,8 @@
 -module(nsime_ipv4_interface).
 -author("Saravanan Vijayakumaran").
 
+-include("nsime_types.hrl").
+-include("nsime_event.hrl").
 -include("nsime_ipv4_interface_state.hrl").
 
 -behaviour(gen_server).
@@ -175,6 +177,7 @@ handle_call({send, Packet, DestAddress}, _From, InterfaceState) ->
             case (nsime_netdevice:get_device_type(Device) == nsime_loopback_netdevice) of
                 true ->
                     nsime_netdevice:send(
+                        Device,
                         Packet,
                         nsime_netdevice:get_broadcast_address(Device),
                         nsime_ipv4_protocol:protocol_number()
@@ -182,25 +185,39 @@ handle_call({send, Packet, DestAddress}, _From, InterfaceState) ->
                     {reply, ok, InterfaceState};
                 false ->
                     AddressList = InterfaceState#nsime_ipv4_interface_state.address_list,
-                    [MatchingAddress|_] = lists:filter(
+                    MatchingAddress =
+                    case
+                    lists:filter(
                         fun(A) ->
                             nsime_ipv4_interface_address:get_local_address(A) == DestAddress
                         end,
                         AddressList
-                    ),
+                    )
+                    of
+                        [] ->
+                            undefined;
+                        [FirstMatch|_] ->
+                            FirstMatch
+                    end,
                     case is_pid(MatchingAddress) of
                         false ->
                             NodePid = InterfaceState#nsime_ipv4_interface_state.node,
                             IPv4Protocol = nsime_node:get_object(NodePid, nsime_ipv4_protocol),
-                            nsime_ipv4_protocol:receive_packet(
-                                IPv4Protocol,
-                                Device,
-                                Packet,
-                                nsime_ipv4_protocol:protocol_number(),
-                                nsime_device:get_broadcast_address(Device),
-                                DestAddress,
-                                packet_host
-                            ),
+                            Event = #nsime_event{
+                                module = nsime_ipv4_protocol,
+                                function = recv,
+                                arguments = [
+                                    IPv4Protocol,
+                                    Device,
+                                    Packet,
+                                    nsime_ipv4_protocol:protocol_number(),
+                                    nsime_netdevice:get_broadcast_address(Device),
+                                    DestAddress,
+                                    packet_host
+                                ],
+                                eventid = make_ref()
+                            },
+                            nsime_simulator:schedule_now(Event),
                             {reply, ok, InterfaceState};
                         true ->
                             case nsime_netdevice:needs_arp(Device) of

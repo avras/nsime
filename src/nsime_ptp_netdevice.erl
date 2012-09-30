@@ -166,13 +166,13 @@ needs_arp(DevicePid) ->
 supports_send_from(DevicePid) ->
     gen_server:call(DevicePid, supports_send_from).
 
-transmit_start(DevicePid, Packet = #nsime_packet{}) ->
+transmit_start(DevicePid, Packet) ->
     gen_server:call(DevicePid, {transmit_start, Packet}).
 
 transmit_complete(DevicePid) ->
     gen_server:call(DevicePid, transmit_complete).
 
-send(DevicePid, Packet = #nsime_packet{}, Address, ProtocolNumber) ->
+send(DevicePid, Packet, Address, ProtocolNumber) ->
     gen_server:call(DevicePid, {send, Packet, Address, ProtocolNumber}).
 
 receive_packet(_DevicePid, _Packet = #nsime_packet{}) ->

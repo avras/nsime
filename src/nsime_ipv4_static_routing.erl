@@ -24,6 +24,7 @@
 -author("Saravanan Vijayakumaran").
 
 -include("nsime_types.hrl").
+-include("nsime_event.hrl").
 -include("nsime_ipv4_route.hrl").
 -include("nsime_ipv4_routing_table_entry.hrl").
 -include("nsime_ipv4_static_routing_state.hrl").
@@ -32,7 +33,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([create/0, destroy/1, route_input/8, route_output/4,
+-export([create/0, destroy/1, route_input/9, route_output/4,
          notify_interface_up/2, notify_interface_down/2, notify_add_address/3,
          notify_remove_address/3, set_ipv4_protocol/2, add_network_route/5,
          add_network_route/6, add_host_route/4, add_host_route/5,
@@ -53,7 +54,8 @@ route_input(
     UnicastForwardCallback,
     MulticastForwardCallback,
     LocalDeliverCallback,
-    ErrorCallback
+    ErrorCallback,
+    InterfaceList
 ) ->
     gen_server:call(RoutingPid, {route_input,
                                  Packet,
@@ -62,7 +64,8 @@ route_input(
                                  UnicastForwardCallback,
                                  MulticastForwardCallback,
                                  LocalDeliverCallback,
-                                 ErrorCallback
+                                 ErrorCallback,
+                                 InterfaceList
                                 }).
 
 route_output(
@@ -179,12 +182,12 @@ handle_call(
         UnicastForwardCallback,
         _MulticastForwardCallback,
         LocalDeliverCallback,
-        ErrorCallback
+        ErrorCallback,
+        InterfaceList
     },
     _From,
     RoutingState
 ) ->
-    Ipv4ProtocolPid = RoutingState#nsime_ipv4_static_routing_state.ipv4_protocol,
     InterfacePid = nsime_netdevice:get_interface(IngressNetdevice),
     DestinationAddress = nsime_ipv4_header:get_destination_address(Ipv4Header),
     case
@@ -194,40 +197,29 @@ handle_call(
         true ->
             erlang:error(options_not_supported);
         false ->
-            InterfaceList = nsime_ipv4_protocol:get_interface_list(Ipv4ProtocolPid),
-            MatchingAddressList = lists:foldl(
-                fun(I, MatchingAddresses) ->
-                    AddressList = nsime_ipv4_interface:get_address_list(I),
-                    NewAddressList = lists:filter(
-                        fun(A) ->
-                            (nsime_ipv4_interface_address:get_local_address(A) == DestinationAddress)
-                            or
-                            (nsime_ipv4_interface_address:get_broadcast_address(A) == DestinationAddress)
-                        end,
-                        AddressList
-                    ),
-                    lists:flatten([NewAddressList | MatchingAddresses])
-                end,
-                [],
-                InterfaceList
-            ),
-            [FirstMatchingAddress | _] = MatchingAddressList,
-            case FirstMatchingAddress == [] of
-                false ->
-                    case LocalDeliverCallback of
-                        undefined ->
-                            {reply, true, RoutingState};
-                        _ ->
-                            {Mod, Fun, Args} = LocalDeliverCallback,
-                            NewArgs = lists:flatten([Args, [Packet, Ipv4Header, InterfacePid]]),
-                            erlang:apply(Mod, Fun, NewArgs),
-                            {reply, true, RoutingState}
-                    end;
-                true ->
+            case
+                lists:foldl(
+                    fun(I, MatchingAddresses) ->
+                        AddressList = nsime_ipv4_interface:get_address_list(I),
+                        NewAddressList = lists:filter(
+                            fun(A) ->
+                                (nsime_ipv4_interface_address:get_local_address(A) == DestinationAddress)
+                                or
+                                (nsime_ipv4_interface_address:get_broadcast_address(A) == DestinationAddress)
+                            end,
+                            AddressList
+                        ),
+                        lists:flatten([NewAddressList | MatchingAddresses])
+                    end,
+                    [],
+                    InterfaceList
+                )
+            of
+                [] ->
                     case nsime_ipv4_interface:is_forwarding(InterfacePid) of
                         false ->
                             {Mod, Fun, Args} = ErrorCallback,
-                            NewArgs = lists:flatten([Args, [Packet, Ipv4Header, error_noroutetohost]]),
+                            NewArgs = lists:flatten([Args, [Packet, Ipv4Header, error_noroutetohost, self(), undefined]]),
                             erlang:apply(Mod, Fun, NewArgs),
                             {reply, false, RoutingState};
                         true ->
@@ -238,10 +230,33 @@ handle_call(
                                 _ ->
                                     {Mod, Fun, Args} = UnicastForwardCallback,
                                     NewArgs = lists:flatten([Args, [Route, Packet, Ipv4Header]]),
-                                    erlang:apply(Mod, Fun, NewArgs),
+                                    Event = #nsime_event{
+                                        module = Mod,
+                                        function = Fun,
+                                        arguments = NewArgs,
+                                        eventid = make_ref()
+                                    },
+                                    nsime_simulator:schedule_now(Event),
                                     {reply, true, RoutingState}
                             end
+                    end;
+                _ ->
+                    case LocalDeliverCallback of
+                        undefined ->
+                            {reply, false, RoutingState};
+                        _ ->
+                            {Mod, Fun, Args} = LocalDeliverCallback,
+                            NewArgs = lists:flatten([Args, [Packet, Ipv4Header, InterfacePid]]),
+                            Event = #nsime_event{
+                                module = Mod,
+                                function = Fun,
+                                arguments = NewArgs,
+                                eventid = make_ref()
+                            },
+                            nsime_simulator:schedule_now(Event),
+                            {reply, true, RoutingState}
                     end
+
             end
     end;
 

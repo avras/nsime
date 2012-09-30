@@ -23,7 +23,7 @@
 -module(nsime_ipv4_routing_protocol).
 -author("Saravanan Vijayakumaran").
 
--export([route_input/8, route_output/4,
+-export([route_input/9, route_output/4,
          notify_interface_up/2, notify_interface_down/2,
          notify_add_address/3, notify_remove_address/3,
          set_ipv4_protocol/2]).
@@ -36,7 +36,8 @@ route_input(
     UnicastForwardCallback,
     MulticastForwardCallback,
     LocalDeliverCallback,
-    ErrorCallback
+    ErrorCallback,
+    InterfaceList
 ) ->
     gen_server:call(RoutingProtocolPid, {route_input,
                                          Packet,
@@ -45,7 +46,8 @@ route_input(
                                          UnicastForwardCallback,
                                          MulticastForwardCallback,
                                          LocalDeliverCallback,
-                                         ErrorCallback
+                                         ErrorCallback,
+                                         InterfaceList
                                         }).
 
 route_output(
