@@ -20,6 +20,8 @@
 %% Purpose : UDP protocol state record
 %% Author : Saravanan Vijayakumaran
 
+-define(UDP_PROTOCOL_NUMBER, 17).
+
 -record(nsime_udp_protocol_state,
         {
           node                      :: pid(),

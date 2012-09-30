@@ -20,6 +20,8 @@
 %% Purpose : ICMPv4 protocol state record
 %% Author : Saravanan Vijayakumaran
 
+-define(ICMPv4_PROTOCOL_NUMBER, 1).
+
 -record(nsime_icmpv4_protocol_state,
         {
           node                      :: pid(),

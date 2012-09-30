@@ -37,8 +37,6 @@
          recv_icmp/9, set_ipv4_down_target/2, get_ipv4_down_target/1,
          set_ipv6_down_target/2, get_ipv6_down_target/1]).
 
--define(UDP_PROTOCOL_NUMBER, 17).
-
 create() ->
     {ok, Pid} = gen_server:start(?MODULE, [], []),
     Pid.

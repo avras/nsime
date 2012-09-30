@@ -33,6 +33,8 @@
 -include("nsime_packet.hrl").
 -include("nsime_ipv4_header.hrl").
 -include("nsime_ipv4_protocol_state.hrl").
+-include("nsime_icmpv4_protocol_state.hrl").
+-include("nsime_udp_protocol_state.hrl").
 
 all() -> [
             test_creation_shutdown,
@@ -71,9 +73,13 @@ test_set_get_components(_) ->
     ?assertEqual(nsime_ipv4_protocol:get_routing_protocol(ProtocolPid), RoutingPid),
     ?assertEqual(nsime_ipv4_protocol:create_raw_socket(ProtocolPid), ok),
     ?assertEqual(nsime_ipv4_protocol:delete_raw_socket(ProtocolPid, undefined), ok),
-    Layer4ProtPid = list_to_pid("<0.0.0>"),
-    ?assertEqual(nsime_ipv4_protocol:insert_layer4_protocol(ProtocolPid, Layer4ProtPid), ok),
-    ?assertEqual(nsime_ipv4_protocol:remove_layer4_protocol(ProtocolPid, Layer4ProtPid), ok),
+    Layer4ProtPid1 = nsime_udp_protocol:create(),
+    Layer4ProtPid2 = nsime_icmpv4_protocol:create(),
+    ?assertEqual(nsime_ipv4_protocol:insert_layer4_protocol(ProtocolPid, Layer4ProtPid1), ok),
+    ?assertEqual(nsime_ipv4_protocol:insert_layer4_protocol(ProtocolPid, Layer4ProtPid2), ok),
+    ?assertEqual(nsime_ipv4_protocol:get_layer4_protocol(ProtocolPid, ?UDP_PROTOCOL_NUMBER), Layer4ProtPid1),
+    ?assertEqual(nsime_ipv4_protocol:get_layer4_protocol(ProtocolPid, ?ICMPv4_PROTOCOL_NUMBER), Layer4ProtPid2),
+    ?assertEqual(nsime_ipv4_protocol:remove_layer4_protocol(ProtocolPid, Layer4ProtPid1), ok),
     ?assertEqual(nsime_ipv4_protocol:set_default_ttl(ProtocolPid, 64), ok),
     ?assertEqual(nsime_ipv4_protocol:get_interface_list(ProtocolPid), [InterfacePid1]),
     Address1 = {10, 107, 1, 1},
@@ -189,6 +195,8 @@ test_set_get_components(_) ->
     ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid1), stopped),
     ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid2), stopped),
     ?assertEqual(nsime_ipv4_static_routing:destroy(RoutingPid), stopped),
+    ?assertEqual(nsime_udp_protocol:destroy(Layer4ProtPid1), stopped),
+    ?assertEqual(nsime_udp_protocol:destroy(Layer4ProtPid2), stopped),
     ?assertEqual(nsime_ipv4_protocol:destroy(ProtocolPid), stopped).
 
 test_route_input_error(_) ->

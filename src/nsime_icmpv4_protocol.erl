@@ -38,8 +38,6 @@
          recv/4, send_time_exceeded_ttl/3, send_dest_unreach_port/3,
          set_ipv4_down_target/2, get_ipv4_down_target/1]).
 
--define(ICMPv4_PROTOCOL_NUMBER, 1).
-
 create() ->
     {ok, Pid} = gen_server:start(?MODULE, [], []),
     Pid.
