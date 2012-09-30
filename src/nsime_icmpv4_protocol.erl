@@ -191,7 +191,7 @@ forward(SrcAddress, IcmpHeader, Info, Ipv4Header, Payload, ProtocolState) ->
     ),
     case is_pid(Layer4ProtocolPid) of
         true ->
-            nsime_layer4_protocol:receive_icmp(
+            nsime_layer4_protocol:recv_icmp(
                 Layer4ProtocolPid,
                 SrcAddress,
                 nsime_ipv4_header:get_ttl(Ipv4Header),
