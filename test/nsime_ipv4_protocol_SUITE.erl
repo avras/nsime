@@ -46,6 +46,7 @@ all() -> [
             test_ip_forward_with_ttl_error,
             test_send_with_header,
             test_recv,
+            test_send,
             test_cast_info_codechange
          ].
 
@@ -676,6 +677,111 @@ test_recv(_) ->
     ?assertEqual(nsime_simulator:stop(), stopped),
     ?assertEqual(nsime_ipv4_protocol:destroy(ProtocolPid), stopped).
 
+test_send(_) ->
+    ProtocolPid = nsime_ipv4_protocol:create(),
+    ?assert(is_pid(ProtocolPid)),
+    NodePid = nsime_node:create(),
+    ?assertEqual(nsime_ipv4_protocol:set_node(ProtocolPid, NodePid), ok),
+    DevicePid1 = nsime_ptp_netdevice:create(),
+    ?assert(is_pid(DevicePid1)),
+    InterfacePid1 = nsime_ipv4_protocol:add_interface(ProtocolPid, DevicePid1),
+    ?assertEqual(nsime_ipv4_protocol:set_down(ProtocolPid, InterfacePid1), ok),
+    nsime_config:start(),
+    ?assert(lists:member(nsime_config, erlang:registered())),
+
+    SrcAddress = {10, 107, 1, 1},
+    DestAddress = {192, 168, 0, 1},
+    Data = <<0:160>>,
+    Packet = #nsime_packet{
+        data = <<Data/binary>>,
+        size = byte_size(Data)
+    },
+    Mask = {255, 255, 255, 0},
+    AddressPid1 = nsime_ipv4_interface_address:create(DestAddress, Mask),
+    ?assert(is_pid(AddressPid1)),
+    AddressPid2 = nsime_ipv4_interface_address:create(DestAddress, Mask),
+    ?assert(is_pid(AddressPid2)),
+    ?assertEqual(nsime_ipv4_interface:add_address(InterfacePid1, AddressPid1), ok),
+    ?assertEqual(nsime_ipv4_interface:add_address(InterfacePid1, AddressPid2), ok),
+
+    ?assertError(
+        nsime_routing_protocol_undefined,
+        nsime_ipv4_protocol:send(
+            ProtocolPid,
+            Packet,
+            SrcAddress,
+            DestAddress,
+            ?UDP_PROTOCOL_NUMBER,
+            undefined
+        )
+    ),
+
+    RoutingPid = nsime_ipv4_static_routing:create(),
+    ?assertEqual(nsime_ipv4_protocol:set_routing_protocol(ProtocolPid, RoutingPid), ok),
+    ?assertEqual(nsime_ipv4_static_routing:set_ipv4_protocol(RoutingPid, ProtocolPid), ok),
+
+    Ref1 = make_ref(),
+    DropCallback = {
+        ?MODULE,
+        drop_trace_tester,
+        [self(), Ref1]
+    },
+    ?assertEqual(nsime_ipv4_protocol:set_drop_trace(ProtocolPid, DropCallback), ok),
+    ?assertEqual(
+        nsime_ipv4_protocol:send(
+            ProtocolPid,
+            Packet,
+            SrcAddress,
+            DestAddress,
+            ?UDP_PROTOCOL_NUMBER,
+            undefined
+        ),
+        ok
+    ),
+    receive
+        {drop_route_error, Ref1} ->
+            ok
+    end,
+
+    BroadcastAddress = nsime_ipv4_address:get_broadcast(),
+    Ref2 = make_ref(),
+    OutgoingCallback = {
+        ?MODULE,
+        send_outgoing_tester,
+        [self(), Ref2]
+    },
+    ?assertEqual(nsime_ipv4_protocol:set_send_outgoing_trace(ProtocolPid, OutgoingCallback), ok),
+    Ref3 = make_ref(),
+    TransmitCallback = {
+        ?MODULE,
+        transmit_trace_tester,
+        [self(), Ref3]
+    },
+    ?assertEqual(nsime_ipv4_protocol:set_transmit_trace(ProtocolPid, TransmitCallback), ok),
+    ?assertEqual(
+        nsime_ipv4_protocol:send(
+            ProtocolPid,
+            Packet,
+            SrcAddress,
+            BroadcastAddress,
+            ?UDP_PROTOCOL_NUMBER,
+            undefined
+        ),
+        ok
+    ),
+    receive
+        {send_outgoing_trace, Ref2} ->
+            ok
+    end,
+    receive
+        {transmit_trace, Ref3} ->
+            ok
+    end,
+
+
+    ?assertEqual(nsime_config:stop(), stopped),
+    ?assertEqual(nsime_ipv4_protocol:destroy(ProtocolPid), stopped).
+
 test_cast_info_codechange(_) ->
     ProtocolPid = nsime_ipv4_protocol:create(),
     ?assert(is_pid(ProtocolPid)),
@@ -691,6 +797,9 @@ drop_trace_tester(From, Ref, _Ipv4Header, _Packet, _ErrorType, _Self, _None) ->
 
 unicast_forward_tester(From, Ref, _Ipv4Header, _Packet, _InterfacePid) ->
     spawn(fun() -> From ! {unicast_forward_trace, Ref} end).
+
+send_outgoing_tester(From, Ref, _Ipv4Header, _Packet, _InterfacePid) ->
+    spawn(fun() -> From ! {send_outgoing_trace, Ref} end).
 
 transmit_trace_tester(From, Ref, _Ipv4Header, _Packet, _InterfacePid) ->
     spawn(fun() -> From ! {transmit_trace, Ref} end).

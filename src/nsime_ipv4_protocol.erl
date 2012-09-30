@@ -97,7 +97,12 @@ recv(ProtocolPid, DevicePid, Packet, Protocol, FromAddress, ToAddress, PacketTyp
     gen_server:call(ProtocolPid, {recv, DevicePid, Packet, Protocol, FromAddress, ToAddress, PacketType}).
 
 send(ProtocolPid, Packet, SrcAddress, DestAddress, Protocol, Route) ->
-    gen_server:call(ProtocolPid, {send, Packet, SrcAddress, DestAddress, Protocol, Route}).
+    case gen_server:call(ProtocolPid, {send, Packet, SrcAddress, DestAddress, Protocol, Route}) of
+        nsime_routing_protocol_undefined ->
+            erlang:error(nsime_routing_protocol_undefined);
+        ok ->
+            ok
+    end.
 
 send_with_header(ProtocolPid, Packet, Ipv4Header, Route) ->
     gen_server:call(ProtocolPid, {send_with_header, Packet, Ipv4Header, Route}).
@@ -526,7 +531,7 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
                                             {reply, ok, NewProtocolState}
                                     end;
                                 false ->
-                                    erlang:error(nsime_routing_protocol_undefined)
+                                    {reply, nsime_routing_protocol_undefined, NewProtocolState}
                             end
                     end
             end
