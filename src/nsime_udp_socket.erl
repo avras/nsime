@@ -43,8 +43,6 @@
          set_drop_trace_callback/2, set_icmp_callback/2,
          forward_icmp/6, forward_up/5, destroy_endpoint/1]).
 
--define(MAX_IPV4_UDP_DATAGRAM_SIZE, 65507).
-
 create() ->
     {ok, Pid} = gen_server:start(?MODULE, [], []),
     Pid.
@@ -195,7 +193,7 @@ handle_call({bind, _SocketAddress = {Address, Port}}, _From, SocketState) ->
 handle_call(close, _From, SocketState) ->
     ShutdownReceive = SocketState#nsime_udp_socket_state.shutdown_receive,
     ShutdownSend = SocketState#nsime_udp_socket_state.shutdown_send,
-    case ShutdownReceive band ShutdownSend of
+    case ShutdownReceive and ShutdownSend of
         true ->
             NewSocketState = SocketState#nsime_udp_socket_state{
                 socket_error = error_badf
@@ -236,7 +234,7 @@ handle_call(listen, _From, SocketState) ->
     {reply, error_opnotsupp, NewSocketState};
 
 handle_call(get_transmit_available, _From, SocketState) ->
-    {reply, ?MAX_IPV4_UDP_DATAGRAM_SIZE, SocketState};
+    {reply, ?MAX_IPv4_UDP_DATAGRAM_SIZE, SocketState};
 
 handle_call({send, Packet, _Flags}, _From, SocketState) ->
     case SocketState#nsime_udp_socket_state.connected of
@@ -488,7 +486,7 @@ do_send_to(Packet, DestAddress, DestPort, SocketState) ->
                     MulticastTTL = SocketState#nsime_udp_socket_state.multicast_ttl,
                     NewPacket =
                     case
-                        (MulticastTTL =/= 0 band nsime_ipv4_address:is_multicast(DestAddress))
+                        (MulticastTTL =/= 0 and nsime_ipv4_address:is_multicast(DestAddress))
                     of
                         true ->
                             Tags1 = Packet#nsime_packet.tags,

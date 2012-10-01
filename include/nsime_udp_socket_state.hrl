@@ -20,6 +20,8 @@
 %% Purpose : UDP socket state record
 %% Author : Saravanan Vijayakumaran
 
+-define(MAX_IPv4_UDP_DATAGRAM_SIZE, 65507).
+
 -record(nsime_udp_socket_state,
         {
           bound_netdevice                     :: pid(),
