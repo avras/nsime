@@ -502,7 +502,7 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
                             RoutingProtocolPid = ProtocolState#nsime_ipv4_protocol_state.routing_protocol,
                             case is_pid(RoutingProtocolPid) of
                                 true ->
-                                    case nsime_ipv4_routing_protocol:route_output(RoutingProtocolPid, NewPacket, Ipv4Header, node) of
+                                    case nsime_ipv4_routing_protocol:route_output(RoutingProtocolPid, NewPacket, Ipv4Header, none) of
                                         {error_noterror, NewRoute} ->
                                             DevicePid = NewRoute#nsime_ipv4_route.output_device,
                                             InterfacePid = lists:foldl(
@@ -1088,7 +1088,7 @@ send_real_out(Route, Packet, Ipv4Header, ProtocolState) ->
                             {reply, ok, ProtocolState}
                     end;
                 true ->
-                    case nsime_ipv4_interface:is_up(InterfacePid) of
+                    case is_pid(InterfacePid) andalso nsime_ipv4_interface:is_up(InterfacePid) of
                         true ->
                             case
                                 NewPacket#nsime_packet.size >

@@ -812,6 +812,59 @@ test_send(_) ->
         {send_outgoing_trace, Ref2} ->
             ok
     end,
+    SubnetBroadcastAddress = nsime_ipv4_address:get_subnet_directed_broadcast(
+        DestAddress,
+        Mask
+    ),
+    ?assertEqual(
+        nsime_ipv4_protocol:send(
+            ProtocolPid,
+            Packet,
+            SrcAddress,
+            SubnetBroadcastAddress,
+            ?UDP_PROTOCOL_NUMBER,
+            Route
+        ),
+        ok
+    ),
+    receive
+        {send_outgoing_trace, Ref2} ->
+            ok
+    end,
+    receive
+        {transmit_trace, Ref3} ->
+            ok
+    end,
+    ?assertEqual(
+        nsime_ipv4_static_routing:add_network_route(
+            RoutingPid,
+            DestAddress,
+            Mask,
+            InterfacePid1,
+            0
+        ),
+        ok
+    ),
+    ?assertEqual(
+        nsime_ipv4_protocol:send(
+            ProtocolPid,
+            Packet,
+            SrcAddress,
+            DestAddress,
+            ?UDP_PROTOCOL_NUMBER,
+            undefined
+        ),
+        ok
+    ),
+    receive
+        {send_outgoing_trace, Ref2} ->
+            ok
+    end,
+    receive
+        {drop_route_error, Ref1} ->
+            ok
+    end,
+
 
     ?assertEqual(nsime_config:stop(), stopped),
     ?assertEqual(nsime_ipv4_protocol:destroy(ProtocolPid), stopped).
