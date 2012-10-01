@@ -76,7 +76,7 @@ calculate_checksum(
                     Data/binary
                 >>
             );
-        {6, 6} ->
+        {8, 8} ->
             erlang:error(ipv6_not_supported);
         {_, _} ->
             erlang:error(invalid_argument)

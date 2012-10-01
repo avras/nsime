@@ -31,7 +31,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([create/0, destroy/1, set_node/2, protocol_number/1,
+-export([create/0, destroy/1, set_node/2, protocol_number/0, protocol_number/1,
          create_socket/1, get_sockets/1, allocate/1, allocate/2,
          allocate/3, allocate/5, deallocate/2, send/6, send/7, recv/4,
          recv_icmp/9, set_ipv4_down_target/2, get_ipv4_down_target/1,
@@ -46,6 +46,9 @@ destroy(ProtocolPid) ->
 
 set_node(ProtocolPid, NodePid) ->
     gen_server:call(ProtocolPid, {set_node, NodePid}).
+
+protocol_number() ->
+    ?UDP_PROTOCOL_NUMBER.
 
 protocol_number(ProtocolPid) ->
     gen_server:call(ProtocolPid, protocol_number).
