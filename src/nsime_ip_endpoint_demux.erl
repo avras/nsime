@@ -193,7 +193,9 @@ handle_call(
                 Endpoints
             ),
             AddressList = nsime_ipv4_interface:get_address_list(IncomingInterface),
-            [MatchingInterfaceAddress | _] = lists:filter(
+            MatchingInterfaceAddress =
+            case
+            lists:filter(
                 fun(A) ->
                     Address = nsime_ipv4_interface_address:get_local_address(A),
                     Mask = nsime_ipv4_interface_address:get_mask(A),
@@ -204,7 +206,13 @@ handle_call(
                     nsime_ipv4_address:is_subnet_directed_broadcast(DestAddress, Mask)
                 end,
                 AddressList
-            ),
+            )
+            of
+                [] ->
+                    [];
+                [FirstMatch | _] ->
+                    FirstMatch
+            end,
             {SubnetDirected, IncomingInterfaceAddress} = case MatchingInterfaceAddress of
                 [] ->
                     {false, undefined};

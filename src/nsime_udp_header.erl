@@ -56,7 +56,7 @@ deserialize(HeaderBinary) ->
     }.
 
 calculate_checksum(
-    Packet,
+    Data,
     SourceAddress,
     DestinationAddress,
     SourcePort,
@@ -68,7 +68,6 @@ calculate_checksum(
         {4, 4} ->
             S = binary:list_to_bin(tuple_to_list(SourceAddress)),
             D = binary:list_to_bin(tuple_to_list(DestinationAddress)),
-            Data = Packet#nsime_packet.data,
             calculate_checksum(
                 <<
                     S/binary, D/binary, 0:8, Protocol:8, Length:16,

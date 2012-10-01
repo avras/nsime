@@ -91,11 +91,11 @@ test_checksum(_) ->
     ?assertEqual(nsime_udp_header:calculate_checksum(B1), 16#FFFF),
     B2 = <<0:40>>,
     ?assertEqual(nsime_udp_header:calculate_checksum(B2), 16#FFFF),
-    Packet1 = #nsime_packet{data = <<0:160>>, size = 20},
+    Data1 = <<0:160>>,
     ?assertError(
         ipv6_not_supported,
         nsime_udp_header:calculate_checksum(
-            Packet1,
+            Data1,
             {0, 0, 0, 0, 0, 0, 0, 0},
             {0, 0, 0, 0, 0, 0, 0, 0},
             0,
@@ -107,7 +107,7 @@ test_checksum(_) ->
     ?assertError(
         invalid_argument,
         nsime_udp_header:calculate_checksum(
-            Packet1,
+            Data1,
             {0, 0},
             {0, 0},
             0,
@@ -118,7 +118,7 @@ test_checksum(_) ->
     ),
     ?assertEqual(
         nsime_udp_header:calculate_checksum(
-            Packet1,
+            Data1,
             {0, 0, 0, 0},
             {0, 0, 0, 0},
             0,
@@ -128,7 +128,9 @@ test_checksum(_) ->
         ),
         16#FFFF
     ),
-    Packet2 = Packet1#nsime_packet{
+    Packet2 = #nsime_packet{
+        data = <<0:160>>,
+        size = 20,
         tags = [
                 {source_address, {0, 0, 0, 0}},
                 {destination_address, {0, 0, 0, 0}}

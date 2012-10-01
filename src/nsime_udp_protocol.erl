@@ -25,13 +25,14 @@
 
 -include("nsime_types.hrl").
 -include("nsime_packet.hrl").
+-include("nsime_udp_header.hrl").
 -include("nsime_udp_protocol_state.hrl").
 
 -behaviour(gen_server).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([create/0, destroy/1, set_node/2, protocol_number/0, protocol_number/1,
+-export([create/0, destroy/1, set_node/2, protocol_number/0,
          create_socket/1, get_sockets/1, allocate/1, allocate/2,
          allocate/3, allocate/5, deallocate/2, send/6, send/7, recv/4,
          recv_icmp/9, set_ipv4_down_target/2, get_ipv4_down_target/1,
@@ -49,9 +50,6 @@ set_node(ProtocolPid, NodePid) ->
 
 protocol_number() ->
     ?UDP_PROTOCOL_NUMBER.
-
-protocol_number(ProtocolPid) ->
-    gen_server:call(ProtocolPid, protocol_number).
 
 create_socket(ProtocolPid) ->
     gen_server:call(ProtocolPid, create_socket).
@@ -210,8 +208,9 @@ handle_call(
     ProtocolState
 ) ->
     Length = Packet#nsime_packet.size + 8,
+    Data = Packet#nsime_packet.data,
     Checksum = nsime_udp_header:calculate_checksum(
-        Packet,
+        Data,
         SrcAddress,
         DestAddress,
         SrcPort,
@@ -219,65 +218,47 @@ handle_call(
         Length,
         ?UDP_PROTOCOL_NUMBER
     ),
-    Header = nsime_udp_header:serialize(
+    UdpHeader = nsime_udp_header:serialize(
         SrcPort,
         DestPort,
         Length,
         Checksum
     ),
-    Data = Packet#nsime_packet.data,
     NewPacket = Packet#nsime_packet{
         size = Length,
-        data = <<Header/binary, Data/binary>>
+        data = <<UdpHeader/binary, Data/binary>>
     },
     {Mod, Fun, Args} = ProtocolState#nsime_udp_protocol_state.ipv4_down_target,
-    NewArgs =
-    case Route of
-        undefined ->
-            lists:flatten(
-                [
-                    Args |
-                    [
-                        NewPacket,
-                        SrcAddress,
-                        DestAddress,
-                        ?UDP_PROTOCOL_NUMBER
-                    ]
-                ]
-            );
-        _ ->
-            lists:flatten(
-                [
-                    Args |
-                    [
-                        NewPacket,
-                        SrcAddress,
-                        DestAddress,
-                        ?UDP_PROTOCOL_NUMBER,
-                        Route
-                    ]
-                ]
-            )
-    end,
+    NewArgs = lists:flatten([Args | [NewPacket, SrcAddress, DestAddress, ?UDP_PROTOCOL_NUMBER, Route]]),
     erlang:apply(Mod, Fun, NewArgs),
     {reply, ok, ProtocolState};
 
-handle_call({recv, Packet, Header, Interface}, _From, ProtocolState) ->
+handle_call({recv, Packet, Ipv4Header, Interface}, _From, ProtocolState) ->
     Data = Packet#nsime_packet.data,
-    case (nsime_udp_header:calculate_checksum(Data) == 16#FFFF) of
+    <<UdpHeaderBinary:64, Payload/binary>> = Data,
+    UdpHeader = nsime_udp_header:deserialize(<<UdpHeaderBinary:64>>),
+    DestAddress = nsime_ipv4_header:get_destination_address(Ipv4Header),
+    SrcAddress = nsime_ipv4_header:get_source_address(Ipv4Header),
+    Checksum = nsime_udp_header:calculate_checksum(
+        <<Payload/binary>>,
+        SrcAddress,
+        DestAddress,
+        UdpHeader#nsime_udp_header.source_port,
+        UdpHeader#nsime_udp_header.destination_port,
+        UdpHeader#nsime_udp_header.length,
+        ?UDP_PROTOCOL_NUMBER
+    ),
+    case (Checksum == UdpHeader#nsime_udp_header.checksum) of
         false ->
             {reply, rx_csum_failed, ProtocolState};
         true ->
-            <<SrcPort:16, DestPort:16, _:32, Payload/binary>> = Data,
-            DestAddress = nsime_ipv4_header:get_destination_address(Header),
-            SrcAddress = nsime_ipv4_header:get_source_address(Header),
             DemuxPid = ProtocolState#nsime_udp_protocol_state.ipv4_endpoints_demux,
             MatchingEndpoints = nsime_ip_endpoint_demux:lookup(
                 DemuxPid,
                 DestAddress,
-                DestPort,
+                UdpHeader#nsime_udp_header.destination_port,
                 SrcAddress,
-                SrcPort,
+                UdpHeader#nsime_udp_header.source_port,
                 Interface
             ),
             case length(MatchingEndpoints) > 0 of
@@ -285,7 +266,7 @@ handle_call({recv, Packet, Header, Interface}, _From, ProtocolState) ->
                     {reply, rx_endpoint_unreach, ProtocolState};
                 true ->
                     NewPacket = Packet#nsime_packet{
-                        size = byte_size(Data) - 4,
+                        size = byte_size(Data) - 8,
                         data = Payload
                     },
                     lists:foreach(
@@ -293,8 +274,8 @@ handle_call({recv, Packet, Header, Interface}, _From, ProtocolState) ->
                             nsime_ip_endpoint:forward_up(
                                 E,
                                 NewPacket,
-                                Header,
-                                SrcPort,
+                                Ipv4Header,
+                                UdpHeader#nsime_udp_header.source_port,
                                 Interface
                             )
                         end,
