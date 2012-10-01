@@ -100,6 +100,8 @@ send(ProtocolPid, Packet, SrcAddress, DestAddress, Protocol, Route) ->
     case gen_server:call(ProtocolPid, {send, Packet, SrcAddress, DestAddress, Protocol, Route}) of
         nsime_routing_protocol_undefined ->
             erlang:error(nsime_routing_protocol_undefined);
+        nsime_situation_not_implemented ->
+            erlang:error(nsime_situation_not_implemented);
         ok ->
             ok
     end.
@@ -451,7 +453,7 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
                 false ->
                     case is_record(Route, nsime_ipv4_route) of
                         true ->
-                            case (nsime_ipv4_route:get_gateway(Route) =/= nsime_ipv4_address:get_zero()) of
+                            case (Route#nsime_ipv4_route.gateway =/= nsime_ipv4_address:get_zero()) of
                                 true ->
                                     {Ipv4Header, NewProtocolState} = build_header(
                                         SrcAddress,
@@ -485,7 +487,7 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
                                     erlang:apply(Mod1, Fun1, NewArgs1),
                                     send_real_out(Route, NewPacket, Ipv4Header, NewProtocolState);
                                 false ->
-                                    erlang:error(nsime_situation_not_implemented)
+                                    {reply, nsime_situation_not_implemented, ProtocolState}
                             end;
                         false ->
                             {Ipv4Header, NewProtocolState} = build_header(

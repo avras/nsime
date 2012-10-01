@@ -778,6 +778,40 @@ test_send(_) ->
             ok
     end,
 
+    Route = #nsime_ipv4_route{
+        output_device = DevicePid1,
+        gateway = nsime_ipv4_address:get_zero()
+    },
+    ?assertError(
+        nsime_situation_not_implemented,
+        nsime_ipv4_protocol:send(
+            ProtocolPid,
+            Packet,
+            SrcAddress,
+            DestAddress,
+            ?UDP_PROTOCOL_NUMBER,
+            Route
+        )
+    ),
+
+    NewRoute = Route#nsime_ipv4_route{
+        gateway = DestAddress
+    },
+    ?assertEqual(
+        nsime_ipv4_protocol:send(
+            ProtocolPid,
+            Packet,
+            SrcAddress,
+            DestAddress,
+            ?UDP_PROTOCOL_NUMBER,
+            NewRoute
+        ),
+        ok
+    ),
+    receive
+        {send_outgoing_trace, Ref2} ->
+            ok
+    end,
 
     ?assertEqual(nsime_config:stop(), stopped),
     ?assertEqual(nsime_ipv4_protocol:destroy(ProtocolPid), stopped).
