@@ -36,8 +36,8 @@
 -export([create/0, destroy/1, set_node/2, get_node/1,
          set_udp_protocol/2, get_socket_error/1, get_socket_type/1,
          bind/1, bind/2, close/1, shutdown_send/1, shutdown_receive/1,
-         connect/2, listen/1, get_transmit_available/1, send/3,
-         send_to/4, get_received_available/1, recv/3, recv_from/3,
+         connect/2, listen/1, get_transmit_available/0, get_transmit_available/1,
+         send/3, send_to/4, get_received_available/1, recv/3, recv_from/3,
          multicast_join_group/3, multicast_leave_group/3,
          bind_to_netdevice/2, set_allow_broadcast/2, get_allow_broadcast/1,
          set_drop_trace_callback/2, set_icmp_callback/2,
@@ -85,6 +85,9 @@ connect(SocketPid, SocketAddress) ->
 
 listen(SocketPid) ->
     gen_server:call(SocketPid, listen).
+
+get_transmit_available() ->
+    ?MAX_IPv4_UDP_DATAGRAM_SIZE.
 
 get_transmit_available(SocketPid) ->
     gen_server:call(SocketPid, get_transmit_available).
@@ -486,7 +489,7 @@ do_send_to(Packet, DestAddress, DestPort, SocketState) ->
                     MulticastTTL = SocketState#nsime_udp_socket_state.multicast_ttl,
                     NewPacket =
                     case
-                        (MulticastTTL =/= 0 and nsime_ipv4_address:is_multicast(DestAddress))
+                        (MulticastTTL =/= 0) and nsime_ipv4_address:is_multicast(DestAddress)
                     of
                         true ->
                             Tags1 = Packet#nsime_packet.tags,
@@ -637,12 +640,12 @@ do_send_to(Packet, DestAddress, DestPort, SocketState) ->
                                                     Netdevice
                                                 )
                                             of
-                                                {error, Error} ->
+                                                {Error, undefined} ->
                                                     NewSocketState = SocketState#nsime_udp_socket_state{
                                                         socket_error = Error
                                                     },
                                                     {reply, Error, NewSocketState};
-                                                {route, Route} ->
+                                                {error_noterror, Route} ->
                                                     Result =
                                                     case SocketState#nsime_udp_socket_state.allow_broadcast of
                                                         false ->
