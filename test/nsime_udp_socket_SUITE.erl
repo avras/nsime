@@ -188,6 +188,14 @@ test_send(_) ->
     Ipv4ProtocolPid = nsime_ipv4_protocol:create(),
     ?assert(is_pid(Ipv4ProtocolPid)),
     ?assertEqual(nsime_ipv4_protocol:set_node(Ipv4ProtocolPid, NodePid), ok),
+    ?assertEqual(
+        nsime_udp_socket:send(
+            SocketPid2,
+            Packet#nsime_packet{size = ?MAX_IPv4_UDP_DATAGRAM_SIZE + 1},
+            0
+        ),
+        error_msgsize
+    ),
     ?assertEqual(nsime_udp_socket:send(SocketPid2, Packet, 0), error_noroutetohost),
 
     RoutingPid = nsime_ipv4_static_routing:create(),
