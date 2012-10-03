@@ -544,63 +544,85 @@ do_send_to(Packet, DestAddress, DestPort, SocketState) ->
                                     InterfaceList = nsime_ipv4_protocol:get_interface_list(Ipv4Protocol),
                                     NewInterfaceList = lists:filter(
                                         fun(I) ->
-                                            InterfaceAddress = nsime_ipv4_interface:get_address(I, 0),
-                                            SrcAddress = nsime_ipv4_interface_address:get_local_address(
-                                                InterfaceAddress
-                                            ),
-                                            case SrcAddress == nsime_ipv4_address:get_loopback() of
-                                                false ->
+                                            case nsime_ipv4_interface:get_address_list(I) of
+                                                [] ->
                                                     false;
-                                                true ->
-                                                    case
-                                                    (
-                                                        (is_pid(SocketState#nsime_udp_socket_state.bound_netdevice))
-                                                        andalso
-                                                        (
-                                                            SocketState#nsime_udp_socket_state.bound_netdevice
-                                                            =/= nsime_ipv4_interface:get_device(I)
-                                                        )
-                                                    )
-                                                    of
-                                                        true ->
-                                                            false;
+                                                [InterfaceAddress|_] ->
+                                                    SrcAddress = nsime_ipv4_interface_address:get_local_address(
+                                                        InterfaceAddress
+                                                    ),
+                                                    case SrcAddress == nsime_ipv4_address:get_loopback() of
                                                         false ->
-                                                            true
+                                                            false;
+                                                        true ->
+                                                            case
+                                                            (
+                                                                (is_pid(SocketState#nsime_udp_socket_state.bound_netdevice))
+                                                                and
+                                                                (
+                                                                    SocketState#nsime_udp_socket_state.bound_netdevice
+                                                                    =/= nsime_ipv4_interface:get_device(I)
+                                                                )
+                                                            )
+                                                            of
+                                                                true ->
+                                                                    false;
+                                                                false ->
+                                                                    true
+                                                            end
                                                     end
                                             end
                                         end,
                                         InterfaceList
                                     ),
-                                    lists:map(
-                                        fun(I) ->
-                                            InterfaceAddress = nsime_ipv4_interface:get_address(I, 0),
-                                            Mask = nsime_ipv4_interface_address:get_mask(InterfaceAddress),
-                                            SrcAddress = nsime_ipv4_interface_address:get_local_address(
-                                                InterfaceAddress
-                                            ),
-                                            FinalDestAddress =
-                                            case (Mask == nsime_ipv4_mask:get_ones()) of
-                                                true ->
-                                                    DestAddress;
-                                                false ->
-                                                    nsime_ipv4_address:get_subnet_directed_broadcast(
-                                                        SrcAddress,
-                                                        Mask
-                                                    )
-                                            end,
-                                            nsime_udp_protocol:send(
-                                                UdpProtocolPid,
-                                                NewerPacket,
-                                                FinalDestAddress,
-                                                nsime_ip_endpoint:get_local_port(
-                                                    SocketState#nsime_udp_socket_state.ip_endpoint
-                                                ),
-                                                DestPort
-                                            )
-                                        end,
-                                        NewInterfaceList
-                                    ),
-                                    {reply, NewerPacket#nsime_packet.size, SocketState}
+                                    case NewInterfaceList of
+                                        [] ->
+                                            {reply, error_noroutetohost, SocketState};
+                                        _ ->
+                                            case
+                                                lists:foldl(
+                                                    fun(I, Error) ->
+                                                        case nsime_ipv4_interface:get_address_list(I) of
+                                                            [] ->
+                                                                Error;
+                                                            [InterfaceAddress | _] ->
+                                                                Mask = nsime_ipv4_interface_address:get_mask(InterfaceAddress),
+                                                                SrcAddress = nsime_ipv4_interface_address:get_local_address(
+                                                                    InterfaceAddress
+                                                                ),
+                                                                FinalDestAddress =
+                                                                case (Mask == nsime_ipv4_mask:get_ones()) of
+                                                                    true ->
+                                                                        DestAddress;
+                                                                    false ->
+                                                                        nsime_ipv4_address:get_subnet_directed_broadcast(
+                                                                            SrcAddress,
+                                                                            Mask
+                                                                        )
+                                                                end,
+                                                                nsime_udp_protocol:send(
+                                                                    UdpProtocolPid,
+                                                                    NewerPacket,
+                                                                    SrcAddress,
+                                                                    FinalDestAddress,
+                                                                    nsime_ip_endpoint:get_local_port(
+                                                                        SocketState#nsime_udp_socket_state.ip_endpoint
+                                                                    ),
+                                                                    DestPort
+                                                                ),
+                                                                error_noterror
+                                                        end
+                                                    end,
+                                                    error_noroutetohost,
+                                                    NewInterfaceList
+                                                )
+                                            of
+                                                error_noterror ->
+                                                    {reply, NewerPacket#nsime_packet.size, SocketState};
+                                                error_noroutetohost ->
+                                                    {reply, error_noroutetohost, SocketState}
+                                            end
+                                    end
                             end;
                         false ->
                             IpEndpoint = SocketState#nsime_udp_socket_state.ip_endpoint,
@@ -612,9 +634,7 @@ do_send_to(Packet, DestAddress, DestPort, SocketState) ->
                                         NewerPacket,
                                         SrcAddress,
                                         DestAddress,
-                                        nsime_ip_endpoint:get_local_port(
-                                            SocketState#nsime_udp_socket_state.ip_endpoint
-                                        ),
+                                        nsime_ip_endpoint:get_local_port(IpEndpoint),
                                         DestPort
                                     ),
                                     {reply, NewerPacket#nsime_packet.size, SocketState};

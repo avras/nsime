@@ -41,6 +41,7 @@ all() -> [
             test_connect_and_listen,
             test_forward_icmp,
             test_send,
+            test_send_to,
             test_cast_info_codechange
          ].
 
@@ -221,9 +222,55 @@ test_send(_) ->
 
     ?assertEqual(nsime_udp_socket:connect(SocketPid2, {nsime_ipv4_address:get_broadcast(), 80}), ok),
     ?assertEqual(nsime_udp_socket:send(SocketPid2, Packet, 0), error_opnotsupp),
+    ?assertEqual(nsime_udp_socket:set_allow_broadcast(SocketPid2, true), ok),
+    ?assertEqual(nsime_udp_socket:send(SocketPid2, Packet, 0), error_noroutetohost),
+    InterfacePid1 = nsime_ipv4_protocol:add_interface(Ipv4ProtocolPid, DevicePid1),
+    ?assert(is_pid(InterfacePid1)),
+    ?assertEqual(nsime_udp_socket:send(SocketPid2, Packet, 0), error_noroutetohost),
+
+    Address1 = {10, 107, 1, 1},
+    AddressPid1 = nsime_ipv4_interface_address:create(),
+    ?assert(is_pid(AddressPid1)),
+    ?assertEqual(nsime_ipv4_interface_address:set_local_address(AddressPid1, Address1), ok),
+    ?assertEqual(nsime_ipv4_interface:add_address(InterfacePid1, AddressPid1), ok),
+    AddressPid2 = nsime_ipv4_interface_address:create(nsime_ipv4_address:get_loopback(), nsime_ipv4_mask:get_ones()),
+    ?assert(is_pid(AddressPid2)),
+    ?assertEqual(nsime_udp_socket:send(SocketPid2, Packet, 0), error_noroutetohost),
+    ?assertEqual(nsime_ipv4_interface:add_address(InterfacePid1, AddressPid2), ok),
+    ?assertEqual(nsime_udp_socket:send(SocketPid2, Packet, 0), Packet#nsime_packet.size),
+
+    Mask = {255, 255, 255, 0},
+    AddressPid3 = nsime_ipv4_interface_address:create(Address1, Mask),
+    ?assertEqual(nsime_ipv4_interface:add_address(InterfacePid1, AddressPid3), ok),
+    ?assertEqual(nsime_udp_socket:send(SocketPid2, Packet, 0), error_noroutetohost),
 
     ?assertEqual(nsime_udp_socket:destroy(SocketPid2), stopped),
     ?assertEqual(nsime_udp_socket:destroy(SocketPid1), stopped).
+
+test_send_to(_) ->
+    SocketPid1 = nsime_udp_socket:create(),
+    ?assert(is_pid(SocketPid1)),
+    Packet = #nsime_packet{
+        data = <<0:32>>,
+        size = 4
+    },
+    Address = {10, 107, 1, 1},
+    Port = 80,
+    ?assertEqual(nsime_udp_socket:connect(SocketPid1, {Address, Port}), ok),
+    UdpProtocolPid = nsime_udp_protocol:create(),
+    ?assert(is_pid(UdpProtocolPid)),
+    ?assertEqual(nsime_udp_socket:set_udp_protocol(SocketPid1, UdpProtocolPid), ok),
+    NodePid = nsime_node:create(),
+    ?assertEqual(nsime_udp_socket:set_node(SocketPid1, NodePid), ok),
+    Ipv4ProtocolPid = nsime_ipv4_protocol:create(),
+    ?assert(is_pid(Ipv4ProtocolPid)),
+    ?assertEqual(nsime_ipv4_protocol:set_node(Ipv4ProtocolPid, NodePid), ok),
+    ?assertEqual(nsime_udp_socket:send_to(SocketPid1, Packet, junk, {Address, Port}), error_noroutetohost),
+    ?assertEqual(nsime_udp_socket:send_to(SocketPid1, Packet, junk, {Address, Port}), error_noroutetohost),
+    ?assertEqual(nsime_ipv4_protocol:destroy(Ipv4ProtocolPid), stopped),
+    ?assertEqual(nsime_udp_protocol:destroy(UdpProtocolPid), stopped),
+    ?assertEqual(nsime_udp_socket:destroy(SocketPid1), stopped).
+
 
 test_cast_info_codechange(_) ->
     SocketPid = nsime_udp_socket:create(),
