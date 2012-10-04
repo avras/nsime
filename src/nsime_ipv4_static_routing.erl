@@ -554,37 +554,41 @@ lookup_static(DestinationAddress, OutputNetdevice, RoutingState) ->
     end.
 
 source_address_selection(InterfacePid, Address) ->
-    InterfaceAddressList = nsime_ipv4_interface:get_address_list(InterfacePid),
-    CandidateAddress = nsime_ipv4_interface_address:get_local_address(hd(InterfaceAddressList)),
-    MatchingInterfaceAddresses = lists:filter(
-        fun(A) ->
-            Mask = nsime_ipv4_interface_address:get_mask(A),
-            case
-                nsime_ipv4_address:combine_mask(
-                    nsime_ipv4_interface_address:get_local_address(A),
-                    Mask
-                ) ==
-                nsime_ipv4_address:combine_mask(
-                    Address,
-                    Mask
-                )
-            of
-                true ->
-                    case nsime_ipv4_interface_address:is_secondary(A) of
-                        false ->
-                            true;
+    case nsime_ipv4_interface:get_address_list(InterfacePid) of
+        [] ->
+            erlang:error(error_noroutetohost);
+        InterfaceAddressList ->
+            CandidateAddress = nsime_ipv4_interface_address:get_local_address(hd(InterfaceAddressList)),
+            MatchingInterfaceAddresses = lists:filter(
+                fun(A) ->
+                    Mask = nsime_ipv4_interface_address:get_mask(A),
+                    case
+                        nsime_ipv4_address:combine_mask(
+                            nsime_ipv4_interface_address:get_local_address(A),
+                            Mask
+                        ) ==
+                        nsime_ipv4_address:combine_mask(
+                            Address,
+                            Mask
+                        )
+                    of
                         true ->
+                            case nsime_ipv4_interface_address:is_secondary(A) of
+                                false ->
+                                    true;
+                                true ->
+                                    false
+                            end;
+                        false ->
                             false
-                    end;
+                    end
+                end,
+                InterfaceAddressList
+            ),
+            case length(MatchingInterfaceAddresses) > 0 of
                 false ->
-                    false
+                    CandidateAddress;
+                true ->
+                    nsime_ipv4_interface_address:get_local_address(hd(MatchingInterfaceAddresses))
             end
-        end,
-        InterfaceAddressList
-    ),
-    case length(MatchingInterfaceAddresses) > 0 of
-        false ->
-            CandidateAddress;
-        true ->
-            nsime_ipv4_interface_address:get_local_address(hd(MatchingInterfaceAddresses))
     end.

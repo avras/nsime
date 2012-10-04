@@ -26,6 +26,7 @@
 -include("nsime_types.hrl").
 -include("nsime_packet.hrl").
 -include("nsime_ipv4_header.hrl").
+-include("nsime_ipv4_route.hrl").
 -include("nsime_ipv4_packet_info_tag.hrl").
 -include("nsime_udp_socket_state.hrl").
 
@@ -552,9 +553,9 @@ do_send_to(Packet, DestAddress, DestPort, SocketState) ->
                                                         InterfaceAddress
                                                     ),
                                                     case SrcAddress == nsime_ipv4_address:get_loopback() of
-                                                        false ->
-                                                            false;
                                                         true ->
+                                                            false;
+                                                        false ->
                                                             case
                                                             (
                                                                 (is_pid(SocketState#nsime_udp_socket_state.bound_netdevice))
@@ -669,13 +670,18 @@ do_send_to(Packet, DestAddress, DestPort, SocketState) ->
                                                     Result =
                                                     case SocketState#nsime_udp_socket_state.allow_broadcast of
                                                         false ->
-                                                            OutputInterfaceIndex =
+                                                            Ipv4Protocol = nsime_node:get_object(
+                                                                SocketState#nsime_udp_socket_state.node,
+                                                                nsime_ipv4_protocol
+                                                            ),
+                                                            OutputInterface =
                                                                 nsime_ipv4_protocol:get_interface_for_device(
-                                                                    nsime_ip_route:get_output_device(Route)
+                                                                    Ipv4Protocol,
+                                                                    Route#nsime_ipv4_route.output_device
                                                                 ),
                                                             InterfaceAddressList =
-                                                                nsime_ipv4_protocol:get_interface_address_list(
-                                                                    OutputInterfaceIndex
+                                                                nsime_ipv4_interface:get_address_list(
+                                                                    OutputInterface
                                                                 ),
                                                             lists:foldl(
                                                                 fun(I, Acc) ->
@@ -712,7 +718,7 @@ do_send_to(Packet, DestAddress, DestPort, SocketState) ->
                                                             nsime_udp_protocol:send(
                                                                 UdpProtocolPid,
                                                                 NewerPacket,
-                                                                nsime_ip_route:get_source(Route),
+                                                                Route#nsime_ipv4_route.source,
                                                                 DestAddress,
                                                                 nsime_ip_endpoint:get_local_port(
                                                                     SocketState#nsime_udp_socket_state.ip_endpoint
