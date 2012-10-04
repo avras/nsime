@@ -39,8 +39,9 @@
          bind/1, bind/2, close/1, shutdown_send/1, shutdown_receive/1,
          connect/2, listen/1, get_transmit_available/0, get_transmit_available/1,
          send/3, send_to/4, get_received_available/1, recv/3, recv_from/3,
-         multicast_join_group/3, multicast_leave_group/3,
-         bind_to_netdevice/2, set_allow_broadcast/2, get_allow_broadcast/1,
+         multicast_join_group/3, multicast_leave_group/3, bind_to_netdevice/2,
+         get_receive_buffer_size/1, set_receive_buffer_size/2,
+         set_allow_broadcast/2, get_allow_broadcast/1,
          set_drop_trace_callback/2, set_icmp_callback/2,
          forward_icmp/6, forward_up/5, destroy_endpoint/1]).
 
@@ -127,6 +128,12 @@ multicast_leave_group(_SocketPid, _InterfaceIndex, _GroupAddress) ->
 bind_to_netdevice(SocketPid, DevicePid) ->
     gen_server:call(SocketPid, {bind_to_netdevice, DevicePid}).
 
+get_receive_buffer_size(SocketPid) ->
+    gen_server:call(SocketPid, get_receive_buffer_size).
+
+set_receive_buffer_size(SocketPid, BufferSize) ->
+    gen_server:call(SocketPid, {set_receive_buffer_size, BufferSize}).
+
 set_allow_broadcast(SocketPid, AllowBroadcast) ->
     gen_server:call(SocketPid, {set_allow_broadcast, AllowBroadcast}).
 
@@ -142,8 +149,8 @@ set_icmp_callback(SocketPid, Callback) ->
 forward_icmp(SocketPid, Source, TTL, Type, Code, Info) ->
     gen_server:call(SocketPid, {forward_icmp, Source, TTL, Type, Code, Info}).
 
-forward_up(SocketPid, Packet, Header, Port, Interface) ->
-    gen_server:call(SocketPid, {forward_up, Packet, Header, Port, Interface}).
+forward_up(SocketPid, Packet, Ipv4Header, Port, Interface) ->
+    gen_server:call(SocketPid, {forward_up, Packet, Ipv4Header, Port, Interface}).
 
 destroy_endpoint(SocketPid) ->
     gen_server:call(SocketPid, destroy_endpoint).
@@ -301,7 +308,7 @@ handle_call({recv, MaxSize, _Flags}, _From, SocketState) ->
             case Packet#nsime_packet.size =< MaxSize of
                 true ->
                     ReceivedAvailable = SocketState#nsime_udp_socket_state.received_available,
-                    {value, Packet, NewDeliveryQueue} = queue:out(DeliveryQueue),
+                    {{value, Packet}, NewDeliveryQueue} = queue:out(DeliveryQueue),
                     NewSocketState = SocketState#nsime_udp_socket_state{
                         received_available = ReceivedAvailable - Packet#nsime_packet.size,
                         delivery_queue = NewDeliveryQueue
@@ -315,6 +322,16 @@ handle_call({recv, MaxSize, _Flags}, _From, SocketState) ->
 handle_call({bind_to_netdevice, DevicePid}, _From, SocketState) ->
     NewSocketState = SocketState#nsime_udp_socket_state{
         bound_netdevice = DevicePid
+    },
+    {reply, ok, NewSocketState};
+
+handle_call(get_receive_buffer_size, _From, SocketState) ->
+    AllowBroadcast = SocketState#nsime_udp_socket_state.receive_buffer_size,
+    {reply, AllowBroadcast, SocketState};
+
+handle_call({set_receive_buffer_size, BufferSize}, _From, SocketState) ->
+    NewSocketState = SocketState#nsime_udp_socket_state{
+        receive_buffer_size = BufferSize
     },
     {reply, ok, NewSocketState};
 
@@ -353,7 +370,7 @@ handle_call({forward_icmp, Source, TTL, Type, Code, Info}, _From, SocketState) -
             {reply, ok, SocketState}
     end;
 
-handle_call({forward_up, Packet, Header, Port, Interface}, _From, SocketState) ->
+handle_call({forward_up, Packet, Ipv4Header, Port, Interface}, _From, SocketState) ->
     case SocketState#nsime_udp_socket_state.shutdown_receive of
         true ->
             {reply, none, SocketState};
@@ -379,7 +396,7 @@ handle_call({forward_up, Packet, Header, Port, Interface}, _From, SocketState) -
             ReceiveBufferSize = SocketState#nsime_udp_socket_state.receive_buffer_size,
             case (ReceivedAvailable + NewPacket#nsime_packet.size =< ReceiveBufferSize) of
                 true ->
-                    SocketAddress = {nsime_ipv4_header:get_source_address(Header), Port},
+                    SocketAddress = {nsime_ipv4_header:get_source_address(Ipv4Header), Port},
                     Tags2 = NewPacket#nsime_packet.tags,
                     NewTags2 = [
                         {socket_address_tag, SocketAddress} |
