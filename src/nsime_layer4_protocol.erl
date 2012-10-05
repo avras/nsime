@@ -52,4 +52,3 @@ recv_icmp(
                                   PayloadDestination,
                                   Payload
                                  }).
-
