@@ -39,6 +39,7 @@ route_input(
     ErrorCallback,
     InterfaceList
 ) ->
+    case
     gen_server:call(RoutingProtocolPid, {route_input,
                                          Packet,
                                          Ipv4Header,
@@ -48,7 +49,15 @@ route_input(
                                          LocalDeliverCallback,
                                          ErrorCallback,
                                          InterfaceList
-                                        }).
+                                        })
+    of
+        options_not_supported ->
+            erlang:error(options_not_supported);
+        false ->
+            false;
+        true ->
+            true
+    end.
 
 route_output(
     RoutingProtocolPid,
