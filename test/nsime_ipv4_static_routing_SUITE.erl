@@ -40,6 +40,7 @@ all() -> [
             test_add_routes,
             test_notify_interfaces_updown,
             test_add_remove_addresses,
+            test_route_input,
             test_route_output,
             test_cast_info_codechange
          ].
@@ -55,6 +56,9 @@ test_creation_shutdown(_) ->
     RoutingPid = nsime_ipv4_static_routing:create(),
     ?assert(is_pid(RoutingPid)),
     ?assertEqual(nsime_ipv4_static_routing:get_network_routes(RoutingPid), []),
+    Ipv4ProtocolPid = nsime_ipv4_protocol:create(),
+    ?assertEqual(nsime_ipv4_static_routing:set_ipv4_protocol(RoutingPid, Ipv4ProtocolPid), ok),
+    ?assertEqual(nsime_ipv4_protocol:destroy(Ipv4ProtocolPid), stopped),
     ?assertEqual(nsime_ipv4_static_routing:destroy(RoutingPid), stopped).
 
 test_add_routes(_) ->
@@ -332,6 +336,168 @@ test_add_remove_addresses(_) ->
     ),
     ?assertEqual(nsime_ipv4_static_routing:destroy(RoutingPid), stopped).
 
+test_route_input(_) ->
+    RoutingPid = nsime_ipv4_static_routing:create(),
+    ?assert(is_pid(RoutingPid)),
+    InterfacePid1 = nsime_ipv4_interface:create(),
+    DevicePid = nsime_ptp_netdevice:create(),
+    ?assert(is_pid(DevicePid)),
+    ?assertEqual(nsime_ptp_netdevice:set_interface(DevicePid, InterfacePid1), ok),
+    ?assertEqual(nsime_ipv4_interface:set_device(InterfacePid1, DevicePid), ok),
+    DestinationAddress1 = {224, 0, 0, 1},
+    Ipv4Header1 = #nsime_ipv4_header{
+        destination_address = DestinationAddress1
+    },
+    Packet = #nsime_packet{},
+    ?assertError(
+        options_not_supported,
+        nsime_ipv4_static_routing:route_input(
+            RoutingPid,
+            Packet,
+            Ipv4Header1,
+            DevicePid,
+            junk,
+            junk,
+            junk,
+            junk,
+            []
+        )
+    ),
+
+    DestinationAddress2 = {10, 107, 1, 1},
+    Mask1 = {255, 255, 255, 0},
+    AddressPid1 = nsime_ipv4_interface_address:create(DestinationAddress2, Mask1),
+    ?assert(is_pid(AddressPid1)),
+    ?assertEqual(nsime_ipv4_interface:add_address(InterfacePid1, AddressPid1), ok),
+    Ipv4Header2 = #nsime_ipv4_header{
+        destination_address = DestinationAddress2
+    },
+    ?assertEqual(
+        nsime_ipv4_static_routing:route_input(
+            RoutingPid,
+            Packet,
+            Ipv4Header2,
+            DevicePid,
+            junk,
+            junk,
+            junk,
+            {erlang, date, []},
+            []
+        ),
+        false
+    ),
+    ?assertEqual(
+        nsime_ipv4_static_routing:route_input(
+            RoutingPid,
+            Packet,
+            Ipv4Header2,
+            DevicePid,
+            junk,
+            junk,
+            undefined,
+            undefined,
+            [InterfacePid1]
+        ),
+        false
+    ),
+
+    Ref1 = make_ref(),
+    ErrorCallback = {
+        ?MODULE,
+        error_callback_tester,
+        [self(), Ref1]
+    },
+    Ref2 = make_ref(),
+    LocalDeliverCallback = {
+        ?MODULE,
+        local_deliver_tester,
+        [self(), Ref2]
+    },
+    nsime_simulator:start(),
+    ?assert(lists:member(nsime_simulator, erlang:registered())),
+    ?assertEqual(
+        nsime_ipv4_static_routing:route_input(
+            RoutingPid,
+            Packet,
+            Ipv4Header2,
+            DevicePid,
+            junk,
+            junk,
+            LocalDeliverCallback,
+            ErrorCallback,
+            [InterfacePid1]
+        ),
+        true
+    ),
+    nsime_simulator:run(),
+    receive
+        {local_deliver, Ref2} ->
+            ok
+    end,
+    ?assertEqual(nsime_ipv4_interface:set_forwarding(InterfacePid1, false), ok),
+    ?assertEqual(
+        nsime_ipv4_static_routing:route_input(
+            RoutingPid,
+            Packet,
+            Ipv4Header2,
+            DevicePid,
+            junk,
+            junk,
+            LocalDeliverCallback,
+            ErrorCallback,
+            []
+        ),
+        false
+    ),
+    nsime_simulator:run(),
+    receive
+        {error_callback, Ref1} ->
+            ok
+    end,
+
+    ?assertEqual(nsime_ipv4_interface:set_forwarding(InterfacePid1, true), ok),
+    Mask2 = {255, 255, 0, 0},
+    AddressPid2 = nsime_ipv4_interface_address:create(DestinationAddress2, Mask2),
+    ?assert(is_pid(AddressPid2)),
+    ?assertEqual(nsime_ipv4_interface:set_up(InterfacePid1), ok),
+    ?assertEqual(
+        nsime_ipv4_static_routing:notify_add_address(
+            RoutingPid,
+            InterfacePid1,
+            AddressPid2
+        ),
+        ok
+    ),
+
+    Ref3 = make_ref(),
+    UnicastForwardCallback = {
+        ?MODULE,
+        unicast_forward_tester,
+        [self(), Ref3]
+    },
+    ?assertEqual(
+        nsime_ipv4_static_routing:route_input(
+            RoutingPid,
+            Packet,
+            Ipv4Header2,
+            DevicePid,
+            UnicastForwardCallback,
+            junk,
+            LocalDeliverCallback,
+            ErrorCallback,
+            []
+        ),
+        true
+    ),
+    nsime_simulator:run(),
+    receive
+        {unicast_forward, Ref3} ->
+            ok
+    end,
+
+    ?assertEqual(nsime_simulator:stop(), stopped),
+    ?assertEqual(nsime_ipv4_static_routing:destroy(RoutingPid), stopped).
+
 test_route_output(_) ->
     RoutingPid = nsime_ipv4_static_routing:create(),
     ?assert(is_pid(RoutingPid)),
@@ -543,3 +709,14 @@ test_cast_info_codechange(_) ->
     RoutingPid ! junk,
     nsime_ipv4_static_routing:code_change(junk, junk, junk),
     ?assertEqual(nsime_ipv4_static_routing:destroy(RoutingPid), stopped).
+
+%% Helper methods %%
+
+error_callback_tester(From, Ref, _Packet, _Ipv4Header, _Type, _From, _Route) ->
+    spawn(fun() -> From ! {error_callback, Ref} end).
+
+local_deliver_tester(From, Ref, _Packet, _Header, _Interface) ->
+    spawn(fun() -> From ! {local_deliver, Ref} end).
+
+unicast_forward_tester(From, Ref, _Route, _Packet, _Header) ->
+    spawn(fun() -> From ! {unicast_forward, Ref} end).

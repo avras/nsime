@@ -57,6 +57,7 @@ route_input(
     ErrorCallback,
     InterfaceList
 ) ->
+    case
     gen_server:call(RoutingPid, {route_input,
                                  Packet,
                                  Ipv4Header,
@@ -66,7 +67,15 @@ route_input(
                                  LocalDeliverCallback,
                                  ErrorCallback,
                                  InterfaceList
-                                }).
+                                })
+    of
+        options_not_supported ->
+            erlang:error(options_not_supported);
+        false ->
+            false;
+        true ->
+            true
+    end.
 
 route_output(
     RoutingPid,
@@ -195,7 +204,7 @@ handle_call(
         nsime_ipv4_address:is_broadcast(DestinationAddress)
     of
         true ->
-            erlang:error(options_not_supported);
+            {reply, options_not_supported, RoutingState};
         false ->
             case
                 lists:foldl(
