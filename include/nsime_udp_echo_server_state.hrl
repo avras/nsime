@@ -25,6 +25,6 @@
           node                        :: pid(),
           socket                      :: pid(),
           listen_port                 :: inet:port_number(),
-          transmit_trace_callback     :: fun(),
-          receive_trace_callback      :: fun()
+          transmit_trace_callback     :: nsime_callback(),
+          receive_trace_callback      :: nsime_callback()
         }).

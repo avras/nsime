@@ -32,6 +32,6 @@
           max_packets = infinity      :: integer(),
           inter_packet_gap = {0, sec} :: nsime_time(),
           send_event                  :: #nsime_event{},
-          transmit_trace_callback     :: fun(),
-          receive_trace_callback      :: fun()
+          transmit_trace_callback     :: nsime_callback(),
+          receive_trace_callback      :: nsime_callback()
         }).

@@ -38,7 +38,9 @@
          set_data_size/2, get_data_size/1,
          set_max_packets/2, get_max_packets/1,
          set_inter_packet_gap/2, get_inter_packet_gap/1,
-         start/1, stop/1, send/1, handle_read/1]).
+         start/1, stop/1, send/1, handle_read/1,
+         get_transmit_trace_callback/1, set_transmit_trace_callback/2,
+         get_receive_trace_callback/1, set_receive_trace_callback/2]).
 
 create() ->
     {ok, ClientPid} = gen_server:start(?MODULE, [], []),
@@ -57,7 +59,7 @@ schedule_start(ClientPid, Time) ->
     gen_server:call(ClientPid, {schedule_start, Time}).
 
 set_remote(ClientPid, Address, Port) when 
-    is_list(Address), 
+    is_tuple(Address),
     is_integer(Port),
     Port >= 0,
     Port =< 65535
@@ -105,6 +107,18 @@ handle_read(SocketPid) ->
             ok
     end.
 
+get_transmit_trace_callback(ClientPid) ->
+    gen_server:call(ClientPid, get_transmit_trace_callback).
+
+set_transmit_trace_callback(ClientPid, Callback) ->
+    gen_server:call(ClientPid, {set_transmit_trace_callback, Callback}).
+
+get_receive_trace_callback(ClientPid) ->
+    gen_server:call(ClientPid, get_receive_trace_callback).
+
+set_receive_trace_callback(ClientPid, Callback) ->
+    gen_server:call(ClientPid, {set_receive_trace_callback, Callback}).
+
 init([]) ->
     ClientState = #nsime_udp_echo_client_state{},
     {ok, ClientState}.
@@ -128,16 +142,11 @@ handle_call({schedule_start, Time}, _From, ClientState) ->
     {reply, ok, ClientState};
 
 handle_call({set_remote, Address, Port}, _From, ClientState) ->
-    case inet_parse:address(Address) of
-        {ok, AddressTuple} ->
-            NewClientState = ClientState#nsime_udp_echo_client_state{
-                peer_address = AddressTuple,
-                peer_port = Port
-            },
-            {reply, ok, NewClientState};
-        {error, _} ->
-            erlang:error(invalid_argument)
-    end;
+    NewClientState = ClientState#nsime_udp_echo_client_state{
+        peer_address = Address,
+        peer_port = Port
+    },
+    {reply, ok, NewClientState};
 
 handle_call(get_data_size, _From, ClientState) ->
     DataSize = ClientState#nsime_udp_echo_client_state.data_size,
@@ -173,18 +182,20 @@ handle_call(start, _From, ClientState) ->
     SocketPid = ClientState#nsime_udp_echo_client_state.socket,
     case SocketPid of
         undefined ->
-            NewSocket = nsime_udp_socket:create(),
+            NodePid = ClientState#nsime_udp_echo_client_state.node,
+            UdpProtocolPid = nsime_node:get_object(NodePid, udp_protocol),
+            NewSocket = nsime_udp_protocol:create_socket(UdpProtocolPid),
             nsime_udp_socket:bind(NewSocket),
             Address = ClientState#nsime_udp_echo_client_state.peer_address,
             Port = ClientState#nsime_udp_echo_client_state.peer_port,
-            nsime_udp_socket:connect(NewSocket, Address, Port),
-            nsime_udp_socket:set_recv_callback(NewSocket, ?MODULE, handle_read, [NewSocket]),
+            nsime_udp_socket:connect(NewSocket, {Address, Port}),
+            nsime_udp_socket:set_receive_callback(NewSocket, {?MODULE, handle_read, [NewSocket]}),
             NewClientState = ClientState#nsime_udp_echo_client_state{
                 socket = NewSocket,
                 send_event = SendEvent
             };
         _ ->
-            nsime_udp_socket:set_recv_callback(SocketPid, ?MODULE, handle_read, [SocketPid]),
+            nsime_udp_socket:set_receive_callback(SocketPid, {?MODULE, handle_read, [SocketPid]}),
             NewClientState = ClientState#nsime_udp_echo_client_state{
                 send_event = SendEvent
             }
@@ -197,7 +208,7 @@ handle_call(stop, _From, ClientState) ->
     SendEvent = ClientState#nsime_udp_echo_client_state.send_event,
     if is_pid(SocketPid) ->
         nsime_udp_socket:close(SocketPid),
-        nsime_udp_socket:set_recv_callback(SocketPid, none, none, []),
+        nsime_udp_socket:set_receive_callback(SocketPid, {none, none, []}),
         NewClientState = ClientState#nsime_udp_echo_client_state{
             socket = undefined,
             send_event = undefined
@@ -243,6 +254,22 @@ handle_call(send, _From, ClientState) ->
         )
     end,
     NewClientState = ClientState#nsime_udp_echo_client_state{num_sent_packets = NumSentPackets},
+    {reply, ok, NewClientState};
+
+handle_call(get_transmit_trace_callback, _From, ClientState) ->
+    Callback = ClientState#nsime_udp_echo_client_state.transmit_trace_callback,
+    {reply, Callback, ClientState};
+
+handle_call({set_transmit_trace_callback, Callback}, _From, ClientState) ->
+    NewClientState = ClientState#nsime_udp_echo_client_state{transmit_trace_callback = Callback},
+    {reply, ok, NewClientState};
+
+handle_call(get_receive_trace_callback, _From, ClientState) ->
+    Callback = ClientState#nsime_udp_echo_client_state.receive_trace_callback,
+    {reply, Callback, ClientState};
+
+handle_call({set_receive_trace_callback, Callback}, _From, ClientState) ->
+    NewClientState = ClientState#nsime_udp_echo_client_state{receive_trace_callback = Callback},
     {reply, ok, NewClientState};
 
 handle_call(terminate, _From, ClientState) ->
