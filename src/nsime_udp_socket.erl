@@ -41,8 +41,8 @@
          send/3, send_to/4, get_received_available/1, recv/3, recv_from/3,
          multicast_join_group/3, multicast_leave_group/3, bind_to_netdevice/2,
          get_receive_buffer_size/1, set_receive_buffer_size/2,
-         set_allow_broadcast/2, get_allow_broadcast/1,
-         set_drop_trace_callback/2, set_icmp_callback/2,
+         set_allow_broadcast/2, get_allow_broadcast/1, set_drop_trace_callback/2,
+         set_icmp_callback/2, set_receive_callback/2,
          forward_icmp/6, forward_up/5, destroy_endpoint/1]).
 
 create() ->
@@ -145,6 +145,9 @@ set_drop_trace_callback(SocketPid, Callback) ->
 
 set_icmp_callback(SocketPid, Callback) ->
     gen_server:call(SocketPid, {set_icmp_callback, Callback}).
+
+set_receive_callback(SocketPid, Callback) ->
+    gen_server:call(SocketPid, {set_receive_callback, Callback}).
 
 forward_icmp(SocketPid, Source, TTL, Type, Code, Info) ->
     gen_server:call(SocketPid, {forward_icmp, Source, TTL, Type, Code, Info}).
@@ -354,6 +357,12 @@ handle_call({set_drop_trace_callback, Callback}, _From, SocketState) ->
 handle_call({set_icmp_callback, Callback}, _From, SocketState) ->
     NewSocketState = SocketState#nsime_udp_socket_state{
         icmp_callback = Callback
+    },
+    {reply, ok, NewSocketState};
+
+handle_call({set_receive_callback, Callback}, _From, SocketState) ->
+    NewSocketState = SocketState#nsime_udp_socket_state{
+        receive_callback = Callback
     },
     {reply, ok, NewSocketState};
 

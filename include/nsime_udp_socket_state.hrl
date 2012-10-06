@@ -45,5 +45,6 @@
           multicast_interface                 :: integer(),
           multicast_loop = false              :: boolean(),
           mtu_discover = false                :: boolean(),
-          icmp_callback                       :: nsime_callback()
+          icmp_callback                       :: nsime_callback(),
+          receive_callback                    :: nsime_callback()
         }).
