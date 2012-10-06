@@ -349,9 +349,8 @@ test_route_input(_) ->
         destination_address = DestinationAddress1
     },
     Packet = #nsime_packet{},
-    ?assertError(
-        options_not_supported,
-        nsime_ipv4_static_routing:route_input(
+    ?assertEqual(
+        catch nsime_ipv4_static_routing:route_input(
             RoutingPid,
             Packet,
             Ipv4Header1,
@@ -361,7 +360,8 @@ test_route_input(_) ->
             junk,
             junk,
             []
-        )
+        ),
+        options_not_supported
     ),
 
     DestinationAddress2 = {10, 107, 1, 1},

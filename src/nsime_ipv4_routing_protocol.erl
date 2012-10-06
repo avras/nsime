@@ -52,7 +52,7 @@ route_input(
                                         })
     of
         options_not_supported ->
-            erlang:error(options_not_supported);
+            throw(options_not_supported);
         false ->
             false;
         true ->

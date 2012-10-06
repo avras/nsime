@@ -70,7 +70,7 @@ route_input(
                                 })
     of
         options_not_supported ->
-            erlang:error(options_not_supported);
+            throw(options_not_supported);
         false ->
             false;
         true ->
@@ -565,7 +565,7 @@ lookup_static(DestinationAddress, OutputNetdevice, RoutingState) ->
 source_address_selection(InterfacePid, Address) ->
     case nsime_ipv4_interface:get_address_list(InterfacePid) of
         [] ->
-            erlang:error(error_noroutetohost);
+            throw(error_noroutetohost);
         InterfaceAddressList ->
             CandidateAddress = nsime_ipv4_interface_address:get_local_address(hd(InterfaceAddressList)),
             MatchingInterfaceAddresses = lists:filter(

@@ -29,7 +29,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([create/0, destroy/1, route_input/8, route_output/4,
+-export([create/0, destroy/1, route_input/9, route_output/4,
          notify_interface_up/2, notify_interface_down/2, notify_add_address/3,
          notify_remove_address/3, set_ipv4_protocol/2, add_routing_protocol/3]).
 
@@ -48,17 +48,28 @@ route_input(
     UnicastForwardCallback,
     MulticastForwardCallback,
     LocalDeliverCallback,
-    ErrorCallback
+    ErrorCallback,
+    InterfaceList
 ) ->
-    gen_server:call(RoutingPid, {route_input,
-                                 Packet,
-                                 Ipv4Header,
-                                 IngressNetdevice,
-                                 UnicastForwardCallback,
-                                 MulticastForwardCallback,
-                                 LocalDeliverCallback,
-                                 ErrorCallback
-                                }).
+    case
+        gen_server:call(RoutingPid, {route_input,
+                                     Packet,
+                                     Ipv4Header,
+                                     IngressNetdevice,
+                                     UnicastForwardCallback,
+                                     MulticastForwardCallback,
+                                     LocalDeliverCallback,
+                                     ErrorCallback,
+                                     InterfaceList
+                                    })
+    of
+        options_not_supported ->
+            options_not_supported;
+        true ->
+            true;
+        false ->
+            false
+    end.
 
 route_output(
     RoutingPid,
@@ -109,7 +120,8 @@ handle_call(
         UnicastForwardCallback,
         MulticastForwardCallback,
         LocalDeliverCallback,
-        ErrorCallback
+        ErrorCallback,
+        InterfaceList
     },
     _From,
     RoutingState
@@ -133,55 +145,71 @@ handle_call(
                 false ->
                     {reply, true, RoutingState};
                 true ->
-                    case nsime_ipv4_protocol:is_forwarding(InterfacePid) of
+                    case nsime_ipv4_interface:is_forwarding(InterfacePid) of
                         false ->
-                            {Mod, Fun, Args} = ErrorCallback,
-                            NewArgs = lists:flatten([Args, [Packet, Ipv4Header, error_noroutetohost]]),
-                            erlang:apply(Mod, Fun, NewArgs),
+                            {Mod1, Fun1, Args1} = ErrorCallback,
+                            NewArgs1 = lists:flatten([Args1, [Packet, Ipv4Header, error_noroutetohost]]),
+                            erlang:apply(Mod1, Fun1, NewArgs1),
                             {reply, false, RoutingState};
                         true ->
-                            lists:foreach(
-                                fun({_Priority, ProtocolPid}) ->
-                                    nsime_routing_protocol:route_input(
-                                        ProtocolPid,
-                                        Packet,
-                                        Ipv4Header,
-                                        IngressNetdevice,
-                                        UnicastForwardCallback,
-                                        MulticastForwardCallback,
-                                        undefined,
-                                        ErrorCallback
-                                    )
+                            ReturnValue =
+                            lists:foldl(
+                                fun({_Priority, ProtocolPid}, Success) ->
+                                    case Success of
+                                        true ->
+                                            true;
+                                        _ ->
+                                            catch nsime_ipv4_routing_protocol:route_input(
+                                                ProtocolPid,
+                                                Packet,
+                                                Ipv4Header,
+                                                IngressNetdevice,
+                                                UnicastForwardCallback,
+                                                MulticastForwardCallback,
+                                                undefined,
+                                                ErrorCallback,
+                                                InterfaceList
+                                            )
+                                    end
                                 end,
+                                false,
                                 RoutingProtocols
                             ),
-                            {reply, true, RoutingState}
+                            {reply, ReturnValue, RoutingState}
                     end
             end;
         false ->
-            case nsime_ipv4_protocol:is_forwarding(InterfacePid) of
+            case nsime_ipv4_interface:is_forwarding(InterfacePid) of
                 false ->
                     {Mod, Fun, Args} = ErrorCallback,
                     NewArgs = lists:flatten([Args, [Packet, Ipv4Header, error_noroutetohost]]),
                     erlang:apply(Mod, Fun, NewArgs),
                     {reply, false, RoutingState};
                 true ->
-                    lists:foreach(
-                        fun({_Priority, ProtocolPid}) ->
-                            nsime_routing_protocol:route_input(
-                                ProtocolPid,
-                                Packet,
-                                Ipv4Header,
-                                IngressNetdevice,
-                                UnicastForwardCallback,
-                                MulticastForwardCallback,
-                                LocalDeliverCallback,
-                                ErrorCallback
-                            )
+                    ReturnValue =
+                    lists:foldl(
+                        fun({_Priority, ProtocolPid}, Success) ->
+                            case Success of
+                                true ->
+                                    true;
+                                _ ->
+                                    catch nsime_ipv4_routing_protocol:route_input(
+                                        ProtocolPid,
+                                        Packet,
+                                        Ipv4Header,
+                                        IngressNetdevice,
+                                        UnicastForwardCallback,
+                                        MulticastForwardCallback,
+                                        LocalDeliverCallback,
+                                        ErrorCallback,
+                                        InterfaceList
+                                    )
+                            end
                         end,
+                        false,
                         RoutingProtocols
                     ),
-                    {reply, true, RoutingState}
+                    {reply, ReturnValue, RoutingState}
             end
     end;
 
