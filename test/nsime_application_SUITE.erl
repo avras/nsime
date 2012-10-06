@@ -57,7 +57,7 @@ test_start(_) ->
 
     UdpProtocolPid = nsime_udp_protocol:create(),
     ?assert(is_pid(UdpProtocolPid)),
-    ?assertEqual(nsime_node:add_object(NodePid, udp_protocol, UdpProtocolPid), ok),
+    ?assertEqual(nsime_node:add_object(NodePid, nsime_udp_protocol, UdpProtocolPid), ok),
     ?assertEqual(nsime_udp_protocol:set_node(UdpProtocolPid, NodePid), ok),
 
     ?assertEqual(nsime_application:start(ServerPid), ok),

@@ -174,6 +174,7 @@ handle_call({set_inter_packet_gap, InterPacketGap}, _From, ClientState) ->
 
 handle_call(start, _From, ClientState) ->
     SendEvent = #nsime_event{
+        time = {0, sec},
         module = ?MODULE,
         function = send,
         arguments = [self()],
@@ -183,7 +184,7 @@ handle_call(start, _From, ClientState) ->
     case SocketPid of
         undefined ->
             NodePid = ClientState#nsime_udp_echo_client_state.node,
-            UdpProtocolPid = nsime_node:get_object(NodePid, udp_protocol),
+            UdpProtocolPid = nsime_node:get_object(NodePid, nsime_udp_protocol),
             NewSocket = nsime_udp_protocol:create_socket(UdpProtocolPid),
             nsime_udp_socket:bind(NewSocket),
             Address = ClientState#nsime_udp_echo_client_state.peer_address,
@@ -235,11 +236,11 @@ handle_call(send, _From, ClientState) ->
                 id = make_ref()
             } 
     end,
-    erlang:apply(
-        ClientState#nsime_udp_echo_client_state.transmit_trace_callback,
-        [Packet]
-    ),
-    nsime_udp_socket:send(SocketPid, Packet),
+    {Mod, Fun, Args} = ClientState#nsime_udp_echo_client_state.transmit_trace_callback,
+    NewArgs = lists:flatten([Args, [Packet]]),
+    erlang:apply(Mod, Fun, NewArgs),
+
+    nsime_udp_socket:send(SocketPid, Packet, 0),
     NumSentPackets = ClientState#nsime_udp_echo_client_state.num_sent_packets + 1,
     if NumSentPackets < ClientState#nsime_udp_echo_client_state.max_packets ->
         SendEvent = #nsime_event{

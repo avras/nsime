@@ -128,7 +128,7 @@ handle_call(start, _From, ServerState) ->
     case SocketPid of
         undefined ->
             NodePid = ServerState#nsime_udp_echo_server_state.node,
-            UdpProtocolPid = nsime_node:get_object(NodePid, udp_protocol),
+            UdpProtocolPid = nsime_node:get_object(NodePid, nsime_udp_protocol),
             NewSocket = nsime_udp_protocol:create_socket(UdpProtocolPid),
             nsime_udp_socket:bind(NewSocket, {nsime_ipv4_address:get_any(), Port}),
             nsime_udp_socket:set_receive_callback(NewSocket, {?MODULE, handle_read, [NewSocket]}),
