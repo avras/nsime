@@ -157,7 +157,7 @@ handle_call({register_protocol_handler,
         protocol = Protocol,
         promiscuous = Promiscuous
     },
-    ProtocolHandlerList = #nsime_node_state.protocol_handlers,
+    ProtocolHandlerList = NodeState#nsime_node_state.protocol_handlers,
     NewProtocolHandlerList = [ProtocolHandlerRecord | ProtocolHandlerList],
     NewNodeState = NodeState#nsime_node_state{protocol_handlers = NewProtocolHandlerList},
     case Promiscuous of
@@ -195,7 +195,7 @@ handle_call({register_protocol_handler,
     end;
 
 handle_call({unregister_protocol_handler, ProtocolHandler}, _From, NodeState) ->
-    ProtocolHandlerList = #nsime_node_state.protocol_handlers,
+    ProtocolHandlerList = NodeState#nsime_node_state.protocol_handlers,
     NewProtocolHandlerList = lists:filter(
         fun(P) ->
             P#nsime_protocol_handler_record.handler =/= ProtocolHandler
@@ -217,7 +217,7 @@ handle_call({receive_from_device,
             _From,
             NodeState
 ) ->
-    ProtocolHandlerList = #nsime_node_state.protocol_handlers,
+    ProtocolHandlerList = NodeState#nsime_node_state.protocol_handlers,
     Found = lists:foldl(
         fun(P, Match) ->
             HandlerDevice = P#nsime_protocol_handler_record.device,

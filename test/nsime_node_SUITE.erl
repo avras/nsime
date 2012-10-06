@@ -41,8 +41,10 @@ groups() ->
         [
           test_creation_shutdown,
           test_creation_multiple_nodes,
+          test_add_object,
           test_add_netdevice,
           test_add_application,
+          test_protocol_handler,
           test_cast_info_codechange
         ]
     }].
@@ -62,12 +64,13 @@ end_per_group(testgroup_all, Config) ->
 
 test_creation_shutdown(_) ->
     NodePid = nsime_node:create(),
-    ?assert(is_pid(NodePid)), 
+    ?assert(is_pid(NodePid)),
     ?assertMatch([], nsime_node:get_netdevices(NodePid)),
     ?assertMatch([], nsime_node:get_applications(NodePid)),
     ?assertEqual(nsime_node:destroy(NodePid), stopped).
 
 test_creation_multiple_nodes(_) ->
+    ?assertEqual(nsime_node:create(0), []),
     N = 10,
     NodePidList = nsime_node:create(N),
     ?assert(lists:map(fun(X) -> is_pid(X) end, NodePidList) 
@@ -77,9 +80,19 @@ test_creation_multiple_nodes(_) ->
             ?assertMatch([], nsime_node:get_netdevices(Pid)),
             ?assertMatch([], nsime_node:get_applications(Pid)),
             ?assertEqual(nsime_node:destroy(Pid), stopped)
-            end,
+        end,
         NodePidList
     ).
+
+test_add_object(_) ->
+    NodePid = nsime_node:create(),
+    ?assert(is_pid(NodePid)),
+    UdpProtocolPid = nsime_udp_protocol:create(),
+    ?assert(is_pid(UdpProtocolPid)),
+    ?assertEqual(nsime_node:add_object(NodePid, udp_protocol, UdpProtocolPid), ok),
+    ?assertEqual(nsime_node:get_object(NodePid, udp_protocol), UdpProtocolPid),
+    ?assertEqual(nsime_udp_protocol:destroy(UdpProtocolPid), stopped),
+    ?assertEqual(nsime_node:destroy(NodePid), stopped).
 
 test_add_netdevice(_) ->
     NodePid = nsime_node:create(),
@@ -87,7 +100,7 @@ test_add_netdevice(_) ->
     DevicePid = nsime_ptp_netdevice:create(),
     ?assert(is_pid(DevicePid)),
     ?assertEqual(nsime_node:add_netdevice(NodePid, DevicePid), ok),
-    [DevicePid] = nsime_node:get_netdevices(NodePid),
+    ?assertEqual(nsime_node:get_netdevices(NodePid), [DevicePid]),
     ?assertEqual(nsime_node:destroy(NodePid), stopped).
 
 test_add_application(_) ->
@@ -100,6 +113,48 @@ test_add_application(_) ->
     [AppPid] = nsime_node:get_applications(NodePid),
     ?assertEqual(nsime_node:destroy(NodePid), stopped),
     ?assertEqual(nsime_simulator:stop(), stopped).
+
+test_protocol_handler(_) ->
+    NodePid = nsime_node:create(),
+    ?assert(is_pid(NodePid)),
+    DevicePid = nsime_ptp_netdevice:create(),
+    ?assert(is_pid(DevicePid)),
+
+    ProtocolHandler = {erlang, date, []},
+    ?assertEqual(
+        nsime_node:register_protocol_handler(
+            NodePid,
+            ProtocolHandler,
+            17,
+            DevicePid,
+            false
+        ),
+        ok
+    ),
+    ?assertEqual(
+        nsime_node:register_protocol_handler(
+            NodePid,
+            ProtocolHandler,
+            17,
+            DevicePid,
+            true
+        ),
+        ok
+    ),
+    ?assertEqual(nsime_node:add_netdevice(NodePid, DevicePid), ok),
+    ?assertEqual(
+        nsime_node:register_protocol_handler(
+            NodePid,
+            ProtocolHandler,
+            17,
+            undefined,
+            true
+        ),
+        ok
+    ),
+    ?assertEqual(nsime_node:unregister_protocol_handler(NodePid, ProtocolHandler), ok),
+
+    ?assertEqual(nsime_node:destroy(NodePid), stopped).
 
 test_cast_info_codechange(_) ->
     NodePid = nsime_node:create(),
