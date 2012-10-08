@@ -74,7 +74,11 @@ handle_cast(_Request, NodePidList) ->
 handle_info(_Request, NodePidList) ->
     {noreply, NodePidList}.
 
-terminate(_Reason, _NodePidList) ->
+terminate(_Reason, NodePidList) ->
+    lists:foreach(
+        fun(Node) -> catch nsime_node:destroy(Node) end,
+        gb_sets:to_list(NodePidList)
+    ),
     ok.
 
 code_change(_OldVersion, NodePidList, _Extra) ->

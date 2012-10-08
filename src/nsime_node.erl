@@ -38,6 +38,13 @@
 
 create() ->
     {ok, Pid} = gen_server:start(?MODULE, [], []),
+    case lists:member(nsime_node_list, erlang:registered()) of
+        true ->
+            nsime_node_list:add(Pid);
+        false ->
+            nsime_node_list:start(),
+            nsime_node_list:add(Pid)
+    end,
     Pid.
 
 create(NumNodes) ->
@@ -254,6 +261,15 @@ handle_call({receive_from_device,
     {reply, Found, NodeState};
 
 handle_call(terminate, _From, NodeState) ->
+    {stop, normal, stopped, NodeState}.
+
+handle_cast(_Request, NodeState) ->
+    {noreply, NodeState}.
+
+handle_info(_Request, NodeState) ->
+    {noreply, NodeState}.
+
+terminate(_Reason, NodeState) ->
     DeviceList = NodeState#nsime_node_state.netdevices,
     lists:foreach(
         fun(D) ->
@@ -268,15 +284,6 @@ handle_call(terminate, _From, NodeState) ->
         end,
         ApplicationList
     ),
-    {stop, normal, stopped, NodeState}.
-
-handle_cast(_Request, NodeState) ->
-    {noreply, NodeState}.
-
-handle_info(_Request, NodeState) ->
-    {noreply, NodeState}.
-
-terminate(_Reason, _State) ->
     ok.
 
 code_change(_OldVersion, NodeState, _Extra) ->
