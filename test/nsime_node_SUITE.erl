@@ -112,7 +112,7 @@ test_add_application(_) ->
     ?assertEqual(nsime_node:add_application(NodePid, AppPid), ok),
     [AppPid] = nsime_node:get_applications(NodePid),
     ?assertEqual(nsime_node:destroy(NodePid), stopped),
-    ?assertEqual(nsime_simulator:stop(), stopped).
+    ?assertEqual(nsime_simulator:stop(), simulation_complete).
 
 test_protocol_handler(_) ->
     NodePid = nsime_node:create(),

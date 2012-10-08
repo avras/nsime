@@ -572,7 +572,7 @@ test_route_input(_) ->
             ok
     end,
 
-    ?assertEqual(nsime_simulator:stop(), stopped),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete),
     ?assertEqual(nsime_ipv4_protocol:destroy(Ipv4ProtocolPid), stopped),
     ?assertEqual(nsime_ipv4_static_routing:destroy(StaticRoutingPid), stopped),
     ?assertEqual(nsime_ipv4_list_routing:destroy(ListRoutingPid), stopped).

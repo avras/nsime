@@ -367,7 +367,7 @@ test_route_input(_) ->
             ok
     end,
 
-    ?assertEqual(nsime_simulator:stop(), stopped),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete),
     ?assertEqual(nsime_ipv4_static_routing:destroy(RoutingPid), stopped).
 
 test_route_output(_) ->

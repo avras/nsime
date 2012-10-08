@@ -417,7 +417,7 @@ test_ip_forward_no_ttl_error(_) ->
         {drop_route_error, Ref2} ->
             ok
     end,
-    ?assertEqual(nsime_simulator:stop(), stopped),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete),
     ?assertEqual(nsime_ipv4_protocol:destroy(ProtocolPid), stopped).
 
 test_ip_forward_with_ttl_error(_) ->
@@ -674,7 +674,7 @@ test_recv(_) ->
     end,
 
     ?assertEqual(nsime_config:stop(), stopped),
-    ?assertEqual(nsime_simulator:stop(), stopped),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete),
     ?assertEqual(nsime_ipv4_protocol:destroy(ProtocolPid), stopped).
 
 test_send(_) ->

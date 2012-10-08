@@ -51,7 +51,7 @@ test_start_stop(_) ->
     ?assert(lists:member(nsime_simulator, erlang:registered())),
     ?assert(lists:member(nsime_gbtrees_scheduler, erlang:registered())),
     ?assertEqual(nsime_simulator:current_time(), {0, sec}),
-    ?assertEqual(nsime_simulator:stop(), stopped),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete),
     ?assertNot(lists:member(nsime_simulator, erlang:registered())),
     ?assertNot(lists:member(nsime_gbtrees_scheduler, erlang:registered())),
 
@@ -60,7 +60,7 @@ test_start_stop(_) ->
     nsime_simulator:start(gb_trees),
     ?assert(lists:member(nsime_simulator, erlang:registered())),
     ?assert(lists:member(nsime_gbtrees_scheduler, erlang:registered())),
-    ?assertEqual(nsime_simulator:stop(), stopped),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete),
     ?assertNot(lists:member(nsime_simulator, erlang:registered())),
     ?assertNot(lists:member(nsime_gbtrees_scheduler, erlang:registered())).
 
@@ -98,7 +98,7 @@ test_schedule_run(_) ->
 
     ?assertError(invalid_argument, nsime_simulator:schedule(junk, Event1)),
 
-    ?assertEqual(nsime_simulator:stop(), stopped),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete),
     ?assertNot(lists:member(nsime_simulator, erlang:registered())),
     ?assertNot(lists:member(nsime_gbtrees_scheduler, erlang:registered())).
 
@@ -140,7 +140,7 @@ test_cancel_event(_) ->
 
     ?assertEqual(nsime_simulator:cancel(Event2#nsime_event{time = Time2}), none),
 
-    ?assertEqual(nsime_simulator:stop(), stopped),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete),
     ?assertNot(lists:member(nsime_simulator, erlang:registered())),
     ?assertNot(lists:member(nsime_gbtrees_scheduler, erlang:registered())).
 
@@ -152,7 +152,7 @@ test_cast_info_codechange(_) ->
     gen_server:cast(nsime_simulator, junk),
     Pid ! junk,
     nsime_simulator:code_change(junk, junk, junk),
-    ?assertEqual(nsime_simulator:stop(), stopped).
+    ?assertEqual(nsime_simulator:stop(), simulation_complete).
 
 create_event(Msg, Ref, Time) ->
    #nsime_event{

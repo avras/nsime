@@ -66,5 +66,5 @@ test_start(_) ->
     ?assertEqual(nsime_application:schedule_start(ServerPid, {0, sec}), ok),
     ?assertEqual(nsime_application:stop(ServerPid), ok),
 
-    ?assertEqual(nsime_simulator:stop(), stopped),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete),
     ?assertEqual(nsime_application:destroy(ServerPid), stopped).

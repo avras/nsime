@@ -129,7 +129,7 @@ handle_call(current_time, _From, State) ->
     {reply, State#nsime_simulator_state.current_time, State};
 
 handle_call(terminate, _From, State) ->
-    {stop, normal, stopped, State}.
+    {stop, normal, simulation_complete, State}.
 
 handle_cast(_Request, State) ->
     {noreply, State}.
@@ -140,6 +140,18 @@ handle_info(_Request, State) ->
 terminate(_Reason, State) ->
     Scheduler = State#nsime_simulator_state.scheduler,
     Scheduler:stop(),
+    lists:foreach(
+        fun(A) ->
+            Pid = erlang:whereis(A),
+            case is_pid(Pid) of
+                true ->
+                    A:stop();
+                false ->
+                    ok
+            end
+        end,
+        [nsime_node_list, nsime_config]
+    ),
     ok.
 
 code_change(_OldVersion, State, _Extra) ->

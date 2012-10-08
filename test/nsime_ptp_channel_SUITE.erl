@@ -156,7 +156,7 @@ test_transmit(_) ->
         TxTime2
     ), ok),
     ?assertEqual(nsime_simulator:run(), simulation_complete),
-    ?assertEqual(nsime_simulator:stop(), stopped),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete),
     ?assertEqual(nsime_ptp_channel:destroy(ChannelPid), stopped),
     ?assertEqual(nsime_ptp_netdevice:destroy(Device1), stopped),
     ?assertEqual(nsime_ptp_netdevice:destroy(Device2), stopped).

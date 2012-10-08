@@ -296,7 +296,7 @@ test_recv(_) ->
         ok
     ),
 
-    ?assertEqual(nsime_simulator:stop(), stopped),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete),
     ?assertEqual(nsime_udp_protocol:destroy(ProtocolPid), stopped).
 
 test_cast_info_codechange(_) ->

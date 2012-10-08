@@ -149,7 +149,7 @@ test_forward(_) ->
         {icmp_callback, Ref2} ->
             ok
     end,
-    ?assertEqual(nsime_simulator:stop(), stopped).
+    ?assertEqual(nsime_simulator:stop(), simulation_complete).
 
 test_cast_info_codechange(_) ->
     EndpointPid = nsime_ip_endpoint:create(),
