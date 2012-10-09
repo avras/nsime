@@ -1,5 +1,11 @@
 {application,nsime,
-             [{vsn,"0.1"},
+             [{description,[]},
+              {vsn,"0.1"},
+              {registered,[nsime_simulator,nsime_node_list,
+                           nsime_gbtrees_scheduler,nsime_config]},
+              {applications,[kernel,stdlib]},
+              {mod,{nsime_app,[]}},
+              {env,[]},
               {modules,[nsime_application,nsime_config,nsime_data_rate,
                         nsime_droptail_queue,nsime_gbtrees_scheduler,
                         nsime_icmpv4_dest_unreachable_header,
@@ -17,6 +23,4 @@
                         nsime_ptp_channel,nsime_ptp_netdevice,nsime_simulator,
                         nsime_time,nsime_udp_echo_client,
                         nsime_udp_echo_server,nsime_udp_header,
-                        nsime_udp_protocol,nsime_udp_socket]},
-              {registered,[nsime_simulator,nsime_node_list,
-                           nsime_gbtrees_scheduler,nsime_config]}]}.
+                        nsime_udp_protocol,nsime_udp_socket]}]}.
