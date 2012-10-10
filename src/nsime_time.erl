@@ -41,6 +41,8 @@ is_nsime_time({Value, Unit}) when
     is_number(Value),
     Value >= 0
         -> is_nsime_time_unit(Unit);
+is_nsime_time({infinity, Unit}) ->
+    is_nsime_time_unit(Unit);
 is_nsime_time(_) ->
     false.
 
@@ -48,6 +50,10 @@ add(A, B) ->
     case is_nsime_time(A) andalso is_nsime_time(B) of
         true ->
             case {A,B} of
+                {{infinity, _Unit1}, {_ValB, _Unit2}} ->
+                    {infinity, sec};
+                {{_ValA, _Unit1}, {infinity, _Unit2}} ->
+                    {infinity, sec};
                 {{ValA, Unit}, {ValB, Unit}} -> 
                     {ValA + ValB, Unit};
                 {{ValA, sec}, {ValB, UnitB}} ->
@@ -93,6 +99,8 @@ add(A, B) ->
 
 value(Time) ->
     case {is_nsime_time(Time), Time} of
+        {true, {infinity, _Unit}} ->
+            infinity;
         {true, {Value, sec}} ->
             Value*1000000000;
         {true, {Value, milli_sec}} ->

@@ -69,6 +69,8 @@ test_is_nsime_time_unit(_) ->
 test_is_nsime_time(_) ->
     ?assert(nsime_time:is_nsime_time({0, sec})),
     ?assert(nsime_time:is_nsime_time({0.5, sec})),
+    ?assert(nsime_time:is_nsime_time({infinity, sec})),
+    ?assert(nsime_time:is_nsime_time({infinity, micro_sec})),
     ?assertNot(nsime_time:is_nsime_time({-1, sec})),
     ?assertNot(nsime_time:is_nsime_time({1, junk})),
     ?assertNot(nsime_time:is_nsime_time({-1, junk})),
@@ -92,7 +94,10 @@ test_add(_) ->
     ?assertEqual(nsime_time:add({1, micro_sec}, {1, nano_sec}), {1001, nano_sec}),
     ?assertEqual(nsime_time:add({1, nano_sec}, {1, sec}), {1000000001, nano_sec}),
     ?assertEqual(nsime_time:add({1, nano_sec}, {1, milli_sec}), {1000001, nano_sec}),
-    ?assertEqual(nsime_time:add({1, nano_sec}, {1, micro_sec}), {1001, nano_sec}).
+    ?assertEqual(nsime_time:add({1, nano_sec}, {1, micro_sec}), {1001, nano_sec}),
+    ?assertEqual(nsime_time:add({infinity, sec}, {1, micro_sec}), {infinity, sec}),
+    ?assertEqual(nsime_time:add({1, sec}, {infinity, sec}), {infinity, sec}),
+    ?assertEqual(nsime_time:add({infinity, sec}, {infinity, micro_sec}), {infinity, sec}).
 
 test_value(_) ->
     ?assertError(invalid_argument, nsime_time:value(junk)),
@@ -103,4 +108,6 @@ test_value(_) ->
     ?assert(nsime_time:value({1.5, sec}) == 1500000000),
     ?assert(nsime_time:value({1.5, milli_sec}) == 1500000),
     ?assert(nsime_time:value({1.5, micro_sec}) == 1500),
-    ?assert(nsime_time:value({1.5, nano_sec}) == 1.5).
+    ?assert(nsime_time:value({1.5, nano_sec}) == 1.5),
+    ?assert(nsime_time:value({infinity, sec}) == infinity),
+    ?assert(nsime_time:value({infinity, micro_sec}) == infinity).
