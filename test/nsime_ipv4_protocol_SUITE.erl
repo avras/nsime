@@ -200,7 +200,6 @@ test_set_get_components(_) ->
     ?assertEqual(nsime_ipv4_interface:destroy(InterfacePid3), stopped),
     ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid1), stopped),
     ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid2), stopped),
-    ?assertEqual(nsime_ipv4_static_routing:destroy(RoutingPid), stopped),
     ?assertEqual(nsime_udp_protocol:destroy(Layer4ProtPid1), stopped),
     ?assertEqual(nsime_udp_protocol:destroy(Layer4ProtPid2), stopped),
     ?assertEqual(nsime_ipv4_protocol:destroy(ProtocolPid), stopped).
@@ -417,8 +416,7 @@ test_ip_forward_no_ttl_error(_) ->
         {drop_route_error, Ref2} ->
             ok
     end,
-    ?assertEqual(nsime_simulator:stop(), simulation_complete),
-    ?assertEqual(nsime_ipv4_protocol:destroy(ProtocolPid), stopped).
+    ?assertEqual(nsime_simulator:stop(), simulation_complete).
 
 test_ip_forward_with_ttl_error(_) ->
     ProtocolPid = nsime_ipv4_protocol:create(),
@@ -674,8 +672,7 @@ test_recv(_) ->
     end,
 
     ?assertEqual(nsime_config:stop(), stopped),
-    ?assertEqual(nsime_simulator:stop(), simulation_complete),
-    ?assertEqual(nsime_ipv4_protocol:destroy(ProtocolPid), stopped).
+    ?assertEqual(nsime_simulator:stop(), simulation_complete).
 
 test_send(_) ->
     ProtocolPid = nsime_ipv4_protocol:create(),

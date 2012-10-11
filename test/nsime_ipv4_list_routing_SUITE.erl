@@ -60,9 +60,7 @@ test_creation_shutdown(_) ->
     ?assertEqual(nsime_ipv4_list_routing:add_routing_protocol(ListRoutingPid, StaticRoutingPid, 0), ok),
     Ipv4ProtocolPid = nsime_ipv4_protocol:create(),
     ?assertEqual(nsime_ipv4_list_routing:set_ipv4_protocol(ListRoutingPid, Ipv4ProtocolPid), ok),
-    ?assertEqual(nsime_ipv4_protocol:destroy(Ipv4ProtocolPid), stopped),
-    ?assertEqual(nsime_ipv4_static_routing:destroy(StaticRoutingPid), stopped),
-    ?assertEqual(nsime_ipv4_list_routing:destroy(ListRoutingPid), stopped).
+    ?assertEqual(nsime_ipv4_protocol:destroy(Ipv4ProtocolPid), stopped).
 
 test_add_routes(_) ->
     StaticRoutingPid = nsime_ipv4_static_routing:create(),
@@ -264,7 +262,6 @@ test_notify_interfaces_updown(_) ->
         ok
     ),
     ?assertEqual(nsime_ipv4_static_routing:get_network_routes(StaticRoutingPid), []),
-    ?assertEqual(nsime_ipv4_static_routing:destroy(StaticRoutingPid), stopped),
     ?assertEqual(nsime_ipv4_list_routing:destroy(ListRoutingPid), stopped).
 
 test_add_remove_addresses(_) ->
@@ -343,7 +340,6 @@ test_add_remove_addresses(_) ->
         ),
         ok
     ),
-    ?assertEqual(nsime_ipv4_static_routing:destroy(StaticRoutingPid), stopped),
     ?assertEqual(nsime_ipv4_list_routing:destroy(ListRoutingPid), stopped).
 
 test_route_input(_) ->
@@ -573,9 +569,7 @@ test_route_input(_) ->
     end,
 
     ?assertEqual(nsime_simulator:stop(), simulation_complete),
-    ?assertEqual(nsime_ipv4_protocol:destroy(Ipv4ProtocolPid), stopped),
-    ?assertEqual(nsime_ipv4_static_routing:destroy(StaticRoutingPid), stopped),
-    ?assertEqual(nsime_ipv4_list_routing:destroy(ListRoutingPid), stopped).
+    ?assertEqual(nsime_ipv4_protocol:destroy(Ipv4ProtocolPid), stopped).
 
 test_route_output(_) ->
     StaticRoutingPid = nsime_ipv4_static_routing:create(),
@@ -782,7 +776,6 @@ test_route_output(_) ->
             DevicePid
         )
     ),
-    ?assertEqual(nsime_ipv4_static_routing:destroy(StaticRoutingPid), stopped),
     ?assertEqual(nsime_ipv4_list_routing:destroy(ListRoutingPid), stopped).
 
 test_cast_info_codechange(_) ->

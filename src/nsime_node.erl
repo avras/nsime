@@ -284,6 +284,21 @@ terminate(_Reason, NodeState) ->
         end,
         ApplicationList
     ),
+    Objects = NodeState#nsime_node_state.objects,
+    Ipv4Protocol = proplists:get_value(nsime_ipv4_protocol, Objects),
+    case is_pid(Ipv4Protocol) of
+        true ->
+            nsime_ipv4_protocol:destroy(Ipv4Protocol);
+        false ->
+            ok
+    end,
+    UdpProtocol = proplists:get_value(nsime_udp_protocol, Objects),
+    case is_pid(UdpProtocol) of
+        true ->
+            nsime_udp_protocol:destroy(UdpProtocol);
+        false ->
+            ok
+    end,
     ok.
 
 code_change(_OldVersion, NodeState, _Extra) ->

@@ -992,6 +992,13 @@ handle_call({route_input_error, Packet, Ipv4Header}, _From, ProtocolState) ->
     {reply, ok, ProtocolState};
 
 handle_call(terminate, _From, ProtocolState) ->
+    RoutingProtocolPid = ProtocolState#nsime_ipv4_protocol_state.routing_protocol,
+    case is_pid(RoutingProtocolPid) of
+        true ->
+            nsime_ipv4_routing_protocol:destroy(RoutingProtocolPid);
+        false ->
+            ok
+    end,
     {stop, normal, stopped, ProtocolState}.
 
 handle_cast(_Request, ProtocolState) ->

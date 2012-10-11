@@ -329,6 +329,13 @@ handle_call({add_routing_protocol, ProtocolPid, Priority}, _From, RoutingState) 
     {reply, ok, NewRoutingState};
 
 handle_call(terminate, _From, RoutingState) ->
+    RoutingProtocols = RoutingState#nsime_ipv4_list_routing_state.routing_protocols,
+    lists:foreach(
+        fun({_Priority, R}) ->
+            nsime_ipv4_routing_protocol:destroy(R)
+        end,
+        RoutingProtocols
+    ),
     {stop, normal, stopped, RoutingState}.
 
 handle_cast(_Request, RoutingState) ->
