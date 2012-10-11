@@ -24,6 +24,8 @@
 -module(nsime_mac_address).
 -author("Saravanan Vijayakumaran").
 
+-include("nsime_types.hrl").
+-include("nsime_event.hrl").
 -include("nsime_mac_address_state.hrl").
 
 -behaviour(gen_server).
@@ -36,9 +38,28 @@ start() ->
     gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
 stop() ->
-    gen_server:call(?MODULE, terminate).
+    case lists:member(nsime_mac_address, erlang:registered()) of
+        true ->
+            gen_server:call(?MODULE, terminate);
+        false ->
+            stopped
+    end.
 
 init([]) ->
+    StopTime = {infinity, sec},
+    StopEvent = #nsime_event{
+        module = ?MODULE,
+        function = stop,
+        arguments = [],
+        eventid = make_ref()
+    },
+    case lists:member(nsime_simulator, erlang:registered()) of
+        false ->
+            nsime_simulator:start(),
+            nsime_simulator:schedule(StopTime, StopEvent);
+        true ->
+            nsime_simulator:schedule(StopTime, StopEvent)
+    end,
     AllocatorState = #nsime_mac_address_state{},
     {ok, AllocatorState}.
 

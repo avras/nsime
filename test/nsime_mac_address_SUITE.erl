@@ -46,8 +46,19 @@ end_per_suite(Config) ->
 test_start_stop(_) ->
     nsime_mac_address:start(),
     ?assert(lists:member(nsime_mac_address, erlang:registered())),
+    ?assert(lists:member(nsime_simulator, erlang:registered())),
     ?assertEqual(nsime_mac_address:stop(), stopped),
-    ?assertNot(lists:member(nsime_mac_address, erlang:registered())).
+    ?assertNot(lists:member(nsime_mac_address, erlang:registered())),
+    ?assertEqual(nsime_simulator:run(), simulation_complete),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete),
+
+    nsime_mac_address:start(),
+    ?assert(lists:member(nsime_mac_address, erlang:registered())),
+    ?assert(lists:member(nsime_simulator, erlang:registered())),
+    ?assertEqual(nsime_simulator:run(), simulation_complete),
+    ?assertNot(lists:member(nsime_mac_address, erlang:registered())),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete),
+    ok.
 
 test_allocate(_) ->
     nsime_mac_address:start(),
@@ -63,7 +74,8 @@ test_allocate(_) ->
     ?assertEqual(nsime_mac_address:allocate(), <<3:48>>),
     ?assert(lists:member(nsime_mac_address, erlang:registered())),
     ?assertEqual(nsime_mac_address:stop(), stopped),
-    ?assertNot(lists:member(nsime_mac_address, erlang:registered())).
+    ?assertNot(lists:member(nsime_mac_address, erlang:registered())),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete).
 
 test_cast_info_codechange(_) ->
     nsime_mac_address:start(),
@@ -73,4 +85,5 @@ test_cast_info_codechange(_) ->
     gen_server:cast(nsime_mac_address, junk),
     Pid ! junk,
     nsime_mac_address:code_change(junk, junk, junk),
-    ?assertEqual(nsime_mac_address:stop(), stopped).
+    ?assertEqual(nsime_mac_address:stop(), stopped),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete).
