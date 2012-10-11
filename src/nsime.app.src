@@ -6,7 +6,8 @@
                       nsime_simulator,
                       nsime_node_list,
                       nsime_gbtrees_scheduler,
-                      nsime_config
+                      nsime_config,
+                      nsime_mac_address
                    ]
       },
       {applications, [
