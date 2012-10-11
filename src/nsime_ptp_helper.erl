@@ -61,14 +61,14 @@ init([]) ->
 handle_call({call_on_device, Function, Arguments}, _From, HelperState) ->
     DeviceCalls = HelperState#nsime_ptp_helper_state.device_calls,
     NewHelperState = HelperState#nsime_ptp_helper_state{
-        device_calls = [{nsime_ptp_netdevice, Function, Arguments} | DeviceCalls]
+        device_calls = [{nsime_ptp_netdevice, Function, [Arguments]} | DeviceCalls]
     },
     {reply, ok, NewHelperState};
 
 handle_call({call_on_channel, Function, Arguments}, _From, HelperState) ->
     ChannelCalls = HelperState#nsime_ptp_helper_state.channel_calls,
     NewHelperState = HelperState#nsime_ptp_helper_state{
-        channel_calls = [{nsime_ptp_channel, Function, Arguments} | ChannelCalls]
+        channel_calls = [{nsime_ptp_channel, Function, [Arguments]} | ChannelCalls]
     },
     {reply, ok, NewHelperState};
 
@@ -77,14 +77,14 @@ handle_call({install, [NodePid1, NodePid2]}, _From, HelperState) ->
     ChannelCalls = HelperState#nsime_ptp_helper_state.channel_calls,
     DevicePid1 = nsime_ptp_netdevice:create(),
     nsime_ptp_netdevice:set_address(DevicePid1, nsime_mac_address:allocate()),
-    nsime_node:add_device(NodePid1, DevicePid1),
+    nsime_node:add_netdevice(NodePid1, DevicePid1),
     QueuePid1 = nsime_droptail_queue:create(),
     nsime_ptp_netdevice:set_queue_module(DevicePid1, nsime_droptail_queue),
     nsime_ptp_netdevice:set_queue(DevicePid1, QueuePid1),
 
     DevicePid2 = nsime_ptp_netdevice:create(),
     nsime_ptp_netdevice:set_address(DevicePid2, nsime_mac_address:allocate()),
-    nsime_node:add_device(NodePid2, DevicePid2),
+    nsime_node:add_netdevice(NodePid2, DevicePid2),
     QueuePid2 = nsime_droptail_queue:create(),
     nsime_ptp_netdevice:set_queue_module(DevicePid2, nsime_droptail_queue),
     nsime_ptp_netdevice:set_queue(DevicePid2, QueuePid2),
