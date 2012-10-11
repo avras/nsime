@@ -27,5 +27,16 @@
 
 run() ->
     nsime_simulator:start(),
-    nsime_node:create(2),
+    NodePidList = nsime_node:create(2),
+
+    PtpHelperPid = nsime_ptp_helper:create(),
+    nsime_ptp_helper:call_on_device(PtpHelperPid, set_data_rate, {5, mega_bits_per_sec}),
+    nsime_ptp_helper:call_on_channel(PtpHelperPid, set_channel_delay, {2, milli_sec}),
+
+    nsime_ptp_helper:install(PtpHelperPid, NodePidList),
+    nsime_internet_stack_helper:install(NodePidList),
+
+    nsime_simulator:run(),
+
+    nsime_ptp_helper:destroy(PtpHelperPid),
     nsime_simulator:stop().
