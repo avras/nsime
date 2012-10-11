@@ -21,7 +21,8 @@
                         nsime_ipv4_routing_table_entry,
                         nsime_ipv4_static_routing,nsime_layer4_protocol,
                         nsime_mac_address,nsime_netdevice,nsime_node,
-                        nsime_node_list,nsime_ptp_channel,nsime_ptp_netdevice,
-                        nsime_simulator,nsime_time,nsime_udp_echo_client,
-                        nsime_udp_echo_server,nsime_udp_header,
-                        nsime_udp_protocol,nsime_udp_socket]}]}.
+                        nsime_node_list,nsime_ptp_channel,nsime_ptp_helper,
+                        nsime_ptp_netdevice,nsime_simulator,nsime_time,
+                        nsime_udp_echo_client,nsime_udp_echo_server,
+                        nsime_udp_header,nsime_udp_protocol,
+                        nsime_udp_socket]}]}.
