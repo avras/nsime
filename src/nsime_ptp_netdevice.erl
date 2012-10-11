@@ -414,8 +414,15 @@ handle_cast(_Request, DeviceState) ->
 handle_info(_Request, DeviceState) ->
     {noreply, DeviceState}.
 
-terminate(_Reason, _State) ->
-    ok.
+terminate(_Reason, DeviceState) ->
+    QueueModule = DeviceState#nsime_ptp_netdevice_state.queue_module,
+    QueuePid = DeviceState#nsime_ptp_netdevice_state.queue,
+    case is_pid(QueuePid) of
+        true ->
+            QueueModule:destroy(QueuePid);
+        false ->
+            ok
+    end.
 
 code_change(_OldVersion, DeviceState, _Extra) ->
     {ok, DeviceState}.

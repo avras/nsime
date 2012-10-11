@@ -78,16 +78,10 @@ handle_call({install, [NodePid1, NodePid2]}, _From, HelperState) ->
     DevicePid1 = nsime_ptp_netdevice:create(),
     nsime_ptp_netdevice:set_address(DevicePid1, nsime_mac_address:allocate()),
     nsime_node:add_netdevice(NodePid1, DevicePid1),
-    QueuePid1 = nsime_droptail_queue:create(),
-    nsime_ptp_netdevice:set_queue_module(DevicePid1, nsime_droptail_queue),
-    nsime_ptp_netdevice:set_queue(DevicePid1, QueuePid1),
 
     DevicePid2 = nsime_ptp_netdevice:create(),
     nsime_ptp_netdevice:set_address(DevicePid2, nsime_mac_address:allocate()),
     nsime_node:add_netdevice(NodePid2, DevicePid2),
-    QueuePid2 = nsime_droptail_queue:create(),
-    nsime_ptp_netdevice:set_queue_module(DevicePid2, nsime_droptail_queue),
-    nsime_ptp_netdevice:set_queue(DevicePid2, QueuePid2),
 
     lists:foreach(
         fun(D) ->
