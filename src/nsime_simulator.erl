@@ -150,7 +150,7 @@ terminate(_Reason, State) ->
                     ok
             end
         end,
-        [nsime_node_list, nsime_config]
+        [nsime_node_list, nsime_channel_list, nsime_config]
     ),
     ok.
 

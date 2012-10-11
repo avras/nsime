@@ -169,7 +169,6 @@ test_transmit_start(_) ->
     ?assertEqual(nsime_simulator:run(), simulation_complete),
 
     ?assertEqual(nsime_simulator:stop(), simulation_complete),
-    ?assertEqual(nsime_ptp_channel:destroy(ChannelPid), stopped),
     ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid1), stopped),
     ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid2), stopped).
 

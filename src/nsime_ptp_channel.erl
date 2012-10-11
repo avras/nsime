@@ -39,10 +39,24 @@
 
 create() ->
     {ok, Pid} = gen_server:start(?MODULE, [], []),
+    case lists:member(nsime_channel_list, erlang:registered()) of
+        true ->
+            nsime_channel_list:add(Pid);
+        false ->
+            nsime_channel_list:start(),
+            nsime_channel_list:add(Pid)
+    end,
     Pid.
 
 create(ChannelState = #nsime_ptp_channel_state{}) ->
     {ok, Pid} = gen_server:start(?MODULE, ChannelState, []),
+    case lists:member(nsime_channel_list, erlang:registered()) of
+        true ->
+            nsime_channel_list:add(Pid);
+        false ->
+            nsime_channel_list:start(),
+            nsime_channel_list:add(Pid)
+    end,
     Pid.
 
 destroy(ChannelPid) ->
@@ -86,7 +100,7 @@ init([]) ->
     ChannelState = #nsime_ptp_channel_state{},
     {ok, ChannelState};
 
-init(ChannelState = #nsime_ptp_channel_state{}) ->
+init(ChannelState) ->
     {ok, ChannelState}.
 
 handle_call({get_netdevice, DeviceIndex}, _From, ChannelState) ->

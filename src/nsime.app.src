@@ -5,6 +5,7 @@
       {registered, [
                       nsime_simulator,
                       nsime_node_list,
+                      nsime_channel_list,
                       nsime_gbtrees_scheduler,
                       nsime_config,
                       nsime_mac_address
