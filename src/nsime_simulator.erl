@@ -56,6 +56,8 @@ init(Scheduler) ->
     SimulatorState = #nsime_simulator_state{
         scheduler = Scheduler
     },
+    nsime_config:start(),
+    nsime_config:disable_checksum(),
     {ok, SimulatorState}.
 
 run() ->
