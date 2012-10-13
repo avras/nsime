@@ -141,7 +141,6 @@ handle_call(get_netdevices, _From, NodeState) ->
 
 handle_call({add_application, ApplicationPid}, _From, NodeState) ->
     nsime_application:set_node(ApplicationPid, self()),
-    nsime_application:schedule_start(ApplicationPid, {0, sec}),
     ApplicationList = NodeState#nsime_node_state.applications,
     NewNodeState = NodeState#nsime_node_state{applications = [ApplicationPid | ApplicationList]},
     {reply, ok, NewNodeState};
