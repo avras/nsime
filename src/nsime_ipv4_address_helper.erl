@@ -163,7 +163,7 @@ handle_call({assign, DevicePidList}, _From, HelperState) ->
                    InterfaceAddress = nsime_ipv4_interface_address:create(NewAddress, Mask),
                    nsime_ipv4_interface:add_address(InterfacePid, InterfaceAddress),
                    nsime_ipv4_interface:set_metric(InterfacePid, 1),
-                   nsime_ipv4_interface:set_up(InterfacePid),
+                   nsime_ipv4_protocol:set_up(Ipv4ProtocolPid, InterfacePid),
                    InterfacePid
                 end,
                 DevicesAndIndices
