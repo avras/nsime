@@ -22,9 +22,9 @@
 
 -record(nsime_udp_echo_server_state,
         {
-          node                        :: pid(),
-          socket                      :: pid(),
-          listen_port                 :: inet:port_number(),
-          transmit_trace_callback     :: nsime_callback(),
-          receive_trace_callback      :: nsime_callback()
+          node                                            :: pid(),
+          socket                                          :: pid(),
+          listen_port                                     :: inet:port_number(),
+          transmit_trace_callback = {none, none, none}    :: nsime_callback(),
+          receive_trace_callback = {none, none, none}     :: nsime_callback()
         }).

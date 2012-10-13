@@ -37,7 +37,7 @@
 
 -type nsime_tx_device_state() :: ready | busy.
 
--type nsime_callback() :: {module(), fun(), list()}.
+-type nsime_callback() :: {module(), fun(), list()} | {none, none, none}.
 
 -type nsime_address_prefix_atom() :: 255 | 254 | 252 | 248 |
                                      240 | 224 | 192 | 128.
