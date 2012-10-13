@@ -604,7 +604,10 @@ do_send_to(Packet, DestAddress, DestPort, SocketState) ->
                                     ),
                                     case NewInterfaceList of
                                         [] ->
-                                            {reply, error_noroutetohost, SocketState};
+                                            NewSocketState = SocketState#nsime_udp_socket_state{
+                                                socket_error = error_noroutetohost
+                                            },
+                                            {reply, error_noroutetohost, NewSocketState};
                                         _ ->
                                             case
                                                 lists:foldl(
@@ -647,7 +650,10 @@ do_send_to(Packet, DestAddress, DestPort, SocketState) ->
                                                 error_noterror ->
                                                     {reply, NewerPacket#nsime_packet.size, SocketState};
                                                 error_noroutetohost ->
-                                                    {reply, error_noroutetohost, SocketState}
+                                                    NewSocketState = SocketState#nsime_udp_socket_state{
+                                                        socket_error = error_noroutetohost
+                                                    },
+                                                    {reply, error_noroutetohost, NewSocketState}
                                             end
                                     end
                             end;
@@ -706,9 +712,12 @@ do_send_to(Packet, DestAddress, DestPort, SocketState) ->
                                                                     Route#nsime_ipv4_route.output_device
                                                                 ),
                                                             InterfaceAddressList =
-                                                                nsime_ipv4_interface:get_address_list(
-                                                                    OutputInterface
-                                                                ),
+                                                            case is_pid(OutputInterface) of
+                                                                true ->
+                                                                    nsime_ipv4_interface:get_address_list(OutputInterface);
+                                                                false ->
+                                                                    []
+                                                            end,
                                                             lists:foldl(
                                                                 fun(I, Acc) ->
                                                                     case Acc of
