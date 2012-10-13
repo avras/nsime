@@ -200,7 +200,7 @@ handle_call({send, Packet, DestAddress}, _From, InterfaceState) ->
                             FirstMatch
                     end,
                     case is_pid(MatchingAddress) of
-                        false ->
+                        true ->
                             NodePid = InterfaceState#nsime_ipv4_interface_state.node,
                             IPv4Protocol = nsime_node:get_object(NodePid, nsime_ipv4_protocol),
                             Event = #nsime_event{
@@ -219,7 +219,7 @@ handle_call({send, Packet, DestAddress}, _From, InterfaceState) ->
                             },
                             nsime_simulator:schedule_now(Event),
                             {reply, ok, InterfaceState};
-                        true ->
+                        false ->
                             case nsime_netdevice:needs_arp(Device) of
                                 true ->
                                     ArpCache = InterfaceState#nsime_ipv4_interface_state.arp_cache,
