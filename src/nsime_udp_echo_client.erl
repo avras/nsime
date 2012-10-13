@@ -236,23 +236,34 @@ handle_call(send, _From, ClientState) ->
                 id = make_ref()
             } 
     end,
-    {Mod, Fun, Args} = ClientState#nsime_udp_echo_client_state.transmit_trace_callback,
-    NewArgs = lists:flatten([Args, [Packet]]),
-    erlang:apply(Mod, Fun, NewArgs),
+    nsime_callback:apply(ClientState#nsime_udp_echo_client_state.transmit_trace_callback, [Packet]),
 
     nsime_udp_socket:send(SocketPid, Packet, 0),
+    io:format(
+        "At time ~p client sent ~p bytes to " ++
+        inet_parse:ntoa(ClientState#nsime_udp_echo_client_state.peer_address) ++
+        " port ~p~n",
+        [
+            nsime_simulator:current_time(),
+            DataSize,
+            ClientState#nsime_udp_echo_client_state.peer_port
+        ]
+    ),
     NumSentPackets = ClientState#nsime_udp_echo_client_state.num_sent_packets + 1,
-    if NumSentPackets < ClientState#nsime_udp_echo_client_state.max_packets ->
-        SendEvent = #nsime_event{
-            module = ?MODULE,
-            function = send,
-            arguments = [self()],
-            eventid = make_ref()
-        },
-        nsime_simulator:schedule(
-        ClientState#nsime_udp_echo_client_state.inter_packet_gap,
-        SendEvent
-        )
+    case NumSentPackets < ClientState#nsime_udp_echo_client_state.max_packets of
+        true ->
+            SendEvent = #nsime_event{
+                module = ?MODULE,
+                function = send,
+                arguments = [self()],
+                eventid = make_ref()
+            },
+            nsime_simulator:schedule(
+                ClientState#nsime_udp_echo_client_state.inter_packet_gap,
+                SendEvent
+            );
+        false ->
+            ok
     end,
     NewClientState = ClientState#nsime_udp_echo_client_state{num_sent_packets = NumSentPackets},
     {reply, ok, NewClientState};
