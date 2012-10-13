@@ -222,6 +222,8 @@ handle_call(protocol_number, _From, ProtocolState) ->
     {reply, ?IPv4_PROTOCOL_NUMBER, ProtocolState};
 
 handle_call({set_routing_protocol, RoutingPid}, _From, ProtocolState) ->
+    InterfaceList = ProtocolState#nsime_ipv4_protocol_state.interfaces,
+    nsime_ipv4_routing_protocol:set_ipv4_protocol(RoutingPid, self(), InterfaceList),
     NewProtocolState = ProtocolState#nsime_ipv4_protocol_state{
         routing_protocol = RoutingPid
     },
@@ -290,18 +292,20 @@ handle_call({recv, DevicePid, Packet, _Protocol, _FromAddress, _ToAddress, _Pack
     ),
     case nsime_ipv4_interface:is_up(InterfacePid) of
         false ->
-            {Mod, Fun, Args} = ProtocolState#nsime_ipv4_protocol_state.drop_trace,
             DataSizeBits = (Packet#nsime_packet.size - 20)*8,
             <<Ipv4HeaderBinary:160, Data:DataSizeBits>> = Packet#nsime_packet.data,
             Ipv4Header = nsime_ipv4_header:deserialize(<<Ipv4HeaderBinary:160>>),
             NewPacket = Packet#nsime_packet{data = <<Data:DataSizeBits>>},
-            NewArgs = lists:flatten([Args | [Ipv4Header, NewPacket, drop_interface_down, self(), InterfacePid]]),
-            erlang:apply(Mod, Fun, NewArgs),
+            nsime_callback:apply(
+                ProtocolState#nsime_ipv4_protocol_state.drop_trace,
+                [Ipv4Header, NewPacket, drop_interface_down, self(), InterfacePid]
+            ),
             {reply, ok, ProtocolState};
         true ->
-            {Mod, Fun, Args} = ProtocolState#nsime_ipv4_protocol_state.receive_trace,
-            NewArgs = lists:flatten([Args | [Packet, self(), InterfacePid]]),
-            erlang:apply(Mod, Fun, NewArgs),
+            nsime_callback:apply(
+                ProtocolState#nsime_ipv4_protocol_state.receive_trace,
+                [Packet, self(), InterfacePid]
+            ),
             DataSizeBits = (Packet#nsime_packet.size - 20)*8,
             <<Ipv4HeaderBinary:160, Data:DataSizeBits>> = Packet#nsime_packet.data,
             Ipv4Header = nsime_ipv4_header:deserialize(<<Ipv4HeaderBinary:160>>),
@@ -314,9 +318,10 @@ handle_call({recv, DevicePid, Packet, _Protocol, _FromAddress, _ToAddress, _Pack
             NewPacket = Packet#nsime_packet{data = <<Data:DataSizeBits>>},
             case nsime_ipv4_header:is_checksum_ok(NewIpv4Header) of
                 false ->
-                    {Mod1, Fun1, Args1} = ProtocolState#nsime_ipv4_protocol_state.drop_trace,
-                    NewArgs1 = lists:flatten([Args1 | [NewIpv4Header, NewPacket, drop_bad_checksum, self(), InterfacePid]]),
-                    erlang:apply(Mod1, Fun1, NewArgs1),
+                    nsime_callback:apply(
+                        ProtocolState#nsime_ipv4_protocol_state.drop_trace,
+                        [NewIpv4Header, NewPacket, drop_bad_checksum, self(), InterfacePid]
+                    ),
                     {reply, ok, ProtocolState};
                 true ->
                     RoutingProtocolPid = ProtocolState#nsime_ipv4_protocol_state.routing_protocol,
@@ -335,9 +340,10 @@ handle_call({recv, DevicePid, Packet, _Protocol, _FromAddress, _ToAddress, _Pack
                     )
                     of
                         false ->
-                            {Mod2, Fun2, Args2} = ProtocolState#nsime_ipv4_protocol_state.drop_trace,
-                            NewArgs2 = lists:flatten([Args2 | [Ipv4Header, NewPacket, drop_no_route, self(), InterfacePid]]),
-                            erlang:apply(Mod2, Fun2, NewArgs2),
+                            nsime_callback:apply(
+                                ProtocolState#nsime_ipv4_protocol_state.drop_trace,
+                                [Ipv4Header, NewPacket, drop_no_route, self(), InterfacePid]
+                            ),
                             {reply, ok, ProtocolState};
                         true ->
                             {reply, ok, ProtocolState}
@@ -369,18 +375,20 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
             InterfaceList = NewProtocolState#nsime_ipv4_protocol_state.interfaces,
             lists:foreach(
                 fun(I) ->
-                    {Mod1, Fun1, Args1} = NewProtocolState#nsime_ipv4_protocol_state.send_outgoing_trace,
-                    NewArgs1 = lists:flatten([Args1 | [Ipv4Header, NewPacket, I]]),
-                    erlang:apply(Mod1, Fun1, NewArgs1),
+                    nsime_callback:apply(
+                        NewProtocolState#nsime_ipv4_protocol_state.send_outgoing_trace,
+                        [Ipv4Header, NewPacket, I]
+                    ),
                     Data = NewPacket#nsime_packet.data,
                     Ipv4HeaderBinary = nsime_ipv4_header:serialize(Ipv4Header),
                     NewerPacket = NewPacket#nsime_packet{
                         data = <<Ipv4HeaderBinary/binary, Data/binary>>,
                         size = Ipv4Header#nsime_ipv4_header.total_length
                     },
-                    {Mod2, Fun2, Args2} = NewProtocolState#nsime_ipv4_protocol_state.transmit_trace,
-                    NewArgs2 = lists:flatten([Args2 | [NewerPacket, self(), I]]),
-                    erlang:apply(Mod2, Fun2, NewArgs2),
+                    nsime_callback:apply(
+                        NewProtocolState#nsime_ipv4_protocol_state.transmit_trace,
+                        [NewerPacket, self(), I]
+                    ),
                     nsime_ipv4_interface:send(I, NewerPacket, DestAddress)
                 end,
                 InterfaceList
@@ -420,18 +428,20 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
                                                         true,
                                                         ProtocolState
                                                     ),
-                                                    {Mod1, Fun1, Args1} = NewProtocolState#nsime_ipv4_protocol_state.send_outgoing_trace,
-                                                    NewArgs1 = lists:flatten([Args1 | [Ipv4Header, NewPacket, I]]),
-                                                    erlang:apply(Mod1, Fun1, NewArgs1),
+                                                    nsime_callback:apply(
+                                                        NewProtocolState#nsime_ipv4_protocol_state.send_outgoing_trace,
+                                                        [Ipv4Header, NewPacket, I]
+                                                    ),
                                                     Data = NewPacket#nsime_packet.data,
                                                     Ipv4HeaderBinary = nsime_ipv4_header:serialize(Ipv4Header),
                                                     NewerPacket = NewPacket#nsime_packet{
                                                         data = <<Ipv4HeaderBinary/binary, Data/binary>>,
                                                         size = Ipv4Header#nsime_ipv4_header.total_length
                                                     },
-                                                    {Mod2, Fun2, Args2} = NewProtocolState#nsime_ipv4_protocol_state.transmit_trace,
-                                                    NewArgs2 = lists:flatten([Args2 | [NewerPacket, self(), I]]),
-                                                    erlang:apply(Mod2, Fun2, NewArgs2),
+                                                    nsime_callback:apply(
+                                                        NewProtocolState#nsime_ipv4_protocol_state.transmit_trace,
+                                                        [NewerPacket, self(), I]
+                                                    ),
                                                     nsime_ipv4_interface:send(I, NewerPacket, DestAddress),
                                                     true;
                                                 false ->
@@ -453,7 +463,7 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
                 false ->
                     case is_record(Route, nsime_ipv4_route) of
                         true ->
-                            case (Route#nsime_ipv4_route.gateway =/= nsime_ipv4_address:get_zero()) of
+                            case (Route#nsime_ipv4_route.gateway =/= undefined) of
                                 true ->
                                     {Ipv4Header, NewProtocolState} = build_header(
                                         SrcAddress,
@@ -482,9 +492,10 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
                                         none,
                                         InterfaceList
                                     ),
-                                    {Mod1, Fun1, Args1} = NewProtocolState#nsime_ipv4_protocol_state.send_outgoing_trace,
-                                    NewArgs1 = lists:flatten([Args1 | [Ipv4Header, NewPacket, InterfacePid]]),
-                                    erlang:apply(Mod1, Fun1, NewArgs1),
+                                    nsime_callback:apply(
+                                        NewProtocolState#nsime_ipv4_protocol_state.send_outgoing_trace,
+                                        [Ipv4Header, NewPacket, InterfacePid]
+                                    ),
                                     send_real_out(Route, NewPacket, Ipv4Header, NewProtocolState);
                                 false ->
                                     {reply, nsime_situation_not_implemented, ProtocolState}
@@ -522,14 +533,16 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
                                                 none,
                                                 InterfaceList
                                             ),
-                                            {Mod1, Fun1, Args1} = NewProtocolState#nsime_ipv4_protocol_state.send_outgoing_trace,
-                                            NewArgs1 = lists:flatten([Args1 | [Ipv4Header, NewPacket, InterfacePid]]),
-                                            erlang:apply(Mod1, Fun1, NewArgs1),
+                                            nsime_callback:apply(
+                                                NewProtocolState#nsime_ipv4_protocol_state.send_outgoing_trace,
+                                                [Ipv4Header, NewPacket, InterfacePid]
+                                            ),
                                             send_real_out(NewRoute, NewPacket, Ipv4Header, NewProtocolState);
                                         {error_noroutetohost, undefined} ->
-                                            {Mod, Fun, Args} = ProtocolState#nsime_ipv4_protocol_state.drop_trace,
-                                            NewArgs = lists:flatten([Args | [Ipv4Header, NewPacket, drop_no_route, self(), none]]),
-                                            erlang:apply(Mod, Fun, NewArgs),
+                                            nsime_callback:apply(
+                                                ProtocolState#nsime_ipv4_protocol_state.drop_trace,
+                                                [Ipv4Header, NewPacket, drop_no_route, self(), none]
+                                            ),
                                             {reply, ok, NewProtocolState}
                                     end;
                                 false ->
@@ -899,28 +912,32 @@ handle_call({ip_forward, Route, Packet, Ipv4Header}, _From, ProtocolState) ->
                             {reply, icmpv4_protocol_not_found, ProtocolState};
                         true ->
                             nsime_icmpv4_protocol:send_time_exceeded_ttl(IcmpPid, NewIpv4Header, Packet),
-                            {Mod, Fun, Args} = ProtocolState#nsime_ipv4_protocol_state.drop_trace,
-                            NewArgs = lists:flatten([Args | [NewIpv4Header, Packet, drop_ttl_expired, self(), InterfacePid]]),
-                            erlang:apply(Mod, Fun, NewArgs),
+                            nsime_callback:apply(
+                                ProtocolState#nsime_ipv4_protocol_state.drop_trace,
+                                [NewIpv4Header, Packet, drop_ttl_expired, self(), InterfacePid]
+                            ),
                             {reply, ok, ProtocolState}
                     end;
                 false ->
-                    {Mod, Fun, Args} = ProtocolState#nsime_ipv4_protocol_state.drop_trace,
-                    NewArgs = lists:flatten([Args | [NewIpv4Header, Packet, drop_ttl_expired, self(), InterfacePid]]),
-                    erlang:apply(Mod, Fun, NewArgs),
+                    nsime_callback:apply(
+                        ProtocolState#nsime_ipv4_protocol_state.drop_trace,
+                        [NewIpv4Header, Packet, drop_ttl_expired, self(), InterfacePid]
+                    ),
                     {reply, ok, ProtocolState}
             end;
         false ->
-            {Mod, Fun, Args} = ProtocolState#nsime_ipv4_protocol_state.unicast_forward_trace,
-            NewArgs = lists:flatten([Args | [NewIpv4Header, Packet, InterfacePid]]),
-            erlang:apply(Mod, Fun, NewArgs),
+            nsime_callback:apply(
+                ProtocolState#nsime_ipv4_protocol_state.unicast_forward_trace,
+                [NewIpv4Header, Packet, InterfacePid]
+            ),
             send_real_out(Route, Packet, NewIpv4Header, ProtocolState)
     end;
 
 handle_call({local_deliver, Packet, Ipv4Header, InterfacePid}, _From, ProtocolState) ->
-    {Mod, Fun, Args} = ProtocolState#nsime_ipv4_protocol_state.local_deliver_trace,
-    NewArgs = lists:flatten([Args | [Ipv4Header, Packet, InterfacePid]]),
-    erlang:apply(Mod, Fun, NewArgs),
+    nsime_callback:apply(
+        ProtocolState#nsime_ipv4_protocol_state.local_deliver_trace,
+        [Ipv4Header, Packet, InterfacePid]
+    ),
     [Layer4ProtocolPid | _] = lists:filter(
         fun(P) ->
             nsime_layer4_protocol:protocol_number(P) ==
@@ -986,9 +1003,10 @@ handle_call({local_deliver, Packet, Ipv4Header, InterfacePid}, _From, ProtocolSt
     end;
 
 handle_call({route_input_error, Packet, Ipv4Header}, _From, ProtocolState) ->
-    {Mod, Fun, Args} = ProtocolState#nsime_ipv4_protocol_state.drop_trace,
-    NewArgs = lists:flatten([Args | [Ipv4Header, Packet, drop_route_error, self(), none]]),
-    erlang:apply(Mod, Fun, NewArgs),
+    nsime_callback:apply(
+        ProtocolState#nsime_ipv4_protocol_state.drop_trace,
+        [Ipv4Header, Packet, drop_route_error, self(), none]
+    ),
     {reply, ok, ProtocolState};
 
 handle_call(terminate, _From, ProtocolState) ->
@@ -1041,9 +1059,10 @@ build_header(SrcAddress, DestAddress, Protocol, PayloadSize, TTL, MayFragment, P
 send_real_out(Route, Packet, Ipv4Header, ProtocolState) ->
     case is_record(Route, nsime_ipv4_route) of
         false ->
-            {Mod, Fun, Args} = ProtocolState#nsime_ipv4_protocol_state.drop_trace,
-            NewArgs = lists:flatten([Args | [Ipv4Header, Packet, drop_no_route, self(), none]]),
-            erlang:apply(Mod, Fun, NewArgs),
+            nsime_callback:apply(
+                ProtocolState#nsime_ipv4_protocol_state.drop_trace,
+                [Ipv4Header, Packet, drop_no_route, self(), none]
+            ),
             {reply, ok, ProtocolState};
         true ->
             Ipv4HeaderBinary = nsime_ipv4_header:serialize(Ipv4Header),
@@ -1082,16 +1101,18 @@ send_real_out(Route, Packet, Ipv4Header, ProtocolState) ->
                                 true ->
                                     {reply, ipv4_fragmentation_not_supported, ProtocolState};
                                 false ->
-                                    {Mod, Fun, Args} = ProtocolState#nsime_ipv4_protocol_state.transmit_trace,
-                                    NewArgs = lists:flatten([Args | [NewPacket, self(), InterfacePid]]),
-                                    erlang:apply(Mod, Fun, NewArgs),
+                                    nsime_callback:apply(
+                                        ProtocolState#nsime_ipv4_protocol_state.transmit_trace,
+                                        [NewPacket, self(), InterfacePid]
+                                    ),
                                     nsime_ipv4_interface:send(InterfacePid, NewPacket, Route#nsime_ipv4_route.gateway),
                                     {reply, ok, ProtocolState}
                             end;
                         false ->
-                            {Mod, Fun, Args} = ProtocolState#nsime_ipv4_protocol_state.drop_trace,
-                            NewArgs = lists:flatten([Args | [Ipv4Header, Packet, drop_interface_down, self(), InterfacePid]]),
-                            erlang:apply(Mod, Fun, NewArgs),
+                            nsime_callback:apply(
+                                ProtocolState#nsime_ipv4_protocol_state.drop_trace,
+                                [Ipv4Header, Packet, drop_interface_down, self(), InterfacePid]
+                            ),
                             {reply, ok, ProtocolState}
                     end;
                 true ->
@@ -1104,9 +1125,10 @@ send_real_out(Route, Packet, Ipv4Header, ProtocolState) ->
                                 true ->
                                     {reply, ipv4_fragmentation_not_supported, ProtocolState};
                                 false ->
-                                    {Mod, Fun, Args} = ProtocolState#nsime_ipv4_protocol_state.transmit_trace,
-                                    NewArgs = lists:flatten([Args | [NewPacket, self(), InterfacePid]]),
-                                    erlang:apply(Mod, Fun, NewArgs),
+                                    nsime_callback:apply(
+                                        ProtocolState#nsime_ipv4_protocol_state.transmit_trace,
+                                        [NewPacket, self(), InterfacePid]
+                                    ),
                                     nsime_ipv4_interface:send(
                                         InterfacePid,
                                         NewPacket,
@@ -1115,9 +1137,10 @@ send_real_out(Route, Packet, Ipv4Header, ProtocolState) ->
                                     {reply, ok, ProtocolState}
                             end;
                         false ->
-                            {Mod, Fun, Args} = ProtocolState#nsime_ipv4_protocol_state.drop_trace,
-                            NewArgs = lists:flatten([Args | [Ipv4Header, Packet, drop_interface_down, self(), InterfacePid]]),
-                            erlang:apply(Mod, Fun, NewArgs),
+                            nsime_callback:apply(
+                                ProtocolState#nsime_ipv4_protocol_state.drop_trace,
+                                [Ipv4Header, Packet, drop_interface_down, self(), InterfacePid]
+                            ),
                             {reply, ok, ProtocolState}
                     end
             end

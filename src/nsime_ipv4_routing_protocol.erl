@@ -26,7 +26,7 @@
 -export([destroy/1, route_input/9, route_output/4,
          notify_interface_up/2, notify_interface_down/2,
          notify_add_address/3, notify_remove_address/3,
-         set_ipv4_protocol/2]).
+         set_ipv4_protocol/3]).
 
 destroy(RoutingProtocolPid) ->
     gen_server:call(RoutingProtocolPid, terminate).
@@ -92,5 +92,5 @@ notify_remove_address(RoutingProtocolPid, InterfacePid, InterfaceAddress) ->
                                          InterfaceAddress
                                         }).
 
-set_ipv4_protocol(RoutingProtocolPid, Ipv4ProtocolPid) ->
-    gen_server:call(RoutingProtocolPid, {set_ipv4_protocol, Ipv4ProtocolPid}).
+set_ipv4_protocol(RoutingProtocolPid, Ipv4ProtocolPid, InterfaceList) ->
+    gen_server:call(RoutingProtocolPid, {set_ipv4_protocol, Ipv4ProtocolPid, InterfaceList}).

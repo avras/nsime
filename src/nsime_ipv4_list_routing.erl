@@ -31,7 +31,7 @@
 
 -export([create/0, destroy/1, route_input/9, route_output/4,
          notify_interface_up/2, notify_interface_down/2, notify_add_address/3,
-         notify_remove_address/3, set_ipv4_protocol/2, add_routing_protocol/3]).
+         notify_remove_address/3, set_ipv4_protocol/3, add_routing_protocol/3]).
 
 create() ->
     {ok, Pid} = gen_server:start(?MODULE, [], []),
@@ -101,8 +101,8 @@ notify_remove_address(RoutingPid, InterfacePid, InterfaceAddress) ->
                                  InterfaceAddress
                                 }).
 
-set_ipv4_protocol(RoutingPid, Ipv4ProtocolPid) ->
-    gen_server:call(RoutingPid, {set_ipv4_protocol, Ipv4ProtocolPid}).
+set_ipv4_protocol(RoutingPid, Ipv4ProtocolPid, InterfaceList) ->
+    gen_server:call(RoutingPid, {set_ipv4_protocol, Ipv4ProtocolPid, InterfaceList}).
 
 add_routing_protocol(RoutingPid, ProtocolPid, Priority) ->
     gen_server:call(RoutingPid, {add_routing_protocol, ProtocolPid, Priority}).
@@ -299,13 +299,14 @@ handle_call({notify_remove_address, InterfacePid, InterfaceAddress}, _From, Rout
     ),
     {reply, ok, RoutingState};
 
-handle_call({set_ipv4_protocol, Ipv4ProtocolPid}, _From, RoutingState) ->
+handle_call({set_ipv4_protocol, Ipv4ProtocolPid, InterfaceList}, _From, RoutingState) ->
     RoutingProtocols = RoutingState#nsime_ipv4_list_routing_state.routing_protocols,
     lists:foreach(
         fun({_Priority, ProtocolPid}) ->
             nsime_ipv4_routing_protocol:set_ipv4_protocol(
                 ProtocolPid,
-                Ipv4ProtocolPid
+                Ipv4ProtocolPid,
+                InterfaceList
             )
         end,
         RoutingProtocols
