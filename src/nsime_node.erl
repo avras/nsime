@@ -279,7 +279,7 @@ terminate(_Reason, NodeState) ->
     ApplicationList = NodeState#nsime_node_state.applications,
     lists:foreach(
         fun(A) ->
-            nsime_netdevice:destroy(A)
+            nsime_application:destroy(A)
         end,
         ApplicationList
     ),
