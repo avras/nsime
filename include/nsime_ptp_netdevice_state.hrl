@@ -33,7 +33,7 @@
             channel                                   :: pid(),
             queue_module = nsime_drop_tail_queue      :: module(),
             queue                                     :: pid(),
-            rx_error_model                            :: module(),
+            receive_error_model                       :: pid(),
             link_up = false                           :: boolean(),
             mtu = 1500                                :: pos_integer(),
             current_packet = none                     :: none | #nsime_packet{},

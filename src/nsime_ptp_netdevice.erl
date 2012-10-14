@@ -238,7 +238,7 @@ handle_call(get_channel, _From, DeviceState) ->
     {reply, ChannelPid, DeviceState};
 
 handle_call({set_receive_error_model, ErrorModel}, _From, DeviceState) ->
-    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{rx_error_model = ErrorModel},
+    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{receive_error_model = ErrorModel},
     {reply, ok, NewDeviceState};
 
 handle_call({set_queue, QueuePid}, _From, DeviceState) ->

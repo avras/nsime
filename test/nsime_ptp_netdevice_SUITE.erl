@@ -108,7 +108,7 @@ test_set_get_components(_) ->
     QueueModule = some_queue,
     ?assertEqual(nsime_ptp_netdevice:set_queue_module(DevicePid, QueueModule), ok),
     ?assertEqual(nsime_ptp_netdevice:get_queue_module(DevicePid), QueueModule),
-    ErrorModel = some_error_model,
+    ErrorModel = list_to_pid("<0.2.3>"),
     ?assertEqual(nsime_ptp_netdevice:set_receive_error_model(DevicePid, ErrorModel), ok),
     MTU = 1000,
     ?assertEqual(nsime_ptp_netdevice:set_mtu(DevicePid, MTU), ok),
