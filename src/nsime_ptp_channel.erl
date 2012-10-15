@@ -32,8 +32,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([create/0, create/1, destroy/1,
-         get_netdevice/2, get_netdevice_count/1,
+-export([create/0, create/1, destroy/1, get_netdevice_pair/1,
          get_channel_delay/1, set_channel_delay/2,
          attach_netdevice/2, transmit/4]).
 
@@ -62,31 +61,17 @@ create(ChannelState = #nsime_ptp_channel_state{}) ->
 destroy(ChannelPid) ->
     gen_server:call(ChannelPid, terminate).
 
-get_netdevice(ChannelPid, DeviceIndex) when 
-    is_integer(DeviceIndex), 
-    DeviceIndex >= 0, 
-    DeviceIndex < 2 
-    ->
-    gen_server:call(ChannelPid, {get_netdevice, DeviceIndex});
-get_netdevice(_ChannelPid, _DeviceIndex) ->
-    erlang:error(invalid_argument).
-
 get_channel_delay(ChannelPid) ->
     gen_server:call(ChannelPid, get_channel_delay).
 
 set_channel_delay(ChannelPid, Delay) ->
     gen_server:call(ChannelPid, {set_channel_delay, Delay}).
 
-get_netdevice_count(ChannelPid) ->
-    gen_server:call(ChannelPid, get_netdevice_count).
+get_netdevice_pair(ChannelPid) ->
+    gen_server:call(ChannelPid, get_netdevice_pair).
 
 attach_netdevice(ChannelPid, DevicePid) ->
-    case get_netdevice_count(ChannelPid) of
-      2 ->
-          none;
-      _Count ->  
-          gen_server:call(ChannelPid, {attach_netdevice, DevicePid})
-    end.
+    gen_server:call(ChannelPid, {attach_netdevice, DevicePid}).
 
 transmit(
     ChannelPid, 
@@ -103,21 +88,6 @@ init([]) ->
 init(ChannelState) ->
     {ok, ChannelState}.
 
-handle_call({get_netdevice, DeviceIndex}, _From, ChannelState) ->
-    Devices = ChannelState#nsime_ptp_channel_state.devices,
-    case DeviceIndex of
-        0 ->
-            {DevicePid, _OtherDevicePid} = Devices;
-        1 ->
-            {_OtherDevicePid, DevicePid} = Devices
-    end,
-    case DevicePid of
-        none ->
-            {reply, none, ChannelState}; 
-        _Pid ->
-            {reply, DevicePid, ChannelState}
-    end;
-
 handle_call(get_channel_delay, _From, ChannelState) ->
         {reply, ChannelState#nsime_ptp_channel_state.delay, ChannelState};
 
@@ -125,23 +95,23 @@ handle_call({set_channel_delay, Delay}, _From, ChannelState) ->
             NewChannelState = ChannelState#nsime_ptp_channel_state{delay = Delay},
             {reply, ok, NewChannelState};
 
-handle_call(get_netdevice_count, _From, ChannelState) ->
-    Devices = ChannelState#nsime_ptp_channel_state.devices,
-    DeviceCount = case Devices of
-        {none, none} -> 0;
-        {_DevicePid, none} -> 1;
-        {_DevicePid1, _DevicePid2} -> 2
-    end,
-    {reply, DeviceCount, ChannelState};
+handle_call(get_netdevice_pair, _From, ChannelState) ->
+    {reply, ChannelState#nsime_ptp_channel_state.devices, ChannelState};
 
 handle_call({attach_netdevice, DevicePid}, _From, ChannelState) ->
-    Devices = ChannelState#nsime_ptp_channel_state.devices,
-    NewDevices = case Devices of
-        {none, none} -> {DevicePid, none};
-        {FirstDevicePid, none} -> {FirstDevicePid, DevicePid}
+    {Device1, Device2} = ChannelState#nsime_ptp_channel_state.devices,
+    NewDevices = case {is_pid(Device1), is_pid(Device2)} of
+        {false, false} -> {DevicePid, none};
+        {true, false} -> {Device1, DevicePid};
+        {true, true} -> none
     end,
-    NewChannelState = ChannelState#nsime_ptp_channel_state{devices = NewDevices},
-    {reply, ok, NewChannelState};
+    case NewDevices of
+        none ->
+            {reply, none, ChannelState};
+        _ ->
+            NewChannelState = ChannelState#nsime_ptp_channel_state{devices = NewDevices},
+            {reply, ok, NewChannelState}
+    end;
 
 handle_call({transmit, Packet, SourceDevicePid, TxTime}, _From, ChannelState) ->
     Devices = ChannelState#nsime_ptp_channel_state.devices,
