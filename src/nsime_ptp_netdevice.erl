@@ -175,8 +175,8 @@ transmit_complete(DevicePid) ->
 send(DevicePid, Packet, Address, ProtocolNumber) ->
     gen_server:call(DevicePid, {send, Packet, Address, ProtocolNumber}).
 
-receive_packet(_DevicePid, _Packet = #nsime_packet{}) ->
-    ok.
+receive_packet(DevicePid, Packet) ->
+    gen_server:call(DevicePid, {receive_packet, Packet}).
 
 init([]) ->
     Queue = nsime_droptail_queue:create(),
@@ -374,6 +374,44 @@ handle_call({send, PacketWithoutHeader, _Address, ProtocolNumber}, _From, Device
             {reply, true, DeviceState};
         {_, false} ->
             {reply, false, DeviceState}
+    end;
+
+handle_call({receive_packet, Packet}, _From, DeviceState) ->
+    ReceiveErrorModel = DeviceState#nsime_ptp_netdevice_state.receive_error_model,
+    case is_pid(ReceiveErrorModel) of
+        true ->
+            erlang:error(nsime_situation_not_implemented);
+        false ->
+            nsime_callback:apply(DeviceState#nsime_ptp_netdevice_state.sniffer_trace, [Packet]),
+            nsime_callback:apply(DeviceState#nsime_ptp_netdevice_state.promisc_sniffer_trace, [Packet]),
+            nsime_callback:apply(DeviceState#nsime_ptp_netdevice_state.phy_rx_end_trace, [Packet]),
+            {ProtocolNumber, NewPacket} = process_ppp_header(Packet),
+            SelfPid = self(),
+            RemoteDevice =
+            case nsime_ptp_channel:get_netdevice_pair(DeviceState#nsime_ptp_netdevice_state.channel) of
+                {SelfPid, OtherDevice} ->
+                    OtherDevice;
+                {OtherDevice, SelfPid} ->
+                    OtherDevice
+            end,
+            FromAddress = nsime_ptp_netdevice:get_address(RemoteDevice),
+            ToAddress = DeviceState#nsime_ptp_netdevice_state.address,
+            case DeviceState#nsime_ptp_netdevice_state.promisc_receive_callback == {none, none, none} of
+                false ->
+                    nsime_callback:apply(DeviceState#nsime_ptp_netdevice_state.mac_promisc_rx_trace, [NewPacket]),
+                    nsime_callback:apply(
+                        DeviceState#nsime_ptp_netdevice_state.promisc_receive_callback,
+                        [self(), NewPacket, ProtocolNumber, FromAddress, ToAddress, packet_host]
+                    );
+                true ->
+                    ok
+            end,
+            nsime_callback:apply(DeviceState#nsime_ptp_netdevice_state.mac_rx_trace, [NewPacket]),
+            nsime_callback:apply(
+                DeviceState#nsime_ptp_netdevice_state.receive_callback,
+                [self(), NewPacket, ProtocolNumber, FromAddress, ToAddress]
+            ),
+            {reply, ok, DeviceState}
     end;
 
 handle_call(transmit_complete, _From, DeviceState) ->
