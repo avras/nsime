@@ -34,7 +34,7 @@
          add_netdevice/2, get_netdevices/1, add_application/2, get_applications/1,
          register_protocol_handler/5, unregister_protocol_handler/2,
          receive_from_device/8, promisc_receive_from_device/7,
-         nonpromisc_receive_from_device/5]).
+         nonpromisc_receive_from_device/6]).
 
 create() ->
     {ok, Pid} = gen_server:start(?MODULE, [], []),
@@ -103,8 +103,7 @@ receive_from_device(NodePid, DevicePid, Packet, Protocol, FromAddress, ToAddress
 promisc_receive_from_device(NodePid, DevicePid, Packet, Protocol, FromAddress, ToAddress, PacketType) ->
     receive_from_device(NodePid, DevicePid, Packet, Protocol, FromAddress, ToAddress, PacketType, true).
 
-nonpromisc_receive_from_device(NodePid, DevicePid, Packet, Protocol, FromAddress) ->
-    ToAddress = nsime_netdevice:get_address(DevicePid),
+nonpromisc_receive_from_device(NodePid, DevicePid, Packet, Protocol, FromAddress, ToAddress) ->
     receive_from_device(NodePid, DevicePid, Packet, Protocol, FromAddress, ToAddress, undefined, false).
 
 init([]) ->
@@ -113,7 +112,13 @@ init([]) ->
 
 handle_call({add_object, ObjectName, ObjectPid}, _From, NodeState) ->
     ObjectList = NodeState#nsime_node_state.objects,
-    NewObjectList = [{ObjectName, ObjectPid} | ObjectList],
+    NewObjectList =
+    case is_pid(proplists:get_value(ObjectName, ObjectList)) of
+        true ->
+            [{ObjectName, ObjectPid} | proplists:delete(ObjectName, ObjectList)];
+        false ->
+            [{ObjectName, ObjectPid} | ObjectList]
+    end,
     NewNodeState = NodeState#nsime_node_state{objects = NewObjectList},
     {reply, ok, NewNodeState};
 
@@ -228,13 +233,13 @@ handle_call({receive_from_device,
         fun(P, Match) ->
             HandlerDevice = P#nsime_protocol_handler_record.device,
             case
-                (is_pid(HandlerDevice) == false) bor
+                (is_pid(HandlerDevice) == false) or
                 (HandlerDevice == DevicePid)
             of
                 true ->
                     HandlerProtocol = P#nsime_protocol_handler_record.protocol,
                     case
-                        (HandlerProtocol == 0) bor
+                        (HandlerProtocol == 0) or
                         (HandlerProtocol == Protocol)
                     of
                         true ->
