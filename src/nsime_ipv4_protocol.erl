@@ -316,14 +316,14 @@ handle_call({recv, DevicePid, Packet, _Protocol, _FromAddress, _ToAddress, _Pack
                     Ipv4Header
             end,
             NewPacket = Packet#nsime_packet{data = <<Data:DataSizeBits>>},
-            case nsime_ipv4_header:is_checksum_ok(NewIpv4Header) of
-                false ->
+            case nsime_config:checksum_enabled() and not(nsime_ipv4_header:is_checksum_ok(NewIpv4Header)) of
+                true ->
                     nsime_callback:apply(
                         ProtocolState#nsime_ipv4_protocol_state.drop_trace,
                         [NewIpv4Header, NewPacket, drop_bad_checksum, self(), InterfacePid]
                     ),
                     {reply, ok, ProtocolState};
-                true ->
+                false ->
                     RoutingProtocolPid = ProtocolState#nsime_ipv4_protocol_state.routing_protocol,
                     InterfaceList = ProtocolState#nsime_ipv4_protocol_state.interfaces,
                     case
