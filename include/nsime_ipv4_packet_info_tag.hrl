@@ -24,6 +24,6 @@
         {
           local_address               :: inet:ip4_address(),
           destination_address         :: inet:ip4_address(),
-          interface_index = 0         :: non_neg_integer(),
+          interface                   :: pid(),
           ttl = 0                     :: non_neg_integer()
         }).

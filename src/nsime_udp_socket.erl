@@ -24,6 +24,7 @@
 -author("Saravanan Vijayakumaran").
 
 -include("nsime_types.hrl").
+-include("nsime_event.hrl").
 -include("nsime_packet.hrl").
 -include("nsime_ipv4_header.hrl").
 -include("nsime_ipv4_route.hrl").
@@ -38,7 +39,7 @@
          set_udp_protocol/2, get_socket_error/1, get_socket_type/1,
          bind/1, bind/2, close/1, shutdown_send/1, shutdown_receive/1,
          connect/2, listen/1, get_transmit_available/0, get_transmit_available/1,
-         send/3, send_to/4, get_received_available/1, recv/3, recv_from/3,
+         send/3, send_to/4, get_received_available/1, recv/3, recv_from/1, recv_from/3,
          multicast_join_group/3, multicast_leave_group/3, bind_to_netdevice/2,
          get_receive_buffer_size/1, set_receive_buffer_size/2,
          set_allow_broadcast/2, get_allow_broadcast/1, set_drop_trace_callback/2,
@@ -105,6 +106,9 @@ get_received_available(SocketPid) ->
 
 recv(SocketPid, MaxSize, Flags) ->
     gen_server:call(SocketPid, {recv, MaxSize, Flags}).
+
+recv_from(SocketPid) ->
+    recv_from(SocketPid, infinity, 0).
 
 recv_from(SocketPid, MaxSize, Flags) ->
     case recv(SocketPid, MaxSize, Flags) of
@@ -305,7 +309,7 @@ handle_call({recv, MaxSize, _Flags}, _From, SocketState) ->
             NewSocketState = SocketState#nsime_udp_socket_state{
                 socket_error = error_again
             },
-            {reply, error_again, NewSocketState};
+            {reply, none, NewSocketState};
         false ->
             {value, Packet} = queue:peek(DeliveryQueue),
             case Packet#nsime_packet.size =< MaxSize of
@@ -388,10 +392,7 @@ handle_call({forward_up, Packet, Ipv4Header, Port, Interface}, _From, SocketStat
                 true ->
                     Tags1 = Packet#nsime_packet.tags,
                     PacketInfoTag = #nsime_ipv4_packet_info_tag{
-                        interface_index =
-                            nsime_netdevice:get_interface_index(
-                                nsime_ipv4_interface:get_device(Interface)
-                            )
+                        interface = Interface
                     },
                     NewTags1 = [
                         {ipv4_packet_info_tag, PacketInfoTag} |
@@ -420,6 +421,14 @@ handle_call({forward_up, Packet, Ipv4Header, Port, Interface}, _From, SocketStat
                         delivery_queue = NewDeliveryQueue,
                         received_available = ReceivedAvailable + NewerPacket#nsime_packet.size
                     },
+                    {Module, Function, Arguments} = SocketState#nsime_udp_socket_state.receive_callback,
+                    Event = #nsime_event{
+                        module = Module,
+                        function = Function,
+                        arguments = Arguments,
+                        eventid = make_ref()
+                    },
+                    nsime_simulator:schedule_now(Event),
                     {reply, ok, NewSocketState};
                 false ->
                     {Module, Function, Arguments} = SocketState#nsime_udp_socket_state.drop_trace_callback,
