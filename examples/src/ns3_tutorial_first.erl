@@ -23,9 +23,9 @@
 -module(ns3_tutorial_first).
 -author("Saravanan Vijayakumaran").
 
--export([run/0]).
+-export([start/0]).
 
-run() ->
+start() ->
     nsime_simulator:start(),
     NodePidList = nsime_node:create(2),
     [Node1, Node2] = NodePidList,
@@ -54,7 +54,7 @@ run() ->
     nsime_udp_echo_client:set_remote(UdpEchoClientPid, RemoteAddress, 9),
     nsime_udp_echo_client:set_max_packets(UdpEchoClientPid, 1),
     nsime_udp_echo_client:set_inter_packet_gap(UdpEchoClientPid, {1, sec}),
-    nsime_udp_echo_client:set_data_size(UdpEchoClientPid, 100),
+    nsime_udp_echo_client:set_data_size(UdpEchoClientPid, 1024),
     nsime_node:add_application(Node1, UdpEchoClientPid),
     nsime_udp_echo_client:schedule_start(UdpEchoClientPid, {2, sec}),
 
