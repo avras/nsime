@@ -23,7 +23,7 @@
 -module(nsime_ipv4_routing_protocol).
 -author("Saravanan Vijayakumaran").
 
--export([destroy/1, route_input/9, route_output/4,
+-export([destroy/1, route_input/10, route_input/11, route_output/4,
          notify_interface_up/2, notify_interface_down/2,
          notify_add_address/3, notify_remove_address/3,
          set_ipv4_protocol/3]).
@@ -36,22 +36,26 @@ route_input(
     Packet,
     Ipv4Header,
     IngressNetdevice,
+    InterfacePid,
     UnicastForwardCallback,
     MulticastForwardCallback,
     LocalDeliverCallback,
     ErrorCallback,
-    InterfaceList
+    InterfaceList,
+    WeakEsModel
 ) ->
     case
     gen_server:call(RoutingProtocolPid, {route_input,
                                          Packet,
                                          Ipv4Header,
                                          IngressNetdevice,
+                                         InterfacePid,
                                          UnicastForwardCallback,
                                          MulticastForwardCallback,
                                          LocalDeliverCallback,
                                          ErrorCallback,
-                                         InterfaceList
+                                         InterfaceList,
+                                         WeakEsModel
                                         })
     of
         options_not_supported ->
@@ -61,6 +65,32 @@ route_input(
         true ->
             true
     end.
+
+route_input(
+    RoutingPid,
+    Packet,
+    Ipv4Header,
+    IngressNetdevice,
+    InterfacePid,
+    UnicastForwardCallback,
+    MulticastForwardCallback,
+    LocalDeliverCallback,
+    ErrorCallback,
+    InterfaceList
+) ->
+    route_input(
+        RoutingPid,
+        Packet,
+        Ipv4Header,
+        IngressNetdevice,
+        InterfacePid,
+        UnicastForwardCallback,
+        MulticastForwardCallback,
+        LocalDeliverCallback,
+        ErrorCallback,
+        InterfaceList,
+        true
+    ).
 
 route_output(
     RoutingProtocolPid,

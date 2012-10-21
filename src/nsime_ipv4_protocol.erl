@@ -332,6 +332,7 @@ handle_call({recv, DevicePid, Packet, _Protocol, _FromAddress, _ToAddress, _Pack
                         NewPacket,
                         NewIpv4Header,
                         DevicePid,
+                        InterfacePid,
                         {?MODULE, ip_forward, [self()]},
                         none,
                         {?MODULE, local_deliver, [self()]},
@@ -938,13 +939,13 @@ handle_call({local_deliver, Packet, Ipv4Header, InterfacePid}, _From, ProtocolSt
         ProtocolState#nsime_ipv4_protocol_state.local_deliver_trace,
         [Ipv4Header, Packet, InterfacePid]
     ),
-    [Layer4ProtocolPid | _] = lists:filter(
+    Layer4ProtocolPid = hd(lists:filter(
         fun(P) ->
             nsime_layer4_protocol:protocol_number(P) ==
             nsime_ipv4_header:get_protocol(Ipv4Header)
         end,
         ProtocolState#nsime_ipv4_protocol_state.layer4_protocols
-    ),
+    )),
     case is_pid(Layer4ProtocolPid) of
         true ->
             RxStatus = nsime_layer4_protocol:recv(Layer4ProtocolPid, Packet, Ipv4Header, InterfacePid),
@@ -985,14 +986,19 @@ handle_call({local_deliver, Packet, Ipv4Header, InterfacePid}, _From, ProtocolSt
                             ),
                             case SubnetDirected of
                                 false ->
-                                    [IcmpPid | _] = lists:filter(
+                                    IcmpPidList = lists:filter(
                                         fun(P) ->
                                             nsime_layer4_protocol:protocol_number(P) == nsime_icmpv4_protocol:protocol_number()
                                         end,
                                         ProtocolState#nsime_ipv4_protocol_state.layer4_protocols
                                     ),
-                                    nsime_icmpv4_protocol:send_dest_unreach_port(IcmpPid, Ipv4Header, Packet),
-                                    {reply, ok, ProtocolState};
+                                    case IcmpPidList of
+                                        [] ->
+                                            {reply, ok, ProtocolState};
+                                        [IcmpPid | _] ->
+                                            nsime_icmpv4_protocol:send_dest_unreach_port(IcmpPid, Ipv4Header, Packet),
+                                            {reply, ok, ProtocolState}
+                                    end;
                                 true ->
                                     {reply, ok, ProtocolState}
                             end

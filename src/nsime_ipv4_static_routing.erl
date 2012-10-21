@@ -33,7 +33,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([create/0, destroy/1, route_input/9, route_output/4,
+-export([create/0, destroy/1, route_input/10, route_input/11, route_output/4,
          notify_interface_up/2, notify_interface_down/2, notify_add_address/3,
          notify_remove_address/3, set_ipv4_protocol/3, add_network_route/5,
          add_network_route/6, add_host_route/4, add_host_route/5,
@@ -51,22 +51,26 @@ route_input(
     Packet,
     Ipv4Header,
     IngressNetdevice,
+    InterfacePid,
     UnicastForwardCallback,
     MulticastForwardCallback,
     LocalDeliverCallback,
     ErrorCallback,
-    InterfaceList
+    InterfaceList,
+    WeakEsModel
 ) ->
     case
     gen_server:call(RoutingPid, {route_input,
                                  Packet,
                                  Ipv4Header,
                                  IngressNetdevice,
+                                 InterfacePid,
                                  UnicastForwardCallback,
                                  MulticastForwardCallback,
                                  LocalDeliverCallback,
                                  ErrorCallback,
-                                 InterfaceList
+                                 InterfaceList,
+                                 WeakEsModel
                                 })
     of
         options_not_supported ->
@@ -76,6 +80,32 @@ route_input(
         true ->
             true
     end.
+
+route_input(
+    RoutingPid,
+    Packet,
+    Ipv4Header,
+    IngressNetdevice,
+    InterfacePid,
+    UnicastForwardCallback,
+    MulticastForwardCallback,
+    LocalDeliverCallback,
+    ErrorCallback,
+    InterfaceList
+) ->
+    route_input(
+        RoutingPid,
+        Packet,
+        Ipv4Header,
+        IngressNetdevice,
+        InterfacePid,
+        UnicastForwardCallback,
+        MulticastForwardCallback,
+        LocalDeliverCallback,
+        ErrorCallback,
+        InterfaceList,
+        true
+    ).
 
 route_output(
     RoutingPid,
@@ -187,17 +217,18 @@ handle_call(
         route_input,
         Packet,
         Ipv4Header,
-        IngressNetdevice,
+        _IngressNetdevice,
+        InterfacePid,
         UnicastForwardCallback,
         _MulticastForwardCallback,
         LocalDeliverCallback,
         ErrorCallback,
-        InterfaceList
+        InterfaceList,
+        _WeakEsModel
     },
     _From,
     RoutingState
 ) ->
-    InterfacePid = nsime_netdevice:get_interface(IngressNetdevice),
     DestinationAddress = nsime_ipv4_header:get_destination_address(Ipv4Header),
     case
         nsime_ipv4_address:is_multicast(DestinationAddress) or

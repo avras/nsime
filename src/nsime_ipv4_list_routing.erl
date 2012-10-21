@@ -23,13 +23,15 @@
 -module(nsime_ipv4_list_routing).
 -author("Saravanan Vijayakumaran").
 
+-include("nsime_types.hrl").
+-include("nsime_event.hrl").
 -include("nsime_ipv4_list_routing_state.hrl").
 
 -behaviour(gen_server).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([create/0, destroy/1, route_input/9, route_output/4,
+-export([create/0, destroy/1, route_input/10, route_input/11, route_output/4,
          notify_interface_up/2, notify_interface_down/2, notify_add_address/3,
          notify_remove_address/3, set_ipv4_protocol/3, add_routing_protocol/3]).
 
@@ -45,22 +47,26 @@ route_input(
     Packet,
     Ipv4Header,
     IngressNetdevice,
+    InterfacePid,
     UnicastForwardCallback,
     MulticastForwardCallback,
     LocalDeliverCallback,
     ErrorCallback,
-    InterfaceList
+    InterfaceList,
+    WeakEsModel
 ) ->
     case
         gen_server:call(RoutingPid, {route_input,
                                      Packet,
                                      Ipv4Header,
                                      IngressNetdevice,
+                                     InterfacePid,
                                      UnicastForwardCallback,
                                      MulticastForwardCallback,
                                      LocalDeliverCallback,
                                      ErrorCallback,
-                                     InterfaceList
+                                     InterfaceList,
+                                     WeakEsModel
                                     })
     of
         options_not_supported ->
@@ -70,6 +76,32 @@ route_input(
         false ->
             false
     end.
+
+route_input(
+    RoutingPid,
+    Packet,
+    Ipv4Header,
+    IngressNetdevice,
+    InterfacePid,
+    UnicastForwardCallback,
+    MulticastForwardCallback,
+    LocalDeliverCallback,
+    ErrorCallback,
+    InterfaceList
+) ->
+    route_input(
+        RoutingPid,
+        Packet,
+        Ipv4Header,
+        IngressNetdevice,
+        InterfacePid,
+        UnicastForwardCallback,
+        MulticastForwardCallback,
+        LocalDeliverCallback,
+        ErrorCallback,
+        InterfaceList,
+        true
+    ).
 
 route_output(
     RoutingPid,
@@ -117,30 +149,37 @@ handle_call(
         Packet,
         Ipv4Header,
         IngressNetdevice,
+        InterfacePid,
         UnicastForwardCallback,
         MulticastForwardCallback,
         LocalDeliverCallback,
         ErrorCallback,
-        InterfaceList
+        InterfaceList,
+        WeakEsModel
     },
     _From,
     RoutingState
 ) ->
-    Ipv4ProtocolPid = RoutingState#nsime_ipv4_list_routing_state.ipv4_protocol,
     RoutingProtocols = RoutingState#nsime_ipv4_list_routing_state.routing_protocols,
-    InterfacePid = nsime_netdevice:get_interface(IngressNetdevice),
     DestinationAddress = nsime_ipv4_header:get_destination_address(Ipv4Header),
     case
-        nsime_ipv4_protocol:is_destination_address(
-            Ipv4ProtocolPid,
+        is_destination_address(
             DestinationAddress,
-            InterfacePid
+            InterfacePid,
+            InterfaceList,
+            WeakEsModel
         )
     of
         true ->
             {Mod, Fun, Args} = LocalDeliverCallback,
             NewArgs = lists:flatten([Args, [Packet, Ipv4Header, InterfacePid]]),
-            erlang:apply(Mod, Fun, NewArgs),
+            Event = #nsime_event{
+                module = Mod,
+                function = Fun,
+                arguments = NewArgs,
+                eventid = make_ref()
+            },
+            nsime_simulator:schedule_now(Event),
             case nsime_ipv4_address:is_multicast(DestinationAddress) of
                 false ->
                     {reply, true, RoutingState};
@@ -164,11 +203,13 @@ handle_call(
                                                 Packet,
                                                 Ipv4Header,
                                                 IngressNetdevice,
+                                                InterfacePid,
                                                 UnicastForwardCallback,
                                                 MulticastForwardCallback,
                                                 undefined,
                                                 ErrorCallback,
-                                                InterfaceList
+                                                InterfaceList,
+                                                WeakEsModel
                                             )
                                     end
                                 end,
@@ -198,11 +239,13 @@ handle_call(
                                         Packet,
                                         Ipv4Header,
                                         IngressNetdevice,
+                                        InterfacePid,
                                         UnicastForwardCallback,
                                         MulticastForwardCallback,
                                         LocalDeliverCallback,
                                         ErrorCallback,
-                                        InterfaceList
+                                        InterfaceList,
+                                        WeakEsModel
                                     )
                             end
                         end,
@@ -350,3 +393,73 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVersion, RoutingState, _Extra) ->
     {ok, RoutingState}.
+
+%% Helper methods %%
+
+is_destination_address(Ipv4Address, InterfacePid, InterfaceList, WeakEsModel) ->
+    InterfaceAddressList = nsime_ipv4_interface:get_address_list(InterfacePid),
+    IsMatch = lists:foldl(
+        fun(A, Result) ->
+            case Result of
+                true ->
+                    true;
+                false ->
+                    (nsime_ipv4_interface_address:get_local_address(A) == Ipv4Address)
+                    or
+                    (nsime_ipv4_interface_address:get_broadcast_address(A) == Ipv4Address)
+            end
+        end,
+        false,
+        InterfaceAddressList
+    ),
+    case IsMatch of
+        true ->
+            true;
+        false ->
+            case
+                nsime_ipv4_address:is_multicast(Ipv4Address) or
+                nsime_ipv4_address:is_broadcast(Ipv4Address)
+            of
+                true ->
+                    true;
+                false ->
+                    case WeakEsModel of
+                        false ->
+                            false;
+                        true ->
+                            OtherInterfaces = lists:filter(
+                                fun(I) ->
+                                    I =/= InterfacePid
+                                end,
+                                InterfaceList
+                            ),
+                            IsMatch2 = lists:foldl(
+                                fun(I, Match) ->
+                                    case Match of
+                                        true ->
+                                            true;
+                                        false ->
+                                            InterAddrList = nsime_ipv4_interface:get_address_list(I),
+                                            lists:foldl(
+                                                fun(A, Result) ->
+                                                    case Result of
+                                                        true ->
+                                                            true;
+                                                        false ->
+                                                            (nsime_ipv4_interface_address:get_local_address(A) == Ipv4Address)
+                                                            or
+                                                            (nsime_ipv4_interface_address:get_broadcast_address(A) == Ipv4Address)
+                                                    end
+                                                end,
+                                                false,
+                                                InterAddrList
+                                            )
+                                    end
+                                end,
+                                false,
+                                OtherInterfaces
+                            ),
+                            IsMatch2
+                    end
+            end
+    end.
