@@ -187,8 +187,18 @@ handle_call(
             DestinationDevice = nsime_ipv4_interface:get_device(IncomingInterface),
             RelevantEndpoints = lists:filter(
                 fun(X) ->
-                    (nsime_ip_endpoint:get_local_port(X) == DestPort) and
-                    (nsime_ip_endpoint:get_bound_netdevice(X) == DestinationDevice)
+                    case nsime_ip_endpoint:get_local_port(X) == DestPort of
+                        false ->
+                            false;
+                        true ->
+                            BoundNetdevice = nsime_ip_endpoint:get_bound_netdevice(X),
+                            case is_pid(BoundNetdevice) of
+                                false ->
+                                    true;
+                                true ->
+                                    BoundNetdevice == DestinationDevice
+                            end
+                    end
                 end,
                 Endpoints
             ),
