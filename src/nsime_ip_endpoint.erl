@@ -91,10 +91,7 @@ set_destroy_callback(EndpointPid, Callback) ->
     gen_server:call(EndpointPid, {set_destroy_callback, Callback}).
 
 forward_up(EndpointPid, Packet, Header, Port, Interface) ->
-    gen_server:call(
-        EndpointPid, 
-        {forward_up, Packet, Header, Port, Interface}
-    ).
+    gen_server:call(EndpointPid, {forward_up, Packet, Header, Port, Interface}).
 
 forward_icmp(EndpointPid, Source, TTL, Type, Code, Info) ->
     gen_server:call(
@@ -112,7 +109,9 @@ init(EndpointState = #nsime_ip_endpoint_state{}) ->
 init({Address, Port}) ->
     EndpointState = #nsime_ip_endpoint_state{
         local_address = Address,
-        local_port = Port
+        local_port = Port,
+        peer_address = nsime_ipv4_address:get_any(),
+        peer_port = 0
     },
     {ok, EndpointState}.
 
@@ -176,8 +175,7 @@ handle_call({set_destroy_callback, Callback}, _From, EndpointState) ->
     {reply, ok, NewEndpointState};
 
 handle_call({forward_up, Packet, Header, Port, Interface}, _From, EndpointState) ->
-    {Module, Function, Arguments} 
-        = EndpointState#nsime_ip_endpoint_state.receive_callback,
+    {Module, Function, Arguments} = EndpointState#nsime_ip_endpoint_state.receive_callback,
     Event = #nsime_event{
         module = Module,
         function = Function,
