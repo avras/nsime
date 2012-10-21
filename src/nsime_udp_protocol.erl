@@ -281,7 +281,7 @@ handle_call({recv, Packet, Ipv4Header, Interface}, _From, ProtocolState) ->
                         end,
                         MatchingEndpoints
                     ),
-                    {reply, ok, ProtocolState}
+                    {reply, rx_ok, ProtocolState}
             end
     end;
 

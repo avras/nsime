@@ -96,14 +96,15 @@ send(ClientPid) ->
     gen_server:call(ClientPid, send).
 
 handle_read(SocketPid) ->
-    case nsime_udp_socket:receive_from(SocketPid) of
-        {#nsime_packet{size = Size}, Address} -> 
+    case nsime_udp_socket:recv_from(SocketPid) of
+        {#nsime_packet{size = Size}, {Address, Port}} ->
             CurrentTime = nsime_simulator:current_time(),
-            io:format("At time ~p client received ~p bytes from ~p",
-                [CurrentTime, Size, inet_parse:ntoa(Address)] 
+            io:format("At time ~p client received ~p bytes from " ++
+                inet_parse:ntoa(Address) ++ " port ~p~n",
+                [CurrentTime, Size, Port]
             ),
             handle_read(SocketPid);
-        {none, _} ->
+        none ->
             ok
     end.
 
@@ -190,13 +191,13 @@ handle_call(start, _From, ClientState) ->
             Address = ClientState#nsime_udp_echo_client_state.peer_address,
             Port = ClientState#nsime_udp_echo_client_state.peer_port,
             nsime_udp_socket:connect(NewSocket, {Address, Port}),
-            nsime_udp_socket:set_receive_callback(NewSocket, {?MODULE, handle_read, [NewSocket]}),
+            nsime_udp_socket:set_receive_callback(NewSocket, {nsime_udp_echo_client, handle_read, [NewSocket]}),
             NewClientState = ClientState#nsime_udp_echo_client_state{
                 socket = NewSocket,
                 send_event = SendEvent
             };
         _ ->
-            nsime_udp_socket:set_receive_callback(SocketPid, {?MODULE, handle_read, [SocketPid]}),
+            nsime_udp_socket:set_receive_callback(SocketPid, {nsime_udp_echo_client, handle_read, [SocketPid]}),
             NewClientState = ClientState#nsime_udp_echo_client_state{
                 send_event = SendEvent
             }

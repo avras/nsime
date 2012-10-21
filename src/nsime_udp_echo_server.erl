@@ -69,18 +69,21 @@ stop(ServerPid) ->
     gen_server:call(ServerPid, stop).
 
 handle_read(SocketPid) ->
-    case nsime_udp_socket:receive_from(SocketPid) of
-        {Packet = #nsime_packet{size = Size}, Address} ->
+    case nsime_udp_socket:recv_from(SocketPid) of
+        {Packet = #nsime_packet{size = Size}, {Address, Port}} ->
             CurrentTime = nsime_simulator:current_time(),
-            io:format("At time ~p server received ~p bytes from ~p",
-                [CurrentTime, Size, inet_parse:ntoa(Address)]
+            io:format(
+                "At time ~p server received ~p bytes from " ++
+                inet_parse:ntoa(Address) ++ " port ~p~n",
+                [CurrentTime, Size, Port]
             ),
-            nsime_udp_socket:send_to(Packet, infinity, Address),
-            io:format("At time ~p server received ~p bytes from ~p",
-                [CurrentTime, Size, inet_parse:ntoa(Address)]
+            nsime_udp_socket:send_to(SocketPid, Packet, 0, {Address, Port}),
+            io:format(
+                "At time ~p server sent ~p bytes to " ++ inet_parse:ntoa(Address) ++ " port ~p~n",
+                [CurrentTime, Size, Port]
             ),
             handle_read(SocketPid);
-        {none, _} ->
+        none ->
             ok
     end.
 
@@ -131,13 +134,13 @@ handle_call(start, _From, ServerState) ->
             UdpProtocolPid = nsime_node:get_object(NodePid, nsime_udp_protocol),
             NewSocket = nsime_udp_protocol:create_socket(UdpProtocolPid),
             nsime_udp_socket:bind(NewSocket, {nsime_ipv4_address:get_any(), Port}),
-            nsime_udp_socket:set_receive_callback(NewSocket, {?MODULE, handle_read, [NewSocket]}),
+            nsime_udp_socket:set_receive_callback(NewSocket, {nsime_udp_echo_server, handle_read, [NewSocket]}),
             NewServerState = ServerState#nsime_udp_echo_server_state{
                 socket = NewSocket
             },
             {reply, ok, NewServerState};
         _ ->
-            nsime_udp_socket:set_receive_callback(SocketPid, {?MODULE, handle_read, [SocketPid]}),
+            nsime_udp_socket:set_receive_callback(SocketPid, {nsime_udp_echo_server, handle_read, [SocketPid]}),
             {reply, ok, ServerState}
     end;
 
