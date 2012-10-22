@@ -120,7 +120,6 @@ test_send(_) ->
 
     nsime_simulator:start(),
     ?assertEqual(nsime_netdevice:send(DevicePid1, Packet, address, 16#86DD), true),
-    ?assertEqual(nsime_simulator:run(), simulation_complete),
 
     ?assertEqual(nsime_simulator:stop(), simulation_complete),
     ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid1), stopped),
