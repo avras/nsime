@@ -715,7 +715,8 @@ test_send(_) ->
 
     RoutingPid = nsime_ipv4_static_routing:create(),
     ?assertEqual(nsime_ipv4_protocol:set_routing_protocol(ProtocolPid, RoutingPid), ok),
-    ?assertEqual(nsime_ipv4_static_routing:set_ipv4_protocol(RoutingPid, ProtocolPid), ok),
+    InterfaceList = nsime_ipv4_protocol:get_interface_list(ProtocolPid),
+    ?assertEqual(nsime_ipv4_static_routing:set_ipv4_protocol(RoutingPid, ProtocolPid, InterfaceList), ok),
 
     Ref1 = make_ref(),
     DropCallback = {

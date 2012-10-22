@@ -59,7 +59,8 @@ test_creation_shutdown(_) ->
     ?assert(is_pid(ListRoutingPid)),
     ?assertEqual(nsime_ipv4_list_routing:add_routing_protocol(ListRoutingPid, StaticRoutingPid, 0), ok),
     Ipv4ProtocolPid = nsime_ipv4_protocol:create(),
-    ?assertEqual(nsime_ipv4_list_routing:set_ipv4_protocol(ListRoutingPid, Ipv4ProtocolPid), ok),
+    InterfaceList = nsime_ipv4_protocol:get_interface_list(Ipv4ProtocolPid),
+    ?assertEqual(nsime_ipv4_list_routing:set_ipv4_protocol(ListRoutingPid, Ipv4ProtocolPid, InterfaceList), ok),
     ?assertEqual(nsime_ipv4_protocol:destroy(Ipv4ProtocolPid), stopped).
 
 test_add_routes(_) ->
@@ -349,7 +350,8 @@ test_route_input(_) ->
     ?assert(is_pid(ListRoutingPid)),
     ?assertEqual(nsime_ipv4_list_routing:add_routing_protocol(ListRoutingPid, StaticRoutingPid, 0), ok),
     Ipv4ProtocolPid = nsime_ipv4_protocol:create(),
-    ?assertEqual(nsime_ipv4_list_routing:set_ipv4_protocol(ListRoutingPid, Ipv4ProtocolPid), ok),
+    InterfaceList = nsime_ipv4_protocol:get_interface_list(Ipv4ProtocolPid),
+    ?assertEqual(nsime_ipv4_list_routing:set_ipv4_protocol(ListRoutingPid, Ipv4ProtocolPid, InterfaceList), ok),
     InterfacePid1 = nsime_ipv4_interface:create(),
     DevicePid = nsime_ptp_netdevice:create(),
     ?assert(is_pid(DevicePid)),
@@ -372,12 +374,14 @@ test_route_input(_) ->
         local_deliver_tester,
         [self(), Ref2]
     },
+    nsime_simulator:start(),
     ?assertEqual(
         nsime_ipv4_list_routing:route_input(
             ListRoutingPid,
             Packet,
             Ipv4Header1,
             DevicePid,
+            InterfacePid1,
             junk,
             junk,
             LocalDeliverCallback,
@@ -393,6 +397,7 @@ test_route_input(_) ->
             Packet,
             Ipv4Header1,
             DevicePid,
+            InterfacePid1,
             junk,
             junk,
             LocalDeliverCallback,
@@ -421,6 +426,7 @@ test_route_input(_) ->
             Packet,
             Ipv4Header2,
             DevicePid,
+            InterfacePid1,
             junk,
             junk,
             LocalDeliverCallback,
@@ -435,6 +441,7 @@ test_route_input(_) ->
             Packet,
             Ipv4Header2,
             DevicePid,
+            InterfacePid1,
             junk,
             junk,
             LocalDeliverCallback,
@@ -444,7 +451,6 @@ test_route_input(_) ->
         true
     ),
 
-    nsime_simulator:start(),
     ?assert(lists:member(nsime_simulator, erlang:registered())),
     ?assertEqual(
         nsime_ipv4_list_routing:route_input(
@@ -452,6 +458,7 @@ test_route_input(_) ->
             Packet,
             Ipv4Header2,
             DevicePid,
+            InterfacePid1,
             junk,
             junk,
             LocalDeliverCallback,
@@ -472,6 +479,7 @@ test_route_input(_) ->
             Packet,
             Ipv4Header2,
             DevicePid,
+            InterfacePid1,
             junk,
             junk,
             LocalDeliverCallback,
@@ -512,6 +520,7 @@ test_route_input(_) ->
             Packet,
             Ipv4Header2,
             DevicePid,
+            InterfacePid1,
             UnicastForwardCallback,
             junk,
             LocalDeliverCallback,
@@ -536,6 +545,7 @@ test_route_input(_) ->
             Packet,
             Ipv4Header3,
             DevicePid,
+            InterfacePid1,
             UnicastForwardCallback,
             junk,
             LocalDeliverCallback,
@@ -555,6 +565,7 @@ test_route_input(_) ->
             Packet,
             Ipv4Header3,
             DevicePid,
+            InterfacePid1,
             UnicastForwardCallback,
             junk,
             LocalDeliverCallback,
