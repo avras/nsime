@@ -293,7 +293,7 @@ test_recv(_) ->
     ?assert(lists:member(nsime_simulator, erlang:registered())),
     ?assertEqual(
         nsime_udp_protocol:recv(ProtocolPid, Packet2, Ipv4Header, InterfacePid1),
-        ok
+        rx_ok
     ),
 
     ?assertEqual(nsime_simulator:stop(), simulation_complete),
