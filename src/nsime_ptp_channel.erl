@@ -73,12 +73,7 @@ get_netdevice_pair(ChannelPid) ->
 attach_netdevice(ChannelPid, DevicePid) ->
     gen_server:call(ChannelPid, {attach_netdevice, DevicePid}).
 
-transmit(
-    ChannelPid, 
-    Packet = #nsime_packet{}, 
-    SourceDevicePid, 
-    TxTime
-    ) ->
+transmit(ChannelPid, Packet = #nsime_packet{}, SourceDevicePid, TxTime) ->
     gen_server:call(ChannelPid, {transmit, Packet, SourceDevicePid, TxTime}).
 
 init([]) ->
