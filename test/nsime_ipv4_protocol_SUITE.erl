@@ -582,6 +582,9 @@ test_recv(_) ->
         [self(), Ref2]
     },
     ?assertEqual(nsime_ipv4_protocol:set_receive_trace(ProtocolPid, ReceiveCallback), ok),
+    RoutingPid = nsime_ipv4_static_routing:create(),
+    ?assertEqual(nsime_ipv4_protocol:set_routing_protocol(ProtocolPid, RoutingPid), ok),
+    ?assertEqual(nsime_ipv4_static_routing:set_ipv4_protocol(RoutingPid, ProtocolPid, [InterfacePid1]), ok),
     ?assertEqual(
         nsime_ipv4_protocol:recv(
             ProtocolPid,
@@ -604,9 +607,6 @@ test_recv(_) ->
     end,
 
     ?assertEqual(nsime_config:enable_checksum(), ok),
-    RoutingPid = nsime_ipv4_static_routing:create(),
-    ?assertEqual(nsime_ipv4_protocol:set_routing_protocol(ProtocolPid, RoutingPid), ok),
-    ?assertEqual(nsime_ipv4_static_routing:set_ipv4_protocol(RoutingPid, ProtocolPid), ok),
     Ipv4Header1 = Ipv4Header#nsime_ipv4_header{calculate_checksum = true},
     Ipv4HeaderBinary1 = nsime_ipv4_header:serialize(Ipv4Header1),
     Packet1 = Packet#nsime_packet{data = <<Ipv4HeaderBinary1/binary, Data/binary>>},
@@ -777,8 +777,7 @@ test_send(_) ->
     end,
 
     Route = #nsime_ipv4_route{
-        output_device = DevicePid1,
-        gateway = nsime_ipv4_address:get_zero()
+        output_device = DevicePid1
     },
     ?assertError(
         nsime_situation_not_implemented,
