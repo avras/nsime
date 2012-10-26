@@ -292,12 +292,41 @@ test_simple_lookup(_) ->
         nsime_ipv4_address:get_any(),
         PeerPort
     ),
-    nsime_ip_endpoint_demux:allocate(
+    ?assertEqual(
+        nsime_ip_endpoint_demux:simple_lookup(
+            DemuxPid,
+            LocalAddress,
+            LocalPort,
+            PeerAddress,
+            PeerPort
+        ),
+        EndpointPid4
+    ),
+    nsime_ip_endpoint_demux:deallocate(DemuxPid, EndpointPid4),
+    EndpointPid5 = nsime_ip_endpoint_demux:allocate(
+        DemuxPid,
+        LocalAddress,
+        LocalPort,
+        nsime_ipv4_address:get_any(),
+        PeerPort
+    ),
+    ?assertEqual(
+        nsime_ip_endpoint_demux:simple_lookup(
+            DemuxPid,
+            LocalAddress,
+            LocalPort,
+            PeerAddress,
+            PeerPort
+        ),
+        EndpointPid5
+    ),
+    nsime_ip_endpoint_demux:deallocate(DemuxPid, EndpointPid5),
+    EndpointPid6 = nsime_ip_endpoint_demux:allocate(
         DemuxPid,
         nsime_ipv4_address:get_any(),
         LocalPort,
-        nsime_ipv4_address:get_any(),
-        PeerPort + 1
+        PeerAddress,
+        PeerPort
     ),
     ?assertEqual(
         nsime_ip_endpoint_demux:simple_lookup(
@@ -307,29 +336,7 @@ test_simple_lookup(_) ->
             PeerAddress,
             PeerPort
         ),
-        EndpointPid3
-    ),
-    nsime_ip_endpoint_demux:deallocate(DemuxPid, EndpointPid3),
-    ?assertEqual(nsime_ip_endpoint:set_local_address(EndpointPid4, {127, 0, 0, 1}), ok),
-    ?assertEqual(
-        nsime_ip_endpoint_demux:simple_lookup(
-            DemuxPid,
-            LocalAddress,
-            LocalPort,
-            PeerAddress,
-            PeerPort
-        ),
-        EndpointPid4
-    ),
-    ?assertEqual(
-        nsime_ip_endpoint_demux:simple_lookup(
-            DemuxPid,
-            LocalAddress,
-            LocalPort,
-            PeerAddress,
-            PeerPort
-        ),
-        EndpointPid4
+        EndpointPid6
     ),
     ?assertEqual(nsime_ip_endpoint_demux:destroy(DemuxPid), stopped).
 
