@@ -322,7 +322,7 @@ test_send_to(_) ->
 test_recv(_) ->
     SocketPid1 = nsime_udp_socket:create(),
     ?assert(is_pid(SocketPid1)),
-    ?assertEqual(nsime_udp_socket:recv(SocketPid1, junk, junk), error_again),
+    ?assertEqual(nsime_udp_socket:recv(SocketPid1, junk, junk), none),
     NodePid = nsime_node:create(),
     ?assertEqual(nsime_udp_socket:set_node(SocketPid1, NodePid), ok),
     Ipv4ProtocolPid = nsime_ipv4_protocol:create(),
@@ -342,6 +342,9 @@ test_recv(_) ->
     SrcAddress = {10, 107, 1, 1},
     Ipv4Header = #nsime_ipv4_header{source_address = SrcAddress},
     Port = 80,
+    ReceiveCallback = {none, none, none},
+    ?assertEqual(nsime_udp_socket:set_receive_callback(SocketPid1, ReceiveCallback), ok),
+    nsime_simulator:start(),
     ?assertEqual(nsime_udp_socket:forward_up(SocketPid1, Packet, Ipv4Header, Port, InterfacePid1), ok),
     ?assert(is_record(nsime_udp_socket:recv(SocketPid1, Packet#nsime_packet.size, junk), nsime_packet)),
     ?assertEqual(nsime_udp_socket:forward_up(SocketPid1, Packet, Ipv4Header, Port, InterfacePid1), ok),
@@ -368,7 +371,8 @@ test_recv(_) ->
     ?assertEqual(nsime_udp_socket:shutdown_receive(SocketPid1), ok),
     ?assertEqual(nsime_udp_socket:forward_up(SocketPid1, Packet, Ipv4Header, Port, InterfacePid1), none),
 
-    ?assertEqual(nsime_udp_socket:destroy(SocketPid1), stopped).
+    ?assertEqual(nsime_udp_socket:destroy(SocketPid1), stopped),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete).
 
 test_cast_info_codechange(_) ->
     SocketPid = nsime_udp_socket:create(),
