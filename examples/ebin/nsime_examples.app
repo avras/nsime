@@ -5,4 +5,4 @@
               {applications,[kernel,stdlib]},
               {mod,{nsime_examples_app,[]}},
               {env,[]},
-              {modules,[ns3_tutorial_first]}]}.
+              {modules,[ns3_tutorial_first,udp_cs_pairs]}]}.
