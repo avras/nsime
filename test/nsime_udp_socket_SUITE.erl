@@ -315,9 +315,8 @@ test_send_to(_) ->
     ?assertEqual(nsime_ipv4_protocol:set_node(Ipv4ProtocolPid, NodePid), ok),
     ?assertEqual(nsime_udp_socket:send_to(SocketPid1, Packet, junk, {Address, Port}), error_noroutetohost),
     ?assertEqual(nsime_udp_socket:send_to(SocketPid1, Packet, junk, {Address, Port}), error_noroutetohost),
-    ?assertEqual(nsime_ipv4_protocol:destroy(Ipv4ProtocolPid), stopped),
-    ?assertEqual(nsime_udp_protocol:destroy(UdpProtocolPid), stopped),
-    ?assertEqual(nsime_udp_socket:destroy(SocketPid1), stopped).
+    ?assertEqual(nsime_udp_socket:destroy(SocketPid1), stopped),
+    ?assertEqual(nsime_node:destroy(NodePid), stopped).
 
 test_recv(_) ->
     SocketPid1 = nsime_udp_socket:create(),
