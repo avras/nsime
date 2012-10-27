@@ -118,7 +118,7 @@ handle_call(new_address, _From, HelperState) ->
             ),
             NewAddress = list_to_tuple(
                 binary_to_list(
-                    <<(NetworkInteger bor (CurrentAddressInteger+1)):32>>
+                    <<(CurrentAddressInteger+1):32>>
                 )
             ),
             NewHelperState = HelperState#nsime_ipv4_address_helper_state{
@@ -170,7 +170,7 @@ handle_call({assign, DevicePidList}, _From, HelperState) ->
             ),
             LatestAddress = list_to_tuple(
                 binary_to_list(
-                    <<(NetworkInteger bor (CurrentAddressInteger+length(DevicePidList))):32>>
+                    <<(CurrentAddressInteger+length(DevicePidList)):32>>
                 )
             ),
             NewHelperState = HelperState#nsime_ipv4_address_helper_state{
