@@ -109,6 +109,7 @@ test_start(_) ->
     ?assertEqual(nsime_udp_echo_client:start(ClientPid), ok),
     ?assertEqual(nsime_udp_echo_client:start(ClientPid), ok),
     ?assertEqual(nsime_udp_echo_client:schedule_start(ClientPid, {0, sec}), ok),
+    ?assertEqual(nsime_udp_echo_client:schedule_stop(ClientPid, {10, sec}), ok),
     ?assertEqual(nsime_udp_echo_client:stop(ClientPid), ok),
 
     ?assertEqual(nsime_simulator:stop(), simulation_complete),

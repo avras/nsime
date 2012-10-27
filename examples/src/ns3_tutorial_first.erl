@@ -45,6 +45,7 @@ start() ->
     nsime_udp_echo_server:set_listen_port(UdpEchoServerPid, 9),
     nsime_node:add_application(Node2, UdpEchoServerPid),
     nsime_udp_echo_server:schedule_start(UdpEchoServerPid, {0, sec}),
+    nsime_udp_echo_server:schedule_stop(UdpEchoServerPid, {10, sec}),
 
     [_Interface1, Interface2] = InterfacePidList,
     UdpEchoClientPid = nsime_udp_echo_client:create(),
@@ -57,6 +58,7 @@ start() ->
     nsime_udp_echo_client:set_data_size(UdpEchoClientPid, 1024),
     nsime_node:add_application(Node1, UdpEchoClientPid),
     nsime_udp_echo_client:schedule_start(UdpEchoClientPid, {2, sec}),
+    nsime_udp_echo_client:schedule_stop(UdpEchoClientPid, {10, sec}),
 
     nsime_simulator:run(),
     nsime_ptp_helper:destroy(PtpHelperPid),

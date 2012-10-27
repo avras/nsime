@@ -32,8 +32,8 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([create/0, destroy/1, set_node/2, get_node/1,
-         schedule_start/2, set_listen_port/2, start/1, stop/1, handle_read/1,
+-export([create/0, destroy/1, set_node/2, get_node/1, schedule_start/2,
+         schedule_stop/2, set_listen_port/2, start/1, stop/1, handle_read/1,
          get_transmit_trace_callback/1, set_transmit_trace_callback/2,
          get_receive_trace_callback/1, set_receive_trace_callback/2]).
 
@@ -52,6 +52,9 @@ set_node(ServerPid, NodePid) ->
 
 schedule_start(ServerPid, Time) ->
     gen_server:call(ServerPid, {schedule_start, Time}).
+
+schedule_stop(ServerPid, Time) ->
+    gen_server:call(ServerPid, {schedule_stop, Time}).
 
 set_listen_port(ServerPid, Port) when
     is_integer(Port),
@@ -119,6 +122,16 @@ handle_call({schedule_start, Time}, _From, ServerState) ->
         eventid = make_ref()
     },
     nsime_simulator:schedule(Time, StartEvent),
+    {reply, ok, ServerState};
+
+handle_call({schedule_stop, Time}, _From, ServerState) ->
+    StopEvent = #nsime_event{
+        module = ?MODULE,
+        function = stop,
+        arguments = [self()],
+        eventid = make_ref()
+    },
+    nsime_simulator:schedule(Time, StopEvent),
     {reply, ok, ServerState};
 
 handle_call({set_listen_port, Port}, _From, ServerState) ->

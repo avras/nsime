@@ -90,6 +90,7 @@ test_start(_) ->
     ?assertEqual(nsime_udp_echo_server:start(ServerPid), ok),
     nsime_simulator:start(),
     ?assertEqual(nsime_udp_echo_server:schedule_start(ServerPid, {0, sec}), ok),
+    ?assertEqual(nsime_udp_echo_server:schedule_stop(ServerPid, {10, sec}), ok),
     ?assertEqual(nsime_udp_echo_server:stop(ServerPid), ok),
 
     ?assertEqual(nsime_simulator:stop(), simulation_complete),

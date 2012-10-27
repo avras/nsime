@@ -32,11 +32,9 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([create/0, destroy/1, 
-         set_node/2, get_node/1, 
-         schedule_start/2, set_remote/3,
-         set_data_size/2, get_data_size/1,
-         set_max_packets/2, get_max_packets/1,
+-export([create/0, destroy/1, set_node/2, get_node/1,
+         schedule_start/2, schedule_stop/2, set_remote/3,
+         set_data_size/2, get_data_size/1, set_max_packets/2, get_max_packets/1,
          set_inter_packet_gap/2, get_inter_packet_gap/1,
          start/1, stop/1, send/1, handle_read/1,
          get_transmit_trace_callback/1, set_transmit_trace_callback/2,
@@ -57,6 +55,9 @@ set_node(ClientPid, NodePid) ->
 
 schedule_start(ClientPid, Time) ->
     gen_server:call(ClientPid, {schedule_start, Time}).
+
+schedule_stop(ClientPid, Time) ->
+    gen_server:call(ClientPid, {schedule_stop, Time}).
 
 set_remote(ClientPid, Address, Port) when 
     is_tuple(Address),
@@ -142,6 +143,16 @@ handle_call({schedule_start, Time}, _From, ClientState) ->
     nsime_simulator:schedule(Time, StartEvent),
     {reply, ok, ClientState};
 
+handle_call({schedule_stop, Time}, _From, ClientState) ->
+    StopEvent = #nsime_event{
+        module = ?MODULE,
+        function = stop,
+        arguments = [self()],
+        eventid = make_ref()
+    },
+    nsime_simulator:schedule(Time, StopEvent),
+    {reply, ok, ClientState};
+
 handle_call({set_remote, Address, Port}, _From, ClientState) ->
     NewClientState = ClientState#nsime_udp_echo_client_state{
         peer_address = Address,
@@ -216,7 +227,12 @@ handle_call(stop, _From, ClientState) ->
             send_event = undefined
         }
     end,
-    nsime_simulator:cancel(SendEvent),
+    case is_record(SendEvent, nsime_event) of
+        true ->
+            nsime_simulator:cancel(SendEvent);
+        false ->
+            ok
+    end,
     {reply, ok, NewClientState};
 
 handle_call(send, _From, ClientState) ->
@@ -251,6 +267,7 @@ handle_call(send, _From, ClientState) ->
         ]
     ),
     NumSentPackets = ClientState#nsime_udp_echo_client_state.num_sent_packets + 1,
+    NewClientState =
     case NumSentPackets < ClientState#nsime_udp_echo_client_state.max_packets of
         true ->
             SendEvent = #nsime_event{
@@ -259,14 +276,20 @@ handle_call(send, _From, ClientState) ->
                 arguments = [self()],
                 eventid = make_ref()
             },
-            nsime_simulator:schedule(
+            SendEventWithTime = nsime_simulator:schedule(
                 ClientState#nsime_udp_echo_client_state.inter_packet_gap,
                 SendEvent
-            );
+            ),
+            ClientState#nsime_udp_echo_client_state{
+                num_sent_packets = NumSentPackets,
+                send_event = SendEventWithTime
+            };
         false ->
-            ok
+            ClientState#nsime_udp_echo_client_state{
+                num_sent_packets = NumSentPackets,
+                send_event = undefined
+            }
     end,
-    NewClientState = ClientState#nsime_udp_echo_client_state{num_sent_packets = NumSentPackets},
     {reply, ok, NewClientState};
 
 handle_call(get_transmit_trace_callback, _From, ClientState) ->
