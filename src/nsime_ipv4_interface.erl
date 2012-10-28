@@ -300,6 +300,18 @@ handle_call(get_address_list, _From, InterfaceState) ->
     {reply, AddressList, InterfaceState};
 
 handle_call(terminate, _From, InterfaceState) ->
+    AddressList = InterfaceState#nsime_ipv4_interface_state.address_list,
+    case is_list(AddressList) of
+        true ->
+            lists:foreach(
+                fun(A) ->
+                    nsime_ipv4_interface_address:destroy(A)
+                end,
+                AddressList
+            );
+        false ->
+            ok
+    end,
     {stop, normal, stopped, InterfaceState}.
 
 handle_cast(_Request, InterfaceState) ->

@@ -1023,6 +1023,18 @@ handle_call(terminate, _From, ProtocolState) ->
         false ->
             ok
     end,
+    InterfaceList = ProtocolState#nsime_ipv4_protocol_state.interfaces,
+    case is_list(InterfaceList) of
+        true ->
+            lists:foreach(
+                fun(I) ->
+                    nsime_ipv4_interface:destroy(I)
+                end,
+                InterfaceList
+            );
+        false ->
+            ok
+    end,
     {stop, normal, stopped, ProtocolState}.
 
 handle_cast(_Request, ProtocolState) ->

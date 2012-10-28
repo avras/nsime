@@ -195,9 +195,6 @@ test_set_get_components(_) ->
     ?assertEqual(nsime_ipv4_protocol:set_unicast_forward_trace(ProtocolPid, Callback), ok),
     ?assertEqual(nsime_ipv4_protocol:set_local_deliver_trace(ProtocolPid, Callback), ok),
 
-    ?assertEqual(nsime_ipv4_interface:destroy(InterfacePid1), stopped),
-    ?assertEqual(nsime_ipv4_interface:destroy(InterfacePid2), stopped),
-    ?assertEqual(nsime_ipv4_interface:destroy(InterfacePid3), stopped),
     ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid1), stopped),
     ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid2), stopped),
     ?assertEqual(nsime_udp_protocol:destroy(Layer4ProtPid1), stopped),
@@ -268,7 +265,7 @@ test_is_destination(_) ->
     ?assertEqual(nsime_ipv4_interface:add_address(InterfacePid3, AddressPid4), ok),
     ?assertEqual(nsime_ipv4_protocol:set_weak_es_model(ProtocolPid, true), ok),
     ?assert(nsime_ipv4_protocol:is_destination_address(ProtocolPid, Address5, InterfacePid1)),
-    ?assertEqual(nsime_ipv4_protocol:destroy(ProtocolPid), stopped).
+    ?assertEqual(nsime_node:destroy(NodePid), stopped).
 
 test_ip_forward_no_ttl_error(_) ->
     ProtocolPid = nsime_ipv4_protocol:create(),
