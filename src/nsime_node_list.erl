@@ -34,7 +34,7 @@ start() ->
     gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
 stop() ->
-    gen_server:call(?MODULE, terminate).
+    gen_server:call(?MODULE, terminate, infinity).
 
 add(NodePid) ->
     gen_server:call(?MODULE, {add, NodePid}).

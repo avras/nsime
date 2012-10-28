@@ -49,7 +49,7 @@ start(SchedulerType) ->
     gen_server:start({local, ?MODULE}, ?MODULE, Scheduler, []).
 
 stop() ->
-    gen_server:call(?MODULE, terminate).
+    gen_server:call(?MODULE, terminate, infinity).
 
 init(Scheduler) ->
     Scheduler:create(),

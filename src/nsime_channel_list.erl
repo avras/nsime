@@ -34,7 +34,7 @@ start() ->
     gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
 stop() ->
-    gen_server:call(?MODULE, terminate).
+    gen_server:call(?MODULE, terminate, infinity).
 
 add(ChannelPid) ->
     gen_server:call(?MODULE, {add, ChannelPid}).
