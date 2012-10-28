@@ -71,4 +71,5 @@ start() ->
 
     nsime_simulator:run(),
     nsime_ptp_helper:destroy(PtpHelperPid),
+    nsime_ipv4_address_helper:destroy(AddressHelperPid),
     nsime_simulator:stop().
