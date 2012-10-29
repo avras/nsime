@@ -26,5 +26,5 @@
                         nsime_node_list,nsime_ptp_channel,nsime_ptp_helper,
                         nsime_ptp_netdevice,nsime_simulator,nsime_time,
                         nsime_udp_echo_client,nsime_udp_echo_server,
-                        nsime_udp_header,nsime_udp_protocol,
-                        nsime_udp_socket]}]}.
+                        nsime_udp_header,nsime_udp_protocol,nsime_udp_socket,
+                        nsime_utils,plist]}]}.
