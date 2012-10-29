@@ -96,10 +96,10 @@ get_transmit_available(SocketPid) ->
     gen_server:call(SocketPid, get_transmit_available).
 
 send(SocketPid, Packet, Flags) ->
-    gen_server:call(SocketPid, {send, Packet, Flags}).
+    gen_server:call(SocketPid, {send, Packet, Flags}, infinity).
 
 send_to(SocketPid, Packet, Flags, SocketAddress) ->
-    gen_server:call(SocketPid, {send_to, Packet, Flags, SocketAddress}).
+    gen_server:call(SocketPid, {send_to, Packet, Flags, SocketAddress}, infinity).
 
 get_received_available(SocketPid) ->
     gen_server:call(SocketPid, get_received_available).

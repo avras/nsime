@@ -94,7 +94,7 @@ stop(ClientPid) ->
     gen_server:call(ClientPid, stop).
 
 send(ClientPid) ->
-    gen_server:call(ClientPid, send).
+    gen_server:call(ClientPid, send, infinity).
 
 handle_read(SocketPid) ->
     case nsime_udp_socket:recv_from(SocketPid) of
