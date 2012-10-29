@@ -32,7 +32,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([start/0, start/1, run/0, stop/0, schedule/2,
+-export([start/0, start/1, run/0, parallel_run/0, stop/0, schedule/2,
          schedule_now/1, cancel/1, current_time/0]).
 
 start() ->
@@ -69,6 +69,24 @@ run() ->
                 Event#nsime_event.arguments
             ),
             ?MODULE:run();
+        none ->
+            simulation_complete
+    end.
+
+parallel_run() ->
+    case gen_server:call(?MODULE, parallel_run) of
+        {events, EventList} ->
+            plist:pforeach_orderless(
+                fun(Event) ->
+                    erlang:apply(
+                        Event#nsime_event.module,
+                        Event#nsime_event.function,
+                        Event#nsime_event.arguments
+                    )
+                end,
+                EventList
+            ),
+            ?MODULE:parallel_run();
         none ->
             simulation_complete
     end.
@@ -123,6 +141,25 @@ handle_call(run, _From, State) ->
                             num_executed_events = NumExecutedEvents + 1
             },
             {reply, {event, Event}, NewState};
+        true ->
+            {reply, none, State}
+    end;
+
+handle_call(parallel_run, _From, State) ->
+    Scheduler = State#nsime_simulator_state.scheduler,
+    case Scheduler:is_empty() of
+        false ->
+            EventList = Scheduler:remove_next_simultaneous(),
+            NumEvents = State#nsime_simulator_state.num_remaining_events,
+            NumExecutedEvents = State#nsime_simulator_state.num_executed_events,
+            NumEventsInList = length(EventList),
+            Event = hd(EventList),
+            NewState = State#nsime_simulator_state{
+                            current_time = Event#nsime_event.time,
+                            num_remaining_events = NumEvents - NumEventsInList,
+                            num_executed_events = NumExecutedEvents + NumEventsInList
+            },
+            {reply, {events, EventList}, NewState};
         true ->
             {reply, none, State}
     end;

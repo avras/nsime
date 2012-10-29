@@ -31,7 +31,7 @@
          terminate/2, code_change/3]).
 
 -export([create/0, stop/0, is_empty/0, insert/1, 
-         remove/1, remove_next/0, get_event_queue/0]).
+         remove/1, remove_next/0, remove_next_simultaneous/0, get_event_queue/0]).
 
 create() ->
     gen_server:start({local, ?MODULE}, ?MODULE, [], []).
@@ -47,6 +47,9 @@ remove(Event) ->
 
 remove_next() ->
     gen_server:call(?MODULE, remove_next).
+
+remove_next_simultaneous() ->
+    gen_server:call(?MODULE, remove_next_simultaneous).
 
 stop() ->
     gen_server:call(?MODULE, terminate).
@@ -86,6 +89,15 @@ handle_call(remove_next, _From, EventQueue) ->
                     NewerEventQueue = gb_trees:insert(Time, RemainingEvents, NewEventQueue),
                     {reply, FirstEvent, NewerEventQueue}
             end;
+        true ->
+            {reply, none, EventQueue}
+    end;
+
+handle_call(remove_next_simultaneous, _From, EventQueue) ->
+    case gb_trees:is_empty(EventQueue) of
+        false ->
+            {_Time, EventList, NewEventQueue} = gb_trees:take_smallest(EventQueue),
+            {reply, EventList, NewEventQueue};
         true ->
             {reply, none, EventQueue}
     end;
