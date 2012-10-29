@@ -30,7 +30,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([create/0, create/1, destroy/1, add_object/3, get_object/2,
+-export([create/0, create/1, destroy/1, destroy/2, add_object/3, get_object/2,
          add_netdevice/2, get_netdevices/1, add_application/2, get_applications/1,
          register_protocol_handler/5, unregister_protocol_handler/2,
          receive_from_device/8, promisc_receive_from_device/7,
@@ -57,6 +57,9 @@ create(NumNodes) ->
 
 destroy(NodePid) ->
     gen_server:call(NodePid, terminate).
+
+destroy(NodePid, Timeout) ->
+    gen_server:call(NodePid, terminate, Timeout).
 
 add_object(NodePid, ObjectName, ObjectPid) ->
     gen_server:call(NodePid, {add_object, ObjectName, ObjectPid}).
