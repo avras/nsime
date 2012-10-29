@@ -27,8 +27,11 @@
 
 start() ->
     nsime_simulator:start(),
-    NumPairs = 100,
-    NodePidList = nsime_node:create(2*NumPairs),
+    NumPairs = 2000,
+    NodePidList = plist:pmap(
+        fun(_) -> nsime_node:create() end,
+        lists:seq(1, 2*NumPairs)
+    ),
     {ClientPids, ServerPids} = lists:split(NumPairs, NodePidList),
     ClientServerTuples = lists:zip(ClientPids, ServerPids),
 
@@ -49,7 +52,7 @@ start() ->
             UdpEchoServerPid = nsime_udp_echo_server:create(),
             nsime_udp_echo_server:set_listen_port(UdpEchoServerPid, 9),
             nsime_node:add_application(ServerNode, UdpEchoServerPid),
-            nsime_udp_echo_server:schedule_start(UdpEchoServerPid, {0, sec}),
+            nsime_udp_echo_server:schedule_start(UdpEchoServerPid, {1, sec}),
             nsime_udp_echo_server:schedule_stop(UdpEchoServerPid, {3, sec}),
 
             UdpEchoClientPid = nsime_udp_echo_client:create(),
@@ -69,7 +72,7 @@ start() ->
     ),
 
 
-    nsime_simulator:run(),
+    nsime_simulator:parallel_run(),
     nsime_ptp_helper:destroy(PtpHelperPid),
     nsime_ipv4_address_helper:destroy(AddressHelperPid),
     nsime_simulator:stop().
