@@ -180,7 +180,7 @@ handle_info(_Request, State) ->
 terminate(_Reason, State) ->
     Scheduler = State#nsime_simulator_state.scheduler,
     Scheduler:stop(),
-    lists:foreach(
+    plists:foreach(
         fun(A) ->
             Pid = erlang:whereis(A),
             case is_pid(Pid) of
@@ -190,7 +190,8 @@ terminate(_Reason, State) ->
                     ok
             end
         end,
-        [nsime_node_list, nsime_channel_list, nsime_config]
+        [nsime_node_list, nsime_channel_list, nsime_config],
+        {processes, 3}
     ),
     ok.
 
