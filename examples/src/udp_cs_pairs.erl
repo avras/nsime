@@ -45,7 +45,7 @@ start() ->
     AddressHelperPid = nsime_ipv4_address_helper:create(),
     nsime_ipv4_address_helper:set_base(AddressHelperPid, "10.0.0.0", "255.0.0.0"),
 
-    lists:foreach(
+    plists:foreach(
         fun({ClientNode, ServerNode}) ->
             DevicePidList = nsime_ptp_helper:install(PtpHelperPid, [ClientNode, ServerNode]),
             [_Interface1, Interface2] = nsime_ipv4_address_helper:assign(AddressHelperPid, DevicePidList),
@@ -69,7 +69,8 @@ start() ->
             nsime_udp_echo_client:schedule_start(UdpEchoClientPid, {2, sec}),
             nsime_udp_echo_client:schedule_stop(UdpEchoClientPid, {3, sec})
         end,
-        ClientServerTuples
+        ClientServerTuples,
+        {processes, 4}
     ),
 
 
