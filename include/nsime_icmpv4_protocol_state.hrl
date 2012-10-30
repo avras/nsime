@@ -25,5 +25,6 @@
 -record(nsime_icmpv4_protocol_state,
         {
           node                      :: pid(),
-          ipv4_down_target          :: nsime_callback()
+          ipv4_down_target          :: nsime_callback(),
+          checksum_enabled = false  :: boolean()
         }).

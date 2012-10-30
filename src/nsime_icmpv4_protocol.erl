@@ -67,7 +67,9 @@ get_ipv4_down_target(ProtocolPid) ->
     gen_server:call(ProtocolPid, get_ipv4_down_target).
 
 init([]) ->
-    ProtocolState = #nsime_icmpv4_protocol_state{},
+    ProtocolState = #nsime_icmpv4_protocol_state{
+        checksum_enabled = nsime_config:checksum_enabled()
+    },
     {ok, ProtocolState}.
 
 handle_call({set_node, NodePid}, _From, ProtocolState) ->
@@ -238,7 +240,7 @@ send_message(Packet, SrcAddress, DestAddress, IcmpType, IcmpCode, Route, Protoco
         #nsime_icmpv4_header{
             type = IcmpType,
             code = IcmpCode,
-            calculate_checksum = nsime_config:checksum_enabled()
+            calculate_checksum = ProtocolState#nsime_icmpv4_protocol_state.checksum_enabled
         }
     ),
     Data = Packet#nsime_packet.data,

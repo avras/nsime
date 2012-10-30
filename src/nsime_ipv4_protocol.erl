@@ -210,7 +210,9 @@ route_input_error(ProtocolPid, Packet, Ipv4Header) ->
     gen_server:call(ProtocolPid, {route_input_error, Packet, Ipv4Header}).
 
 init([]) ->
-    ProtocolState = #nsime_ipv4_protocol_state{},
+    ProtocolState = #nsime_ipv4_protocol_state{
+        checksum_enabled = nsime_config:checksum_enabled()
+    },
     {ok, ProtocolState}.
 
 handle_call({set_node, NodePid}, _From, ProtocolState) ->
@@ -309,14 +311,14 @@ handle_call({recv, DevicePid, Packet, _Protocol, _FromAddress, _ToAddress, _Pack
             DataSizeBits = (Packet#nsime_packet.size - 20)*8,
             <<Ipv4HeaderBinary:160, Data:DataSizeBits>> = Packet#nsime_packet.data,
             Ipv4Header = nsime_ipv4_header:deserialize(<<Ipv4HeaderBinary:160>>),
-            NewIpv4Header = case nsime_config:checksum_enabled() of
+            NewIpv4Header = case ProtocolState#nsime_ipv4_protocol_state.checksum_enabled of
                 true ->
                     nsime_ipv4_header:enable_checksum(Ipv4Header);
                 false ->
                     Ipv4Header
             end,
             NewPacket = Packet#nsime_packet{data = <<Data:DataSizeBits>>},
-            case nsime_config:checksum_enabled() and not(nsime_ipv4_header:is_checksum_ok(NewIpv4Header)) of
+            case ProtocolState#nsime_ipv4_protocol_state.checksum_enabled and not(nsime_ipv4_header:is_checksum_ok(NewIpv4Header)) of
                 true ->
                     nsime_callback:apply(
                         ProtocolState#nsime_ipv4_protocol_state.drop_trace,
@@ -1060,7 +1062,7 @@ build_header(SrcAddress, DestAddress, Protocol, PayloadSize, TTL, MayFragment, P
             protocol = Protocol,
             ttl = TTL,
             identification = Identification,
-            calculate_checksum = nsime_config:checksum_enabled()
+            calculate_checksum = ProtocolState#nsime_ipv4_protocol_state.checksum_enabled
         },
         PayloadSize
     ),
