@@ -75,9 +75,10 @@ handle_info(_Request, NodePidList) ->
     {noreply, NodePidList}.
 
 terminate(_Reason, NodePidList) ->
-    plist:pforeach(
+    plists:foreach(
         fun(Node) -> catch nsime_node:destroy(Node, infinity) end,
-        gb_sets:to_list(NodePidList)
+        gb_sets:to_list(NodePidList),
+        {processes, 4}
     ),
     ok.
 

@@ -75,9 +75,10 @@ handle_info(_Request, ChannelPidList) ->
     {noreply, ChannelPidList}.
 
 terminate(_Reason, ChannelPidList) ->
-    plist:pforeach(
+    plists:foreach(
         fun(Channel) -> catch gen_server:call(Channel, terminate, infinity) end,
-        gb_sets:to_list(ChannelPidList)
+        gb_sets:to_list(ChannelPidList),
+        {processes, 4}
     ),
     ok.
 

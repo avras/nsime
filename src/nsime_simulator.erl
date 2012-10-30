@@ -76,7 +76,7 @@ run() ->
 parallel_run() ->
     case gen_server:call(?MODULE, parallel_run) of
         {events, EventList} ->
-            plist:pforeach_orderless(
+            plists:foreach(
                 fun(Event) ->
                     erlang:apply(
                         Event#nsime_event.module,
@@ -84,7 +84,8 @@ parallel_run() ->
                         Event#nsime_event.arguments
                     )
                 end,
-                EventList
+                EventList,
+                {processes, 4}
             ),
             ?MODULE:parallel_run();
         none ->

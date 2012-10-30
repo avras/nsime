@@ -27,10 +27,11 @@
 
 start() ->
     nsime_simulator:start(),
-    NumPairs = 2000,
-    NodePidList = plist:pmap(
+    NumPairs = 10000,
+    NodePidList = plists:map(
         fun(_) -> nsime_node:create() end,
-        lists:seq(1, 2*NumPairs)
+        lists:seq(1, 2*NumPairs),
+        {processes, 4}
     ),
     {ClientPids, ServerPids} = lists:split(NumPairs, NodePidList),
     ClientServerTuples = lists:zip(ClientPids, ServerPids),
