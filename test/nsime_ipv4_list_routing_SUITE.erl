@@ -53,6 +53,7 @@ end_per_suite(Config) ->
     Config.
 
 test_creation_shutdown(_) ->
+    nsime_simulator:start(),
     StaticRoutingPid = nsime_ipv4_static_routing:create(),
     ?assert(is_pid(StaticRoutingPid)),
     ListRoutingPid = nsime_ipv4_list_routing:create(),
@@ -61,7 +62,8 @@ test_creation_shutdown(_) ->
     Ipv4ProtocolPid = nsime_ipv4_protocol:create(),
     InterfaceList = nsime_ipv4_protocol:get_interface_list(Ipv4ProtocolPid),
     ?assertEqual(nsime_ipv4_list_routing:set_ipv4_protocol(ListRoutingPid, Ipv4ProtocolPid, InterfaceList), ok),
-    ?assertEqual(nsime_ipv4_protocol:destroy(Ipv4ProtocolPid), stopped).
+    ?assertEqual(nsime_ipv4_protocol:destroy(Ipv4ProtocolPid), stopped),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete).
 
 test_add_routes(_) ->
     StaticRoutingPid = nsime_ipv4_static_routing:create(),
@@ -344,6 +346,7 @@ test_add_remove_addresses(_) ->
     ?assertEqual(nsime_ipv4_list_routing:destroy(ListRoutingPid), stopped).
 
 test_route_input(_) ->
+    nsime_simulator:start(),
     StaticRoutingPid = nsime_ipv4_static_routing:create(),
     ?assert(is_pid(StaticRoutingPid)),
     ListRoutingPid = nsime_ipv4_list_routing:create(),
@@ -374,7 +377,6 @@ test_route_input(_) ->
         local_deliver_tester,
         [self(), Ref2]
     },
-    nsime_simulator:start(),
     ?assertEqual(
         nsime_ipv4_list_routing:route_input(
             ListRoutingPid,

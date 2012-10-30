@@ -213,6 +213,7 @@ test_send(_) ->
     ?assertEqual(nsime_udp_protocol:destroy(ProtocolPid), stopped).
 
 test_recv(_) ->
+    nsime_simulator:start(),
     ProtocolPid = nsime_udp_protocol:create(),
     ?assert(is_pid(ProtocolPid)),
     ?assertEqual(
@@ -289,7 +290,6 @@ test_recv(_) ->
     },
     ?assertEqual(nsime_ip_endpoint:set_receive_callback(EndpointPid2, ReceiveCallback), ok),
     ?assertEqual(nsime_ip_endpoint:bind_to_netdevice(EndpointPid2, DevicePid1), ok),
-    nsime_simulator:start(),
     ?assert(lists:member(nsime_simulator, erlang:registered())),
     ?assertEqual(
         nsime_udp_protocol:recv(ProtocolPid, Packet2, Ipv4Header, InterfacePid1),

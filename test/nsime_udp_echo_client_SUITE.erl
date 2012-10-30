@@ -132,14 +132,14 @@ test_send(_) ->
     ?assertEqual(nsime_node:add_object(NodePid, nsime_udp_protocol, UdpProtocolPid), ok),
     ?assertEqual(nsime_udp_protocol:set_node(UdpProtocolPid, NodePid), ok),
 
+    nsime_simulator:start(),
+    ?assert(lists:member(nsime_simulator, erlang:registered())),
+    ?assert(lists:member(nsime_gbtrees_scheduler, erlang:registered())),
     Ipv4ProtocolPid = nsime_ipv4_protocol:create(),
     ?assert(is_pid(Ipv4ProtocolPid)),
     ?assertEqual(nsime_node:add_object(NodePid, nsime_ipv4_protocol, Ipv4ProtocolPid), ok),
     ?assertEqual(nsime_ipv4_protocol:set_node(Ipv4ProtocolPid, NodePid), ok),
 
-    nsime_simulator:start(),
-    ?assert(lists:member(nsime_simulator, erlang:registered())),
-    ?assert(lists:member(nsime_gbtrees_scheduler, erlang:registered())),
     ?assertEqual(nsime_udp_echo_client:start(ClientPid), ok),
     Ref = make_ref(),
     TransmitCallback = {

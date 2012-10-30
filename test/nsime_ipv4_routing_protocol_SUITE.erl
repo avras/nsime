@@ -52,13 +52,15 @@ end_per_suite(Config) ->
     Config.
 
 test_creation_shutdown(_) ->
+    nsime_simulator:start(),
     RoutingPid = nsime_ipv4_static_routing:create(),
     ?assert(is_pid(RoutingPid)),
     Ipv4ProtocolPid = nsime_ipv4_protocol:create(),
     InterfaceList = nsime_ipv4_protocol:get_interface_list(Ipv4ProtocolPid),
     ?assertEqual(nsime_ipv4_list_routing:set_ipv4_protocol(RoutingPid, Ipv4ProtocolPid, InterfaceList), ok),
     ?assertEqual(nsime_ipv4_protocol:destroy(Ipv4ProtocolPid), stopped),
-    ?assertEqual(nsime_ipv4_static_routing:destroy(RoutingPid), stopped).
+    ?assertEqual(nsime_ipv4_static_routing:destroy(RoutingPid), stopped),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete).
 
 test_notify_interfaces_updown(_) ->
     RoutingPid = nsime_ipv4_static_routing:create(),
