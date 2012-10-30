@@ -52,7 +52,7 @@ remove_next_simultaneous() ->
     gen_server:call(?MODULE, remove_next_simultaneous).
 
 stop() ->
-    gen_server:call(?MODULE, terminate).
+    gen_server:call(?MODULE, terminate, infinity).
 
 get_event_queue() ->
     gen_server:call(?MODULE, get_event_queue).
