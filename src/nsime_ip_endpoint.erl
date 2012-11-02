@@ -175,26 +175,17 @@ handle_call({set_destroy_callback, Callback}, _From, EndpointState) ->
     {reply, ok, NewEndpointState};
 
 handle_call({forward_up, Packet, Header, Port, Interface}, _From, EndpointState) ->
-    {Module, Function, Arguments} = EndpointState#nsime_ip_endpoint_state.receive_callback,
-    Event = #nsime_event{
-        module = Module,
-        function = Function,
-        arguments = lists:flatten([Arguments | [Packet, Header, Port, Interface]]),
-        eventid = make_ref()
-    },
-    nsime_simulator:schedule_now(Event),
+    nsime_callback:apply(
+        EndpointState#nsime_ip_endpoint_state.receive_callback,
+        [Packet, Header, Port, Interface]
+    ),
     {reply, ok, EndpointState};
 
 handle_call({forward_icmp, Source, TTL, Type, Code, Info}, _From, EndpointState) ->
-    {Module, Function, Arguments} 
-        = EndpointState#nsime_ip_endpoint_state.icmp_callback,
-    Event = #nsime_event{
-        module = Module,
-        function = Function,
-        arguments = lists:flatten([Arguments | [Source, TTL, Type, Code, Info]]),
-        eventid = make_ref()
-    },
-    nsime_simulator:schedule_now(Event),
+    nsime_callback:apply(
+        EndpointState#nsime_ip_endpoint_state.icmp_callback,
+        [Source, TTL, Type, Code, Info]
+    ),
     {reply, ok, EndpointState};
 
 handle_call(terminate, _From, EndpointState) ->
