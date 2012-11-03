@@ -486,7 +486,7 @@ do_notify_interface_up(Interface, RoutingState) ->
                             nsime_ipv4_interface_address:get_mask(A)
                         ),
                         nsime_ipv4_interface_address:get_mask(A),
-                        nsime_ipv4_interface:get_di(Interface),
+                        nsime_ipv4_interface:get_id(Interface),
                         0
                     ),
                     [Route | CurrentRoutes];
