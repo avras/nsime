@@ -41,7 +41,7 @@ route_input(
     Packet,
     Ipv4Header,
     IngressNetdevice,
-    InterfaceId,
+    Interface,
     UnicastForwardCallback,
     MulticastForwardCallback,
     LocalDeliverCallback,
@@ -51,12 +51,6 @@ route_input(
 ) ->
     RoutingProtocols = RoutingState#nsime_ipv4_list_routing_state.routing_protocols,
     DestinationAddress = nsime_ipv4_header:get_destination_address(Ipv4Header),
-    [Interface] = lists:filter(
-        fun(I) ->
-            nsime_ipv4_interface:get_id(I) == InterfaceId
-        end,
-        InterfaceList
-    ),
     case
         is_destination_address(
             DestinationAddress,
@@ -97,7 +91,7 @@ route_input(
                                                 Packet,
                                                 Ipv4Header,
                                                 IngressNetdevice,
-                                                InterfaceId,
+                                                Interface,
                                                 UnicastForwardCallback,
                                                 MulticastForwardCallback,
                                                 undefined,
@@ -131,7 +125,7 @@ route_input(
                                         Packet,
                                         Ipv4Header,
                                         IngressNetdevice,
-                                        InterfaceId,
+                                        Interface,
                                         UnicastForwardCallback,
                                         MulticastForwardCallback,
                                         LocalDeliverCallback,
@@ -152,7 +146,7 @@ route_input(
     Packet,
     Ipv4Header,
     IngressNetdevice,
-    InterfaceId,
+    Interface,
     UnicastForwardCallback,
     MulticastForwardCallback,
     LocalDeliverCallback,
@@ -164,7 +158,7 @@ route_input(
         Packet,
         Ipv4Header,
         IngressNetdevice,
-        InterfaceId,
+        Interface,
         UnicastForwardCallback,
         MulticastForwardCallback,
         LocalDeliverCallback,

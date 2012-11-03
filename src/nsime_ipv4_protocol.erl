@@ -848,12 +848,16 @@ handle_call({set_up, InterfaceId}, _From, ProtocolState) ->
     },
     case ProtocolState#nsime_ipv4_protocol_state.routing_protocol of
         {RoutingModule, RoutingState} ->
+            NewRoutingState =
             RoutingModule:notify_interface_up(
                 RoutingState,
                 InterfaceId,
                 NewInterfaceList
             ),
-            {reply, ok, NewProtocolState};
+            NewerProtocolState = NewProtocolState#nsime_ipv4_protocol_state{
+                routing_protocol = {RoutingModule, NewRoutingState}
+            },
+            {reply, ok, NewerProtocolState};
         undefined ->
             {reply, ok, NewProtocolState}
     end;
