@@ -25,6 +25,8 @@
 
 -include("nsime_types.hrl").
 -include("nsime_event.hrl").
+-include("nsime_ipv4_routing_table_entry.hrl").
+-include("nsime_ipv4_static_routing_state.hrl").
 -include("nsime_ipv4_list_routing_state.hrl").
 
 -behaviour(gen_server).

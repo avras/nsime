@@ -22,6 +22,5 @@
 
 -record(nsime_ipv4_list_routing_state,
         {
-          routing_protocols = []  :: [{integer(), pid()}],
-          ipv4_protocol           :: pid()
+          routing_protocols = []  :: [{integer(), #nsime_ipv4_static_routing_state{}}]
         }).

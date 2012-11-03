@@ -28,10 +28,10 @@
 -include("nsime_event.hrl").
 -include("nsime_ipv4_header.hrl").
 -include("nsime_ipv4_route.hrl").
--include("nsime_ipv4_protocol_state.hrl").
--include("nsime_icmpv4_protocol_state.hrl").
 -include("nsime_ipv4_interface_address_state.hrl").
 -include("nsime_ipv4_interface_state.hrl").
+-include("nsime_ipv4_protocol_state.hrl").
+-include("nsime_icmpv4_protocol_state.hrl").
 
 -behaviour(gen_server).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,

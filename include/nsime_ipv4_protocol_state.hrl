@@ -26,8 +26,9 @@
         {
           node                                          :: pid(),
           layer4_protocols = []                         :: [pid()],
-          interfaces = []                               :: [pid()],
-          routing_protocol                              :: pid(),
+          interfaces = []                               :: [#nsime_ipv4_interface_state{}],
+          routing_protocol                              :: {nsime_ipv4_list_routing, #nsime_ipv4_list_routing_state{}} |
+                                                           {nsime_ipv4_static_routing, #nsime_ipv4_static_routing_state{}},
           raw_sockets = []                              :: [pid()],
           ip_forward = false                            :: boolean(),
           weak_es_model = false                         :: boolean(),

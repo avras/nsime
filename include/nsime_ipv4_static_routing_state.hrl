@@ -22,6 +22,5 @@
 
 -record(nsime_ipv4_static_routing_state,
         {
-          network_routes = []     :: [#nsime_ipv4_routing_table_entry{}],
-          ipv4_protocol           :: pid()
+          network_routes = []     :: [#nsime_ipv4_routing_table_entry{}]
         }).
