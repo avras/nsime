@@ -43,48 +43,48 @@ is_default(#nsime_ipv4_routing_table_entry{destination = Destination}) ->
 is_gateway(#nsime_ipv4_routing_table_entry{gateway = Gateway}) ->
     Gateway =/= nsime_ipv4_address:get_zero().
 
-create_host_route(Destination, InterfacePid, Metric) ->
+create_host_route(Destination, InterfaceId, Metric) ->
     #nsime_ipv4_routing_table_entry{
         destination = Destination,
         network_mask = nsime_ipv4_mask:get_ones(),
         gateway = nsime_ipv4_address:get_zero(),
-        interface = InterfacePid,
+        interface = InterfaceId,
         metric = Metric
     }.
 
-create_host_route(Destination, NextHop, InterfacePid, Metric) ->
+create_host_route(Destination, NextHop, InterfaceId, Metric) ->
     #nsime_ipv4_routing_table_entry{
         destination = Destination,
         network_mask = nsime_ipv4_mask:get_ones(),
         gateway = NextHop,
-        interface = InterfacePid,
+        interface = InterfaceId,
         metric = Metric
     }.
 
-create_network_route(Network, NetworkMask, InterfacePid, Metric) ->
+create_network_route(Network, NetworkMask, InterfaceId, Metric) ->
     #nsime_ipv4_routing_table_entry{
         destination = Network,
         network_mask = NetworkMask,
         gateway = nsime_ipv4_address:get_zero(),
-        interface = InterfacePid,
+        interface = InterfaceId,
         metric = Metric
     }.
 
-create_network_route(Network, NetworkMask, NextHop, InterfacePid, Metric) ->
+create_network_route(Network, NetworkMask, NextHop, InterfaceId, Metric) ->
     #nsime_ipv4_routing_table_entry{
         destination = Network,
         network_mask = NetworkMask,
         gateway = NextHop,
-        interface = InterfacePid,
+        interface = InterfaceId,
         metric = Metric
     }.
 
-create_default_route(NextHop, InterfacePid) ->
+create_default_route(NextHop, InterfaceId) ->
     #nsime_ipv4_routing_table_entry{
         destination = nsime_ipv4_address:get_zero(),
         network_mask = nsime_ipv4_mask:get_ones(),
         gateway = NextHop,
-        interface = InterfacePid
+        interface = InterfaceId
     }.
 
 
