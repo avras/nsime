@@ -41,10 +41,9 @@ install(NodePidList) ->
                     nsime_udp_protocol:set_node(UdpProtocolPid, Node),
                     nsime_udp_protocol:set_ipv4_down_target(UdpProtocolPid, {nsime_ipv4_protocol, send, [Ipv4ProtocolPid]}),
                     nsime_node:add_object(Node, nsime_udp_protocol, UdpProtocolPid),
-                    ListRoutingPid = nsime_ipv4_list_routing:create(),
-                    StaticRoutingPid = nsime_ipv4_static_routing:create(),
-                    nsime_ipv4_list_routing:add_routing_protocol(ListRoutingPid, StaticRoutingPid, 0),
-                    nsime_ipv4_protocol:set_routing_protocol(Ipv4ProtocolPid, ListRoutingPid)
+                    StaticRouting = nsime_ipv4_static_routing:create(),
+                    ListRouting = nsime_ipv4_list_routing:add_routing_protocol(nsime_ipv4_list_routing:create(), StaticRouting, 0),
+                    nsime_ipv4_protocol:set_routing_protocol(Ipv4ProtocolPid, ListRouting)
             end
         end,
         NodePidList
