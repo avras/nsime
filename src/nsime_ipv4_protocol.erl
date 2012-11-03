@@ -30,6 +30,9 @@
 -include("nsime_ipv4_route.hrl").
 -include("nsime_ipv4_interface_address_state.hrl").
 -include("nsime_ipv4_interface_state.hrl").
+-include("nsime_ipv4_routing_table_entry.hrl").
+-include("nsime_ipv4_static_routing_state.hrl").
+-include("nsime_ipv4_list_routing_state.hrl").
 -include("nsime_ipv4_protocol_state.hrl").
 -include("nsime_icmpv4_protocol_state.hrl").
 
@@ -515,7 +518,7 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
                             RoutingProtocolPid = ProtocolState#nsime_ipv4_protocol_state.routing_protocol,
                             case is_pid(RoutingProtocolPid) of
                                 true ->
-                                    case nsime_ipv4_routing_protocol:route_output(RoutingProtocolPid, NewPacket, Ipv4Header, none) of
+                                    case nsime_ipv4_routing_protocol:route_output(RoutingProtocolPid, Ipv4Header, none, InterfaceList) of
                                         {error_noterror, NewRoute} ->
                                             DevicePid = NewRoute#nsime_ipv4_route.output_device,
                                             Interface = lists:foldl(

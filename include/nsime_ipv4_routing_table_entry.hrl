@@ -25,6 +25,6 @@
           destination                             :: inet:ip4_address(),
           network_mask = {255, 255, 255, 255}     :: nsime_ipv4_mask(),
           gateway = {0, 0, 0, 0}                  :: inet:ip4_address(),
-          interface                               :: pid(),
+          interface                               :: reference(),
           metric = 0                              :: non_neg_integer()
         }).
