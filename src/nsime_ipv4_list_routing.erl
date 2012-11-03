@@ -316,7 +316,7 @@ populate_network_routes(RoutingState, InterfaceList) ->
         routing_protocols = NewRoutingProtocols
     }.
 
-add_routing_protocol(RoutingState, {ProtocolModule, ProtocolState}, Priority) ->
+add_routing_protocol({nsime_ipv4_list_routing, RoutingState}, {ProtocolModule, ProtocolState}, Priority) ->
     RoutingProtocols = RoutingState#nsime_ipv4_list_routing_state.routing_protocols,
     NewRoutingProtocols = lists:sort(
         fun({A, _}, {B, _}) ->
@@ -324,9 +324,10 @@ add_routing_protocol(RoutingState, {ProtocolModule, ProtocolState}, Priority) ->
         end,
         [{Priority, {ProtocolModule, ProtocolState}} | RoutingProtocols]
     ),
-    RoutingState#nsime_ipv4_list_routing_state{
+    NewRoutingState = RoutingState#nsime_ipv4_list_routing_state{
         routing_protocols = NewRoutingProtocols
-    }.
+    },
+    {nsime_ipv4_list_routing, NewRoutingState}.
 
 %% Helper methods %%
 
