@@ -211,12 +211,14 @@ send_message(Packet, DestAddress, IcmpType, IcmpCode, ProtocolState) ->
         destination_address = DestAddress,
         protocol = ?ICMPv4_PROTOCOL_NUMBER
     },
+    {RoutingModule, RoutingState} = nsime_ipv4_protocol:get_routing_protocol(Ipv4ProtocolPid),
+    InterfaceList = nsime_ipv4_protocol:get_interface_list(Ipv4ProtocolPid),
     case
-    nsime_ipv4_routing_protocol:route_output(
-        nsime_ipv4_protocol:get_routing_protocol(Ipv4ProtocolPid),
-        Packet,
+    RoutingModule:route_output(
+        RoutingState,
         Ipv4Header,
-        none
+        none,
+        InterfaceList
     )
     of
         {error_noroutetohost, undefined} ->

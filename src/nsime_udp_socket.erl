@@ -681,25 +681,24 @@ do_send_to(Packet, DestAddress, DestPort, SocketState) ->
                                     ),
                                     {reply, NewerPacket#nsime_packet.size, SocketState};
                                 false ->
-                                    RoutingProtocol = nsime_ipv4_protocol:get_routing_protocol(Ipv4Protocol),
-                                    case is_pid(RoutingProtocol) of
-                                        false ->
+                                    case nsime_ipv4_protocol:get_routing_protocol(Ipv4Protocol) of
+                                        undefined ->
                                             NewSocketState = SocketState#nsime_udp_socket_state{
                                                 socket_error = error_noroutetohost
                                             },
                                             {reply, error_noroutetohost, NewSocketState};
-                                        true ->
+                                        {RoutingModule, RoutingState} ->
                                             Ipv4Header = #nsime_ipv4_header{
                                                     destination_address = DestAddress,
                                                     protocol = nsime_udp_protocol:protocol_number()
                                             },
                                             Netdevice = SocketState#nsime_udp_socket_state.bound_netdevice,
                                             case
-                                                nsime_ipv4_routing_protocol:route_output(
-                                                    RoutingProtocol,
-                                                    NewerPacket,
+                                                RoutingModule:route_output(
+                                                    RoutingState,
                                                     Ipv4Header,
-                                                    Netdevice
+                                                    Netdevice,
+                                                    nsime_ipv4_protocol:get_interface_list(Ipv4Protocol)
                                                 )
                                             of
                                                 {Error, undefined} ->

@@ -74,8 +74,8 @@ set_node(ProtocolPid, NodePid) ->
 protocol_number() ->
     ?IPv4_PROTOCOL_NUMBER.
 
-set_routing_protocol(ProtocolPid, RoutingPid) ->
-    gen_server:call(ProtocolPid, {set_routing_protocol, RoutingPid}).
+set_routing_protocol(ProtocolPid, {RoutingModule, RoutingState}) ->
+    gen_server:call(ProtocolPid, {set_routing_protocol, {RoutingModule, RoutingState}}).
 
 get_routing_protocol(ProtocolPid) ->
     gen_server:call(ProtocolPid, get_routing_protocol).
@@ -226,11 +226,11 @@ handle_call({set_node, NodePid}, _From, ProtocolState) ->
 handle_call(protocol_number, _From, ProtocolState) ->
     {reply, ?IPv4_PROTOCOL_NUMBER, ProtocolState};
 
-handle_call({set_routing_protocol, RoutingPid}, _From, ProtocolState) ->
+handle_call({set_routing_protocol, {RoutingModule, RoutingState}}, _From, ProtocolState) ->
     InterfaceList = ProtocolState#nsime_ipv4_protocol_state.interfaces,
-    nsime_ipv4_routing_protocol:set_ipv4_protocol(RoutingPid, self(), InterfaceList),
+    NewRoutingState = RoutingModule:populate_network_routes(RoutingState, InterfaceList),
     NewProtocolState = ProtocolState#nsime_ipv4_protocol_state{
-        routing_protocol = RoutingPid
+        routing_protocol = {RoutingModule, NewRoutingState}
     },
     {reply, ok, NewProtocolState};
 
@@ -329,10 +329,10 @@ handle_call({recv, DevicePid, Packet, _Protocol, _FromAddress, _ToAddress, _Pack
                     ),
                     {reply, ok, ProtocolState};
                 false ->
-                    RoutingProtocolPid = ProtocolState#nsime_ipv4_protocol_state.routing_protocol,
+                    {RoutingModule, RoutingState} = ProtocolState#nsime_ipv4_protocol_state.routing_protocol,
                     case
-                    nsime_ipv4_routing_protocol:route_input(
-                        RoutingProtocolPid,
+                    RoutingModule:route_input(
+                        RoutingState,
                         NewPacket,
                         NewIpv4Header,
                         DevicePid,
@@ -515,10 +515,9 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
                                 true,
                                 ProtocolState
                             ),
-                            RoutingProtocolPid = ProtocolState#nsime_ipv4_protocol_state.routing_protocol,
-                            case is_pid(RoutingProtocolPid) of
-                                true ->
-                                    case nsime_ipv4_routing_protocol:route_output(RoutingProtocolPid, Ipv4Header, none, InterfaceList) of
+                            case ProtocolState#nsime_ipv4_protocol_state.routing_protocol of
+                                {RoutingModule, RoutingState} ->
+                                    case RoutingModule:route_output(RoutingState, Ipv4Header, none, InterfaceList) of
                                         {error_noterror, NewRoute} ->
                                             DevicePid = NewRoute#nsime_ipv4_route.output_device,
                                             Interface = lists:foldl(
@@ -550,7 +549,7 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
                                             ),
                                             {reply, ok, NewProtocolState}
                                     end;
-                                false ->
+                                undefined ->
                                     {reply, nsime_routing_protocol_undefined, NewProtocolState}
                             end
                     end
@@ -843,18 +842,19 @@ handle_call({set_up, InterfaceId}, _From, ProtocolState) ->
         InterfaceList
     ),
     NewInterface = nsime_ipv4_interface:set_up(MatchingInterface),
+    NewInterfaceList = [NewInterface | RemainingInterfaceList],
     NewProtocolState = ProtocolState#nsime_ipv4_protocol_state{
-        interfaces = [NewInterface | RemainingInterfaceList]
+        interfaces = NewInterfaceList
     },
-    RoutingProtocolPid = ProtocolState#nsime_ipv4_protocol_state.routing_protocol,
-    case is_pid(RoutingProtocolPid) of
-        true ->
-            nsime_ipv4_routing_protocol:notify_interface_up(
-                RoutingProtocolPid,
-                NewInterface
+    case ProtocolState#nsime_ipv4_protocol_state.routing_protocol of
+        {RoutingModule, RoutingState} ->
+            RoutingModule:notify_interface_up(
+                RoutingState,
+                InterfaceId,
+                NewInterfaceList
             ),
             {reply, ok, NewProtocolState};
-        false ->
+        undefined ->
             {reply, ok, NewProtocolState}
     end;
 
@@ -868,18 +868,19 @@ handle_call({set_down, InterfaceId}, _From, ProtocolState) ->
         InterfaceList
     ),
     NewInterface = nsime_ipv4_interface:set_down(MatchingInterface),
+    NewInterfaceList = [NewInterface | RemainingInterfaceList],
     NewProtocolState = ProtocolState#nsime_ipv4_protocol_state{
-        interfaces = [NewInterface | RemainingInterfaceList]
+        interfaces = NewInterfaceList
     },
-    RoutingProtocolPid = ProtocolState#nsime_ipv4_protocol_state.routing_protocol,
-    case is_pid(RoutingProtocolPid) of
-        true ->
-            nsime_ipv4_routing_protocol:notify_interface_down(
-                RoutingProtocolPid,
-                NewInterface
+    case ProtocolState#nsime_ipv4_protocol_state.routing_protocol of
+        {RoutingModule, RoutingState} ->
+            RoutingModule:notify_interface_down(
+                RoutingState,
+                InterfaceId,
+                NewInterfaceList
             ),
             {reply, ok, NewProtocolState};
-        false ->
+        undefined ->
             {reply, ok, NewProtocolState}
     end;
 
@@ -1136,13 +1137,6 @@ handle_call({route_input_error, Packet, Ipv4Header}, _From, ProtocolState) ->
     {reply, ok, ProtocolState};
 
 handle_call(terminate, _From, ProtocolState) ->
-    RoutingProtocolPid = ProtocolState#nsime_ipv4_protocol_state.routing_protocol,
-    case is_pid(RoutingProtocolPid) of
-        true ->
-            nsime_ipv4_routing_protocol:destroy(RoutingProtocolPid);
-        false ->
-            ok
-    end,
     {stop, normal, stopped, ProtocolState}.
 
 handle_cast(_Request, ProtocolState) ->
