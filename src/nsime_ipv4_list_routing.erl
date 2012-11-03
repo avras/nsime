@@ -118,7 +118,7 @@ route_input(
                     {Mod, Fun, Args} = ErrorCallback,
                     NewArgs = lists:flatten([Args, [Packet, Ipv4Header, error_noroutetohost]]),
                     erlang:apply(Mod, Fun, NewArgs),
-                    false
+                    false;
                 true ->
                     lists:foldl(
                         fun({_Priority, {ProtocolModule, ProtocolState}}, Success) ->
