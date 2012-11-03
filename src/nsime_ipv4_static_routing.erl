@@ -486,9 +486,12 @@ code_change(_OldVersion, RoutingState, _Extra) ->
 lookup_static(DestinationAddress, OutputNetdevice, RoutingState) ->
     case nsime_ipv4_address:is_local_multicast(DestinationAddress) of
         true ->
-            InterfacePid = nsime_netdevice:get_interface(OutputNetdevice),
-            [FirstAddressPid | _] = nsime_ipv4_interface:get_address_list(InterfacePid),
-            SrcAddress = nsime_ipv4_interface_address:get_local_address(FirstAddressPid),
+            InterfaceId = nsime_netdevice:get_interface(OutputNetdevice),
+            FirstAddress = hd(nsime_ipv4_protocol:get_interface_address_list(
+                RoutingState#nsime_ipv4_static_routing_state.ipv4_protocol,
+                InterfaceId
+            )),
+            SrcAddress = nsime_ipv4_interface_address:get_local_address(FirstAddress),
             #nsime_ipv4_route{
                 destination = DestinationAddress,
                 source = SrcAddress,

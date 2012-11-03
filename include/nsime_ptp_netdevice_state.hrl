@@ -50,5 +50,5 @@
             link_up = false                               :: boolean(),
             mtu = 1500                                    :: pos_integer(),
             current_packet = none                         :: none | #nsime_packet{},
-            interface                                     :: non_neg_integer()
+            interface                                     :: reference()
         }).

@@ -63,8 +63,8 @@ assign(HelperPid, DevicePidList) ->
     case gen_server:call(HelperPid, {assign, DevicePidList}) of
         nsime_address_overflow ->
             erlang:error(nsime_address_overflow);
-        InterfacePidList ->
-            InterfacePidList
+        InterfaceList ->
+            InterfaceList
     end.
 
 init([]) ->
@@ -141,7 +141,8 @@ handle_call({assign, DevicePidList}, _From, HelperState) ->
             NetworkAddress = HelperState#nsime_ipv4_address_helper_state.network,
             <<NetworkInteger:32>> = list_to_binary(tuple_to_list(NetworkAddress)),
             DevicesAndIndices = lists:zip(DevicePidList, lists:seq(1, length(DevicePidList))),
-            lists:foreach(
+            InterfaceList =
+            lists:map(
                 fun({DevicePid, Index})->
                     NodePid = nsime_netdevice:get_node(DevicePid),
                     Ipv4ProtocolPid = nsime_node:get_object(NodePid, nsime_ipv4_protocol),
@@ -161,12 +162,26 @@ handle_call({assign, DevicePidList}, _From, HelperState) ->
                             <<(NetworkInteger bor (CurrentAddressInteger+Index-1)):32>>
                         )
                     ),
-                   InterfaceAddress = nsime_ipv4_interface_address:create(NewAddress, Mask),
-                   ModifiedInterface = nsime_ipv4_interface:set_metric(
-                      nsime_ipv4_interface:add_address(Interface, InterfaceAddress),
-                      1
-                   ),
-                   nsime_ipv4_protocol:set_up(Ipv4ProtocolPid, ModifiedInterface)
+                    InterfaceAddress = nsime_ipv4_interface_address:create(NewAddress, Mask),
+                    InterfaceId = nsime_ipv4_interface:get_id(Interface),
+                    nsime_ipv4_protocol:add_interface_address(
+                        Ipv4ProtocolPid,
+                        InterfaceId,
+                        InterfaceAddress
+                    ),
+                    nsime_ipv4_protocol:set_metric(
+                        Ipv4ProtocolPid,
+                        InterfaceId,
+                        1
+                    ),
+                    nsime_ipv4_protocol:set_up(Ipv4ProtocolPid, InterfaceId),
+                    [InterfaceState] = lists:filter(
+                        fun(I) ->
+                            nsime_ipv4_interface:get_id(I) == InterfaceId
+                        end,
+                        nsime_ipv4_protocol:get_interface_list(Ipv4ProtocolPid)
+                    ),
+                    InterfaceState
                 end,
                 DevicesAndIndices
             ),
@@ -178,7 +193,6 @@ handle_call({assign, DevicePidList}, _From, HelperState) ->
             NewHelperState = HelperState#nsime_ipv4_address_helper_state{
                 address = LatestAddress
             },
-            InterfaceList = nsime_ipv4_protocol:get_interface_list(Ipv4ProtocolPid),
             {reply, InterfaceList, NewHelperState}
     end;
 

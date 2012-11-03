@@ -42,8 +42,8 @@ destroy(DevicePid) ->
 get_device_type(DevicePid) ->
     gen_server:call(DevicePid, get_device_type).
 
-set_interface(DevicePid, InterfacePid) ->
-    gen_server:call(DevicePid, {set_interface, InterfacePid}).
+set_interface(DevicePid, InterfaceId) ->
+    gen_server:call(DevicePid, {set_interface, InterfaceId}).
 
 get_interface(DevicePid) ->
     gen_server:call(DevicePid, get_interface).

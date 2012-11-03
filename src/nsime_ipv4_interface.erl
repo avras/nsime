@@ -34,11 +34,11 @@
          is_up/1, is_down/1, set_up/1, set_down/1,
          is_forwarding/1, set_forwarding/2,
          send/4, add_address/2, remove_address/2,
-         get_address_list/1]).
+         get_address_list/1, get_id/1]).
 
 create() ->
     #nsime_ipv4_interface_state{
-        interfaceid = make_ref()
+        interface_id = make_ref()
     }.
 
 set_device(InterfaceState, DevicePid) ->
@@ -210,3 +210,6 @@ remove_address(InterfaceState, AddressState) ->
 
 get_address_list(InterfaceState) ->
     InterfaceState#nsime_ipv4_interface_state.address_list.
+
+get_id(InterfaceState) ->
+    InterfaceState#nsime_ipv4_interface_state.interface_id.

@@ -133,8 +133,8 @@ get_mtu(DevicePid) ->
 attach_channel(DevicePid, ChannelPid) ->
     gen_server:call(DevicePid, {attach_channel, ChannelPid}).
 
-set_interface(DevicePid, InterfacePid) ->
-    gen_server:call(DevicePid, {set_interface, InterfacePid}).
+set_interface(DevicePid, InterfaceId) ->
+    gen_server:call(DevicePid, {set_interface, InterfaceId}).
 
 get_interface(DevicePid) ->
     gen_server:call(DevicePid, get_interface).
@@ -274,13 +274,13 @@ handle_call({attach_channel, ChannelPid}, _From, DeviceState) ->
            {reply, none, DeviceState}
     end;
 
-handle_call({set_interface, InterfacePid}, _From, DeviceState) ->
-    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{interface = InterfacePid},
+handle_call({set_interface, InterfaceId}, _From, DeviceState) ->
+    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{interface = InterfaceId},
     {reply, ok, NewDeviceState};
 
 handle_call(get_interface, _From, DeviceState) ->
-    InterfacePid = DeviceState#nsime_ptp_netdevice_state.interface,
-    {reply, InterfacePid, DeviceState};
+    InterfaceId = DeviceState#nsime_ptp_netdevice_state.interface,
+    {reply, InterfaceId, DeviceState};
 
 handle_call(is_link_up, _From, DeviceState) ->
     IsLinkUp = DeviceState#nsime_ptp_netdevice_state.link_up,

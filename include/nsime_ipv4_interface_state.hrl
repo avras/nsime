@@ -22,7 +22,7 @@
 
 -record(nsime_ipv4_interface_state,
         {
-          interfaceid                 :: reference(),
+          interface_id                :: reference(),
           interface_up = false        :: boolean(),
           forwarding = true           :: boolean(),
           metric = 1                  :: integer(),
