@@ -22,6 +22,7 @@
 
 -record(nsime_ipv4_interface_address_state,
         {
+          addressid                   :: reference(),
           local_address               :: inet:ip4_address(),
           broadcast_address           :: inet:ip4_address(),
           mask                        :: nsime_ipv4_mask(),

@@ -124,47 +124,47 @@ get_interface_for_prefix(ProtocolPid, Address, Mask) ->
 get_interface_for_device(ProtocolPid, DevicePid) ->
     gen_server:call(ProtocolPid, {get_interface_for_device, DevicePid}).
 
-is_destination_address(ProtocolPid, Ipv4Address, InterfacePid) ->
-    gen_server:call(ProtocolPid, {is_destination_address, Ipv4Address, InterfacePid}).
+is_destination_address(ProtocolPid, Ipv4Address, Interface) ->
+    gen_server:call(ProtocolPid, {is_destination_address, Ipv4Address, Interface}).
 
-add_interface_address(ProtocolPid, InterfacePid, InterfaceAddressPid) ->
-    gen_server:call(ProtocolPid, {add_interface_address, InterfacePid, InterfaceAddressPid}).
+add_interface_address(ProtocolPid, InterfaceId, InterfaceAddress) ->
+    gen_server:call(ProtocolPid, {add_interface_address, InterfaceId, InterfaceAddress}).
 
-remove_interface_address(ProtocolPid, InterfacePid, InterfaceAddressPid) ->
-    gen_server:call(ProtocolPid, {remove_interface_address, InterfacePid, InterfaceAddressPid}).
+remove_interface_address(ProtocolPid, Interface, InterfaceAddress) ->
+    gen_server:call(ProtocolPid, {remove_interface_address, Interface, InterfaceAddress}).
 
-get_interface_address_list(ProtocolPid, InterfacePid) ->
-    gen_server:call(ProtocolPid, {get_interface_address_list, InterfacePid}).
+get_interface_address_list(ProtocolPid, Interface) ->
+    gen_server:call(ProtocolPid, {get_interface_address_list, Interface}).
 
 select_source_address(ProtocolPid, DevicePid, DestAddress, InterfaceAddressScope) ->
     gen_server:call(ProtocolPid, {select_source_address, DevicePid, DestAddress, InterfaceAddressScope}).
 
-set_metric(ProtocolPid, InterfacePid, Metric) ->
-    gen_server:call(ProtocolPid, {set_metric, InterfacePid, Metric}).
+set_metric(ProtocolPid, Interface, Metric) ->
+    gen_server:call(ProtocolPid, {set_metric, Interface, Metric}).
 
-get_metric(ProtocolPid, InterfacePid) ->
-    gen_server:call(ProtocolPid, {get_metric, InterfacePid}).
+get_metric(ProtocolPid, Interface) ->
+    gen_server:call(ProtocolPid, {get_metric, Interface}).
 
-get_mtu(ProtocolPid, InterfacePid) ->
-    gen_server:call(ProtocolPid, {get_mtu, InterfacePid}).
+get_mtu(ProtocolPid, Interface) ->
+    gen_server:call(ProtocolPid, {get_mtu, Interface}).
 
-is_up(ProtocolPid, InterfacePid) ->
-    gen_server:call(ProtocolPid, {is_up, InterfacePid}).
+is_up(ProtocolPid, Interface) ->
+    gen_server:call(ProtocolPid, {is_up, Interface}).
 
-set_up(ProtocolPid, InterfacePid) ->
-    gen_server:call(ProtocolPid, {set_up, InterfacePid}).
+set_up(ProtocolPid, Interface) ->
+    gen_server:call(ProtocolPid, {set_up, Interface}).
 
-set_down(ProtocolPid, InterfacePid) ->
-    gen_server:call(ProtocolPid, {set_down, InterfacePid}).
+set_down(ProtocolPid, Interface) ->
+    gen_server:call(ProtocolPid, {set_down, Interface}).
 
-is_forwarding(ProtocolPid, InterfacePid) ->
-    gen_server:call(ProtocolPid, {is_forwarding, InterfacePid}).
+is_forwarding(ProtocolPid, Interface) ->
+    gen_server:call(ProtocolPid, {is_forwarding, Interface}).
 
-set_forwarding(ProtocolPid, InterfacePid, Forwarding) ->
-    gen_server:call(ProtocolPid, {set_forwarding, InterfacePid, Forwarding}).
+set_forwarding(ProtocolPid, Interface, Forwarding) ->
+    gen_server:call(ProtocolPid, {set_forwarding, Interface, Forwarding}).
 
-get_netdevice(ProtocolPid, InterfacePid) ->
-    gen_server:call(ProtocolPid, {get_netdevice, InterfacePid}).
+get_netdevice(ProtocolPid, Interface) ->
+    gen_server:call(ProtocolPid, {get_netdevice, Interface}).
 
 set_weak_es_model(ProtocolPid, WeakEsModel) ->
     gen_server:call(ProtocolPid, {set_weak_es_model, WeakEsModel}).
@@ -203,8 +203,8 @@ ip_forward(ProtocolPid, Route, Packet, Ipv4Header) ->
             ok
     end.
 
-local_deliver(ProtocolPid, Packet, Ipv4Header, InterfacePid) ->
-    gen_server:call(ProtocolPid, {local_deliver, Packet, Ipv4Header, InterfacePid}).
+local_deliver(ProtocolPid, Packet, Ipv4Header, Interface) ->
+    gen_server:call(ProtocolPid, {local_deliver, Packet, Ipv4Header, Interface}).
 
 route_input_error(ProtocolPid, Packet, Ipv4Header) ->
     gen_server:call(ProtocolPid, {route_input_error, Packet, Ipv4Header}).
@@ -273,9 +273,9 @@ handle_call({set_default_ttl, DefaulTTL}, _From, ProtocolState) ->
 
 handle_call({recv, DevicePid, Packet, _Protocol, _FromAddress, _ToAddress, _PacketType}, _From, ProtocolState) ->
     InterfaceList = ProtocolState#nsime_ipv4_protocol_state.interfaces,
-    InterfacePid = lists:foldl(
+    Interface = lists:foldl(
         fun(I, Found) ->
-            case is_pid(Found) of
+            case is_record(Found, nsime_ipv4_interface) of
                 true ->
                     Found;
                 false ->
@@ -290,7 +290,7 @@ handle_call({recv, DevicePid, Packet, _Protocol, _FromAddress, _ToAddress, _Pack
         none,
         InterfaceList
     ),
-    case nsime_ipv4_interface:is_up(InterfacePid) of
+    case nsime_ipv4_interface:is_up(Interface) of
         false ->
             DataSizeBits = (Packet#nsime_packet.size - 20)*8,
             <<Ipv4HeaderBinary:160, Data:DataSizeBits>> = Packet#nsime_packet.data,
@@ -298,13 +298,13 @@ handle_call({recv, DevicePid, Packet, _Protocol, _FromAddress, _ToAddress, _Pack
             NewPacket = Packet#nsime_packet{data = <<Data:DataSizeBits>>},
             nsime_callback:apply(
                 ProtocolState#nsime_ipv4_protocol_state.drop_trace,
-                [Ipv4Header, NewPacket, drop_interface_down, self(), InterfacePid]
+                [Ipv4Header, NewPacket, drop_interface_down, self(), Interface]
             ),
             {reply, ok, ProtocolState};
         true ->
             nsime_callback:apply(
                 ProtocolState#nsime_ipv4_protocol_state.receive_trace,
-                [Packet, self(), InterfacePid]
+                [Packet, self(), Interface]
             ),
             DataSizeBits = (Packet#nsime_packet.size - 20)*8,
             <<Ipv4HeaderBinary:160, Data:DataSizeBits>> = Packet#nsime_packet.data,
@@ -320,19 +320,18 @@ handle_call({recv, DevicePid, Packet, _Protocol, _FromAddress, _ToAddress, _Pack
                 true ->
                     nsime_callback:apply(
                         ProtocolState#nsime_ipv4_protocol_state.drop_trace,
-                        [NewIpv4Header, NewPacket, drop_bad_checksum, self(), InterfacePid]
+                        [NewIpv4Header, NewPacket, drop_bad_checksum, self(), Interface]
                     ),
                     {reply, ok, ProtocolState};
                 false ->
                     RoutingProtocolPid = ProtocolState#nsime_ipv4_protocol_state.routing_protocol,
-                    InterfaceList = ProtocolState#nsime_ipv4_protocol_state.interfaces,
                     case
                     nsime_ipv4_routing_protocol:route_input(
                         RoutingProtocolPid,
                         NewPacket,
                         NewIpv4Header,
                         DevicePid,
-                        InterfacePid,
+                        Interface,
                         {?MODULE, ip_forward, [self()]},
                         none,
                         {?MODULE, local_deliver, [self()]},
@@ -343,7 +342,7 @@ handle_call({recv, DevicePid, Packet, _Protocol, _FromAddress, _ToAddress, _Pack
                         false ->
                             nsime_callback:apply(
                                 ProtocolState#nsime_ipv4_protocol_state.drop_trace,
-                                [Ipv4Header, NewPacket, drop_no_route, self(), InterfacePid]
+                                [Ipv4Header, NewPacket, drop_no_route, self(), Interface]
                             ),
                             {reply, ok, ProtocolState};
                         true ->
@@ -390,7 +389,7 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
                         NewProtocolState#nsime_ipv4_protocol_state.transmit_trace,
                         [NewerPacket, self(), I]
                     ),
-                    nsime_ipv4_interface:send(I, NewerPacket, DestAddress)
+                    nsime_ipv4_interface:send(I, NewerPacket, DestAddress, self())
                 end,
                 InterfaceList
             ),
@@ -443,7 +442,7 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
                                                         NewProtocolState#nsime_ipv4_protocol_state.transmit_trace,
                                                         [NewerPacket, self(), I]
                                                     ),
-                                                    nsime_ipv4_interface:send(I, NewerPacket, DestAddress),
+                                                    nsime_ipv4_interface:send(I, NewerPacket, DestAddress, self()),
                                                     true;
                                                 false ->
                                                     false
@@ -476,9 +475,9 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
                                         ProtocolState
                                     ),
                                     DevicePid = Route#nsime_ipv4_route.output_device,
-                                    InterfacePid = lists:foldl(
+                                    Interface = lists:foldl(
                                         fun(I, Match) ->
-                                            case is_pid(Match) of
+                                            case is_record(Match, nsime_ipv4_interface) of
                                                 true ->
                                                     Match;
                                                 false ->
@@ -495,7 +494,7 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
                                     ),
                                     nsime_callback:apply(
                                         NewProtocolState#nsime_ipv4_protocol_state.send_outgoing_trace,
-                                        [Ipv4Header, NewPacket, InterfacePid]
+                                        [Ipv4Header, NewPacket, Interface]
                                     ),
                                     send_real_out(Route, NewPacket, Ipv4Header, NewProtocolState);
                                 false ->
@@ -517,9 +516,9 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
                                     case nsime_ipv4_routing_protocol:route_output(RoutingProtocolPid, NewPacket, Ipv4Header, none) of
                                         {error_noterror, NewRoute} ->
                                             DevicePid = NewRoute#nsime_ipv4_route.output_device,
-                                            InterfacePid = lists:foldl(
+                                            Interface = lists:foldl(
                                                 fun(I, Match) ->
-                                                    case is_pid(Match) of
+                                                    case is_record(Match, nsime_ipv4_interface) of
                                                         true ->
                                                             Match;
                                                         false ->
@@ -536,7 +535,7 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
                                             ),
                                             nsime_callback:apply(
                                                 NewProtocolState#nsime_ipv4_protocol_state.send_outgoing_trace,
-                                                [Ipv4Header, NewPacket, InterfacePid]
+                                                [Ipv4Header, NewPacket, Interface]
                                             ),
                                             send_real_out(NewRoute, NewPacket, Ipv4Header, NewProtocolState);
                                         {error_noroutetohost, undefined} ->
@@ -569,28 +568,28 @@ handle_call({add_interface, DevicePid}, _From, ProtocolState) ->
         DevicePid,
         false
     ),
-    InterfacePid = nsime_ipv4_interface:create(),
-    nsime_ipv4_interface:set_node(InterfacePid, NodePid),
-    nsime_ipv4_interface:set_device(InterfacePid, DevicePid),
-    nsime_netdevice:set_interface(DevicePid, InterfacePid),
-    nsime_ipv4_interface:set_forwarding(
-        InterfacePid,
+    NewInterface = nsime_ipv4_interface:set_forwarding(
+        nsime_ipv4_interface:set_device(
+            nsime_ipv4_interface:create(),
+            DevicePid
+        ),
         ProtocolState#nsime_ipv4_protocol_state.ip_forward
     ),
+    nsime_netdevice:set_interface(DevicePid, NewInterface),
     InterfaceList = ProtocolState#nsime_ipv4_protocol_state.interfaces,
     NewProtocolState = ProtocolState#nsime_ipv4_protocol_state{
-        interfaces = [InterfacePid | InterfaceList]
+        interfaces = [NewInterface | InterfaceList]
     },
-    {reply, InterfacePid, NewProtocolState};
+    {reply, NewInterface, NewProtocolState};
 
 handle_call(get_interface_list, _From, ProtocolState) ->
     {reply, ProtocolState#nsime_ipv4_protocol_state.interfaces, ProtocolState};
 
 handle_call({get_interface_for_address, Address}, _From, ProtocolState) ->
     InterfaceList = ProtocolState#nsime_ipv4_protocol_state.interfaces,
-    InterfacePid = lists:foldl(
+    Interface = lists:foldl(
         fun(I, Match) ->
-            case is_pid(Match) of
+            case is_record(Match, nsime_ipv4_interface) of
                 true ->
                     Match;
                 false ->
@@ -613,13 +612,13 @@ handle_call({get_interface_for_address, Address}, _From, ProtocolState) ->
         none,
         InterfaceList
     ),
-    {reply, InterfacePid, ProtocolState};
+    {reply, Interface, ProtocolState};
 
 handle_call({get_interface_for_prefix, Address, Mask}, _From, ProtocolState) ->
     InterfaceList = ProtocolState#nsime_ipv4_protocol_state.interfaces,
-    InterfacePid = lists:foldl(
+    Interface = lists:foldl(
         fun(I, Match) ->
-            case is_pid(Match) of
+            case is_record(Match, nsime_ipv4_interface) of
                 true ->
                     Match;
                 false ->
@@ -644,13 +643,13 @@ handle_call({get_interface_for_prefix, Address, Mask}, _From, ProtocolState) ->
         none,
         InterfaceList
     ),
-    {reply, InterfacePid, ProtocolState};
+    {reply, Interface, ProtocolState};
 
 handle_call({get_interface_for_device, DevicePid}, _From, ProtocolState) ->
     InterfaceList = ProtocolState#nsime_ipv4_protocol_state.interfaces,
-    InterfacePid = lists:foldl(
+    Interface = lists:foldl(
         fun(I, Match) ->
-            case is_pid(Match) of
+            case is_record(Match, nsime_ipv4_interface) of
                 true ->
                     Match;
                 false ->
@@ -665,10 +664,10 @@ handle_call({get_interface_for_device, DevicePid}, _From, ProtocolState) ->
         none,
         InterfaceList
     ),
-    {reply, InterfacePid, ProtocolState};
+    {reply, Interface, ProtocolState};
 
-handle_call({is_destination_address, Ipv4Address, InterfacePid}, _From, ProtocolState) ->
-    InterfaceAddressList = nsime_ipv4_interface:get_address_list(InterfacePid),
+handle_call({is_destination_address, Ipv4Address, Interface}, _From, ProtocolState) ->
+    InterfaceAddressList = nsime_ipv4_interface:get_address_list(Interface),
     IsMatch = lists:foldl(
         fun(A, Result) ->
             case Result of
@@ -701,7 +700,7 @@ handle_call({is_destination_address, Ipv4Address, InterfacePid}, _From, Protocol
                             InterfaceList = ProtocolState#nsime_ipv4_protocol_state.interfaces,
                             OtherInterfaces = lists:filter(
                                 fun(I) ->
-                                    I =/= InterfacePid
+                                    I =/= Interface
                                 end,
                                 InterfaceList
                             ),
@@ -736,70 +735,81 @@ handle_call({is_destination_address, Ipv4Address, InterfacePid}, _From, Protocol
             end
     end;
 
-handle_call({add_interface_address, InterfacePid, InterfaceAddressPid}, _From, ProtocolState) ->
-    nsime_ipv4_interface:add_address(InterfacePid, InterfaceAddressPid),
+handle_call({add_interface_address, InterfaceId, InterfaceAddress}, _From, ProtocolState) ->
+    InterfaceList = ProtocolState#nsime_ipv4_protocol_state.interfaces,
+    {[MatchingInterface], RemainingInterfaceList} =
+    lists:partition(
+        fun(I) ->
+            I#nsime_ipv4_interface.interfaceid == InterfaceId
+        end,
+        InterfaceList
+    ),
+    NewInterface = nsime_ipv4_interface:add_address(MatchingInterface, InterfaceAddress),
+    NewProtocolState = ProtocolState#nsime_ipv4_protocol_state{
+        interfaces = [NewInterface | RemainingInterfaceList]
+    },
+    {reply, ok, NewProtocolState};
+
+handle_call({remove_interface_address, Interface, InterfaceAddress}, _From, ProtocolState) ->
+    nsime_ipv4_interface:remove_address(Interface, InterfaceAddress),
     {reply, ok, ProtocolState};
 
-handle_call({remove_interface_address, InterfacePid, InterfaceAddressPid}, _From, ProtocolState) ->
-    nsime_ipv4_interface:remove_address(InterfacePid, InterfaceAddressPid),
-    {reply, ok, ProtocolState};
-
-handle_call({get_interface_address_list, InterfacePid}, _From, ProtocolState) ->
-    {reply, nsime_ipv4_interface:get_address_list(InterfacePid), ProtocolState};
+handle_call({get_interface_address_list, Interface}, _From, ProtocolState) ->
+    {reply, nsime_ipv4_interface:get_address_list(Interface), ProtocolState};
 
 handle_call({select_source_address, _DevicePid, _DestAddress, _InterfaceAddressScope}, _From, ProtocolState) ->
     {reply, ok, ProtocolState};
 
-handle_call({set_metric, InterfacePid, Metric}, _From, ProtocolState) ->
-    {reply, nsime_ipv4_interface:set_metric(InterfacePid, Metric), ProtocolState};
+handle_call({set_metric, Interface, Metric}, _From, ProtocolState) ->
+    {reply, nsime_ipv4_interface:set_metric(Interface, Metric), ProtocolState};
 
-handle_call({get_metric, InterfacePid}, _From, ProtocolState) ->
-    {reply, nsime_ipv4_interface:get_metric(InterfacePid), ProtocolState};
+handle_call({get_metric, Interface}, _From, ProtocolState) ->
+    {reply, nsime_ipv4_interface:get_metric(Interface), ProtocolState};
 
-handle_call({get_mtu, InterfacePid}, _From, ProtocolState) ->
-    Mtu = nsime_netdevice:get_mtu(nsime_ipv4_interface:get_device(InterfacePid)),
+handle_call({get_mtu, Interface}, _From, ProtocolState) ->
+    Mtu = nsime_netdevice:get_mtu(nsime_ipv4_interface:get_device(Interface)),
     {reply, Mtu, ProtocolState};
 
-handle_call({is_up, InterfacePid}, _From, ProtocolState) ->
-    {reply, nsime_ipv4_interface:is_up(InterfacePid), ProtocolState};
+handle_call({is_up, Interface}, _From, ProtocolState) ->
+    {reply, nsime_ipv4_interface:is_up(Interface), ProtocolState};
 
-handle_call({set_up, InterfacePid}, _From, ProtocolState) ->
-    nsime_ipv4_interface:set_up(InterfacePid),
+handle_call({set_up, Interface}, _From, ProtocolState) ->
+    nsime_ipv4_interface:set_up(Interface),
     RoutingProtocolPid = ProtocolState#nsime_ipv4_protocol_state.routing_protocol,
     case is_pid(RoutingProtocolPid) of
         true ->
             nsime_ipv4_routing_protocol:notify_interface_up(
                 RoutingProtocolPid,
-                InterfacePid
+                Interface
             ),
             {reply, ok, ProtocolState};
         false ->
             {reply, ok, ProtocolState}
     end;
 
-handle_call({set_down, InterfacePid}, _From, ProtocolState) ->
-    nsime_ipv4_interface:set_down(InterfacePid),
+handle_call({set_down, Interface}, _From, ProtocolState) ->
+    nsime_ipv4_interface:set_down(Interface),
     RoutingProtocolPid = ProtocolState#nsime_ipv4_protocol_state.routing_protocol,
     case is_pid(RoutingProtocolPid) of
         true ->
             nsime_ipv4_routing_protocol:notify_interface_down(
                 RoutingProtocolPid,
-                InterfacePid
+                Interface
             ),
             {reply, ok, ProtocolState};
         false ->
             {reply, ok, ProtocolState}
     end;
 
-handle_call({is_forwarding, InterfacePid}, _From, ProtocolState) ->
-    {reply, nsime_ipv4_interface:is_forwarding(InterfacePid), ProtocolState};
+handle_call({is_forwarding, Interface}, _From, ProtocolState) ->
+    {reply, nsime_ipv4_interface:is_forwarding(Interface), ProtocolState};
 
-handle_call({set_forwarding, InterfacePid, Forwarding}, _From, ProtocolState) ->
-    nsime_ipv4_interface:set_forwarding(InterfacePid, Forwarding),
+handle_call({set_forwarding, Interface, Forwarding}, _From, ProtocolState) ->
+    nsime_ipv4_interface:set_forwarding(Interface, Forwarding),
     {reply, ok, ProtocolState};
 
-handle_call({get_netdevice, InterfacePid}, _From, ProtocolState) ->
-    {reply, nsime_ipv4_interface:get_device(InterfacePid), ProtocolState};
+handle_call({get_netdevice, Interface}, _From, ProtocolState) ->
+    {reply, nsime_ipv4_interface:get_device(Interface), ProtocolState};
 
 handle_call({set_weak_es_model, WeakEsModel}, _From, ProtocolState) ->
     NewProtocolState = ProtocolState#nsime_ipv4_protocol_state{
@@ -855,9 +865,9 @@ handle_call({set_local_deliver_trace, TraceCallback}, _From, ProtocolState) ->
 handle_call({ip_forward, Route, Packet, Ipv4Header}, _From, ProtocolState) ->
     InterfaceList = ProtocolState#nsime_ipv4_protocol_state.interfaces,
     DevicePid = Route#nsime_ipv4_route.output_device,
-    InterfacePid = lists:foldl(
+    Interface = lists:foldl(
         fun(I, Match) ->
-            case is_pid(Match) of
+            case is_record(Match, nsime_ipv4_interface) of
                 true ->
                     Match;
                 false ->
@@ -915,29 +925,29 @@ handle_call({ip_forward, Route, Packet, Ipv4Header}, _From, ProtocolState) ->
                             nsime_icmpv4_protocol:send_time_exceeded_ttl(IcmpPid, NewIpv4Header, Packet),
                             nsime_callback:apply(
                                 ProtocolState#nsime_ipv4_protocol_state.drop_trace,
-                                [NewIpv4Header, Packet, drop_ttl_expired, self(), InterfacePid]
+                                [NewIpv4Header, Packet, drop_ttl_expired, self(), Interface]
                             ),
                             {reply, ok, ProtocolState}
                     end;
                 false ->
                     nsime_callback:apply(
                         ProtocolState#nsime_ipv4_protocol_state.drop_trace,
-                        [NewIpv4Header, Packet, drop_ttl_expired, self(), InterfacePid]
+                        [NewIpv4Header, Packet, drop_ttl_expired, self(), Interface]
                     ),
                     {reply, ok, ProtocolState}
             end;
         false ->
             nsime_callback:apply(
                 ProtocolState#nsime_ipv4_protocol_state.unicast_forward_trace,
-                [NewIpv4Header, Packet, InterfacePid]
+                [NewIpv4Header, Packet, Interface]
             ),
             send_real_out(Route, Packet, NewIpv4Header, ProtocolState)
     end;
 
-handle_call({local_deliver, Packet, Ipv4Header, InterfacePid}, _From, ProtocolState) ->
+handle_call({local_deliver, Packet, Ipv4Header, Interface}, _From, ProtocolState) ->
     nsime_callback:apply(
         ProtocolState#nsime_ipv4_protocol_state.local_deliver_trace,
-        [Ipv4Header, Packet, InterfacePid]
+        [Ipv4Header, Packet, Interface]
     ),
     Layer4ProtocolPid = hd(lists:filter(
         fun(P) ->
@@ -948,7 +958,7 @@ handle_call({local_deliver, Packet, Ipv4Header, InterfacePid}, _From, ProtocolSt
     )),
     case is_pid(Layer4ProtocolPid) of
         true ->
-            RxStatus = nsime_layer4_protocol:recv(Layer4ProtocolPid, Packet, Ipv4Header, InterfacePid),
+            RxStatus = nsime_layer4_protocol:recv(Layer4ProtocolPid, Packet, Ipv4Header, Interface),
             case RxStatus of
                 rx_ok ->
                     {reply, ok, ProtocolState};
@@ -965,7 +975,7 @@ handle_call({local_deliver, Packet, Ipv4Header, InterfacePid}, _From, ProtocolSt
                         true ->
                             {reply, ok, ProtocolState};
                         false ->
-                            InterfaceAddressList = nsime_ipv4_interface:get_address_list(InterfacePid),
+                            InterfaceAddressList = nsime_ipv4_interface:get_address_list(Interface),
                             SubnetDirected = lists:foldl(
                                 fun(A, Directed) ->
                                     case Directed of
@@ -1020,18 +1030,6 @@ handle_call(terminate, _From, ProtocolState) ->
     case is_pid(RoutingProtocolPid) of
         true ->
             nsime_ipv4_routing_protocol:destroy(RoutingProtocolPid);
-        false ->
-            ok
-    end,
-    InterfaceList = ProtocolState#nsime_ipv4_protocol_state.interfaces,
-    case is_list(InterfaceList) of
-        true ->
-            lists:foreach(
-                fun(I) ->
-                    nsime_ipv4_interface:destroy(I)
-                end,
-                InterfaceList
-            );
         false ->
             ok
     end,
@@ -1091,9 +1089,9 @@ send_real_out(Route, Packet, Ipv4Header, ProtocolState) ->
             },
             DevicePid = Route#nsime_ipv4_route.output_device,
             InterfaceList = ProtocolState#nsime_ipv4_protocol_state.interfaces,
-            InterfacePid = lists:foldl(
+            Interface = lists:foldl(
                 fun(I, Match) ->
-                    case is_pid(Match) of
+                    case is_record(Match, nsime_ipv4_interface) of
                         true ->
                             Match;
                         false ->
@@ -1110,54 +1108,55 @@ send_real_out(Route, Packet, Ipv4Header, ProtocolState) ->
             ),
             case Route#nsime_ipv4_route.gateway == nsime_ipv4_address:get_zero() of
                 false ->
-                    case nsime_ipv4_interface:is_up(InterfacePid) of
+                    case nsime_ipv4_interface:is_up(Interface) of
                         true ->
                             case
                                 NewPacket#nsime_packet.size >
-                                nsime_netdevice:get_mtu(nsime_ipv4_interface:get_device(InterfacePid))
+                                nsime_netdevice:get_mtu(nsime_ipv4_interface:get_device(Interface))
                             of
                                 true ->
                                     {reply, ipv4_fragmentation_not_supported, ProtocolState};
                                 false ->
                                     nsime_callback:apply(
                                         ProtocolState#nsime_ipv4_protocol_state.transmit_trace,
-                                        [NewPacket, self(), InterfacePid]
+                                        [NewPacket, self(), Interface]
                                     ),
-                                    nsime_ipv4_interface:send(InterfacePid, NewPacket, Route#nsime_ipv4_route.gateway),
+                                    nsime_ipv4_interface:send(Interface, NewPacket, Route#nsime_ipv4_route.gateway, self()),
                                     {reply, ok, ProtocolState}
                             end;
                         false ->
                             nsime_callback:apply(
                                 ProtocolState#nsime_ipv4_protocol_state.drop_trace,
-                                [Ipv4Header, Packet, drop_interface_down, self(), InterfacePid]
+                                [Ipv4Header, Packet, drop_interface_down, self(), Interface]
                             ),
                             {reply, ok, ProtocolState}
                     end;
                 true ->
-                    case is_pid(InterfacePid) andalso nsime_ipv4_interface:is_up(InterfacePid) of
+                    case is_record(Interface, nsime_ipv4_interface) andalso nsime_ipv4_interface:is_up(Interface) of
                         true ->
                             case
                                 NewPacket#nsime_packet.size >
-                                nsime_netdevice:get_mtu(nsime_ipv4_interface:get_device(InterfacePid))
+                                nsime_netdevice:get_mtu(nsime_ipv4_interface:get_device(Interface))
                             of
                                 true ->
                                     {reply, ipv4_fragmentation_not_supported, ProtocolState};
                                 false ->
                                     nsime_callback:apply(
                                         ProtocolState#nsime_ipv4_protocol_state.transmit_trace,
-                                        [NewPacket, self(), InterfacePid]
+                                        [NewPacket, self(), Interface]
                                     ),
                                     nsime_ipv4_interface:send(
-                                        InterfacePid,
+                                        Interface,
                                         NewPacket,
-                                        nsime_ipv4_header:get_destination_address(Ipv4Header)
+                                        nsime_ipv4_header:get_destination_address(Ipv4Header),
+                                        self()
                                     ),
                                     {reply, ok, ProtocolState}
                             end;
                         false ->
                             nsime_callback:apply(
                                 ProtocolState#nsime_ipv4_protocol_state.drop_trace,
-                                [Ipv4Header, Packet, drop_interface_down, self(), InterfacePid]
+                                [Ipv4Header, Packet, drop_interface_down, self(), Interface]
                             ),
                             {reply, ok, ProtocolState}
                     end

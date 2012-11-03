@@ -26,11 +26,7 @@
 -include("nsime_types.hrl").
 -include("nsime_ipv4_interface_address_state.hrl").
 
--behaviour(gen_server).
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-         terminate/2, code_change/3]).
-
--export([create/0, create/1, create/2, destroy/1,
+-export([create/0, create/2,
          set_local_address/2, get_local_address/1,
          set_broadcast_address/2, get_broadcast_address/1,
          set_mask/2, get_mask/1,
@@ -38,62 +34,12 @@
          is_secondary/1, set_secondary/1, set_primary/1]).
 
 create() ->
-    {ok, Pid} = gen_server:start(?MODULE, [], []),
-    Pid.
+    #nsime_ipv4_interface_address_state{
+        addressid = make_ref()
+    }.
 
-create(AddressState = #nsime_ipv4_interface_address_state{}) ->
-    {ok, Pid} = gen_server:start(?MODULE, AddressState, []),
-    Pid.
-
-create(Address, Mask) ->
-    {ok, Pid} = gen_server:start(?MODULE, {Address, Mask}, []),
-    Pid.
-
-destroy(AddressPid) ->
-    gen_server:call(AddressPid, terminate).
-
-set_local_address(AddressPid, Address) ->
-    gen_server:call(AddressPid, {set_local_address, Address}).
-
-get_local_address(AddressPid) ->
-    gen_server:call(AddressPid, get_local_address).
-
-set_broadcast_address(AddressPid, Address) ->
-    gen_server:call(AddressPid, {set_broadcast_address, Address}).
-
-get_broadcast_address(AddressPid) ->
-    gen_server:call(AddressPid, get_broadcast_address).
-
-set_mask(AddressPid, Mask) ->
-    gen_server:call(AddressPid, {set_mask, Mask}).
-
-get_mask(AddressPid) ->
-    gen_server:call(AddressPid, get_mask).
-
-set_address_scope(AddressPid, Scope) ->
-    gen_server:call(AddressPid, {set_address_scope, Scope}).
-
-get_address_scope(AddressPid) ->
-    gen_server:call(AddressPid, get_address_scope).
-
-is_secondary(AddressPid) ->
-    gen_server:call(AddressPid, is_secondary).
-
-set_secondary(AddressPid) ->
-    gen_server:call(AddressPid, set_secondary).
-
-set_primary(AddressPid) ->
-    gen_server:call(AddressPid, set_primary).
-
-init([]) ->
-    AddressState = #nsime_ipv4_interface_address_state{},
-    {ok, AddressState};
-
-init(AddressState = #nsime_ipv4_interface_address_state{}) ->
-    {ok, AddressState};
-
-init({Address = {A1, A2, A3, A4}, Mask = {M1, M2, M3, M4}}) ->
-    AddressState = #nsime_ipv4_interface_address_state{
+create(Address = {A1, A2, A3, A4}, Mask = {M1, M2, M3, M4}) ->
+    #nsime_ipv4_interface_address_state{
         local_address = Address,
         mask = Mask,
         broadcast_address =
@@ -103,76 +49,49 @@ init({Address = {A1, A2, A3, A4}, Mask = {M1, M2, M3, M4}}) ->
                 A3 bor (M3 bxor 255),
                 A4 bor (M4 bxor 255)
             }
-    },
-    {ok, AddressState}.
+    }.
 
-handle_call({set_local_address, Address}, _From, AddressState) ->
-    NewAddressState = AddressState#nsime_ipv4_interface_address_state{
+set_local_address(AddressState, Address) ->
+    AddressState#nsime_ipv4_interface_address_state{
         local_address = Address
-    },
-    {reply, ok, NewAddressState};
+    }.
 
-handle_call(get_local_address, _From, AddressState) ->
-    Address = AddressState#nsime_ipv4_interface_address_state.local_address,
-    {reply, Address, AddressState};
+get_local_address(AddressState) ->
+    AddressState#nsime_ipv4_interface_address_state.local_address.
 
-handle_call({set_broadcast_address, Address}, _From, AddressState) ->
-    NewAddressState = AddressState#nsime_ipv4_interface_address_state{
+set_broadcast_address(AddressState, Address) ->
+    AddressState#nsime_ipv4_interface_address_state{
         broadcast_address = Address
-    },
-    {reply, ok, NewAddressState};
+    }.
 
-handle_call(get_broadcast_address, _From, AddressState) ->
-    Address = AddressState#nsime_ipv4_interface_address_state.broadcast_address,
-    {reply, Address, AddressState};
+get_broadcast_address(AddressState) ->
+    AddressState#nsime_ipv4_interface_address_state.broadcast_address.
 
-handle_call({set_mask, Mask}, _From, AddressState) ->
-    NewAddressState = AddressState#nsime_ipv4_interface_address_state{
+set_mask(AddressState, Mask) ->
+    AddressState#nsime_ipv4_interface_address_state{
         mask = Mask
-    },
-    {reply, ok, NewAddressState};
+    }.
 
-handle_call(get_mask, _From, AddressState) ->
-    Mask = AddressState#nsime_ipv4_interface_address_state.mask,
-    {reply, Mask, AddressState};
+get_mask(AddressState) ->
+    AddressState#nsime_ipv4_interface_address_state.mask.
 
-handle_call({set_address_scope, Scope}, _From, AddressState) ->
-    NewAddressState = AddressState#nsime_ipv4_interface_address_state{
+set_address_scope(AddressState, Scope) ->
+    AddressState#nsime_ipv4_interface_address_state{
         address_scope = Scope
-    },
-    {reply, ok, NewAddressState};
+    }.
 
-handle_call(get_address_scope, _From, AddressState) ->
-    Scope = AddressState#nsime_ipv4_interface_address_state.address_scope,
-    {reply, Scope, AddressState};
+get_address_scope(AddressState) ->
+    AddressState#nsime_ipv4_interface_address_state.address_scope.
 
-handle_call(is_secondary, _From, AddressState) ->
-    IsSecondary = AddressState#nsime_ipv4_interface_address_state.is_secondary,
-    {reply, IsSecondary, AddressState};
+is_secondary(AddressState) ->
+    AddressState#nsime_ipv4_interface_address_state.is_secondary.
 
-handle_call(set_secondary, _From, AddressState) ->
-    NewAddressState = AddressState#nsime_ipv4_interface_address_state{
+set_secondary(AddressState) ->
+    AddressState#nsime_ipv4_interface_address_state{
         is_secondary = true
-    },
-    {reply, ok, NewAddressState};
+    }.
 
-handle_call(set_primary, _From, AddressState) ->
-    NewAddressState = AddressState#nsime_ipv4_interface_address_state{
+set_primary(AddressState) ->
+    AddressState#nsime_ipv4_interface_address_state{
         is_secondary = false
-    },
-    {reply, ok, NewAddressState};
-
-handle_call(terminate, _From, AddressState) ->
-    {stop, normal, stopped, AddressState}.
-
-handle_cast(_Request, AddressState) ->
-    {noreply, AddressState}.
-
-handle_info(_Request, AddressState) ->
-    {noreply, AddressState}.
-
-terminate(_Reason, _State) ->
-    ok.
-
-code_change(_OldVersion, AddressState, _Extra) ->
-    {ok, AddressState}.
+    }.

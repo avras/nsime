@@ -22,11 +22,11 @@
 
 -record(nsime_ipv4_interface_state,
         {
+          interfaceid                 :: reference(),
           interface_up = false        :: boolean(),
           forwarding = true           :: boolean(),
           metric = 1                  :: integer(),
-          node                        :: pid(),
           device                      :: pid(),
           arp_cache                   :: pid(),
-          address_list = []           :: [pid()]
+          address_list = []           :: [#nsime_ipv4_interface_address_state{}]
         }).
