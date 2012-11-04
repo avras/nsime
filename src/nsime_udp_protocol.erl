@@ -26,6 +26,8 @@
 -include("nsime_types.hrl").
 -include("nsime_packet.hrl").
 -include("nsime_udp_header.hrl").
+-include("nsime_ip_endpoint_state.hrl").
+-include("nsime_ip_endpoint_demux_state.hrl").
 -include("nsime_udp_protocol_state.hrl").
 
 -behaviour(gen_server).
@@ -33,8 +35,8 @@
          terminate/2, code_change/3]).
 
 -export([create/0, destroy/1, set_node/2, protocol_number/0,
-         create_socket/1, get_sockets/1, allocate/1, allocate/2,
-         allocate/3, allocate/5, deallocate/2, send/6, send/7, recv/4,
+         create_socket/1, get_sockets/1, allocate/2, allocate/3,
+         allocate/4, allocate/6, deallocate/2, send/6, send/7, recv/4,
          recv_icmp/9, set_ipv4_down_target/2, get_ipv4_down_target/1,
          set_ipv6_down_target/2, get_ipv6_down_target/1]).
 
@@ -57,25 +59,26 @@ create_socket(ProtocolPid) ->
 get_sockets(ProtocolPid) ->
     gen_server:call(ProtocolPid, get_sockets).
 
-allocate(ProtocolPid) ->
-    gen_server:call(ProtocolPid, allocate).
+allocate(ProtocolPid, Callbacks) ->
+    gen_server:call(ProtocolPid, {allocate, Callbacks}).
 
-allocate(ProtocolPid, AddressOrPort) ->
-    gen_server:call(ProtocolPid, {allocate, AddressOrPort}).
+allocate(ProtocolPid, AddressOrPort, Callbacks) ->
+    gen_server:call(ProtocolPid, {allocate, AddressOrPort, Callbacks}).
 
-allocate(ProtocolPid, Address, Port) ->
-    gen_server:call(ProtocolPid, {allocate, Address, Port}).
+allocate(ProtocolPid, Address, Port, Callbacks) ->
+    gen_server:call(ProtocolPid, {allocate, Address, Port, Callbacks}).
 
-allocate(ProtocolPid, LocalAddress, LocalPort, PeerAddress, PeerPort) ->
+allocate(ProtocolPid, LocalAddress, LocalPort, PeerAddress, PeerPort, Callbacks) ->
     gen_server:call(ProtocolPid, {allocate,
                                   LocalAddress,
                                   LocalPort,
                                   PeerAddress,
-                                  PeerPort
+                                  PeerPort,
+                                  Callbacks
                                  }).
 
-deallocate(ProtocolPid, EndpointPid) ->
-    gen_server:call(ProtocolPid, {deallocate, EndpointPid}).
+deallocate(ProtocolPid, Endpoint) ->
+    gen_server:call(ProtocolPid, {deallocate, Endpoint}).
 
 send(ProtocolPid, Packet, SrcAddress, DestAddress, SrcPort, DestPort) ->
     gen_server:call(ProtocolPid, {send,
@@ -161,39 +164,55 @@ handle_call(get_sockets, _From, ProtocolState) ->
     Sockets = ProtocolState#nsime_udp_protocol_state.sockets,
     {reply, Sockets, ProtocolState};
 
-handle_call(allocate, _From, ProtocolState) ->
-    DemuxPid = ProtocolState#nsime_udp_protocol_state.ipv4_endpoints_demux,
-    EndpointPid = nsime_ip_endpoint_demux:allocate(DemuxPid),
-    {reply, EndpointPid, ProtocolState};
+handle_call({allocate, Callbacks}, _From, ProtocolState) ->
+    DemuxState = ProtocolState#nsime_udp_protocol_state.ipv4_endpoints_demux,
+    {Endpoint, NewDemuxState} = nsime_ip_endpoint_demux:allocate(DemuxState, Callbacks),
+    NewProtocolState = ProtocolState#nsime_udp_protocol_state{
+        ipv4_endpoints_demux = NewDemuxState
+    },
+    {reply, Endpoint, NewProtocolState};
 
-handle_call({allocate, AddressOrPort}, _From, ProtocolState) ->
-    DemuxPid = ProtocolState#nsime_udp_protocol_state.ipv4_endpoints_demux,
-    EndpointPid = nsime_ip_endpoint_demux:allocate(DemuxPid, AddressOrPort),
-    {reply, EndpointPid, ProtocolState};
+handle_call({allocate, AddressOrPort, Callbacks}, _From, ProtocolState) ->
+    DemuxState = ProtocolState#nsime_udp_protocol_state.ipv4_endpoints_demux,
+    {Endpoint, NewDemuxState} = nsime_ip_endpoint_demux:allocate(DemuxState, AddressOrPort, Callbacks),
+    NewProtocolState = ProtocolState#nsime_udp_protocol_state{
+        ipv4_endpoints_demux = NewDemuxState
+    },
+    {reply, Endpoint, NewProtocolState};
 
-handle_call({allocate, Address, Port}, _From, ProtocolState) ->
-    DemuxPid = ProtocolState#nsime_udp_protocol_state.ipv4_endpoints_demux,
-    EndpointPid = nsime_ip_endpoint_demux:allocate(DemuxPid, Address, Port),
-    {reply, EndpointPid, ProtocolState};
+handle_call({allocate, Address, Port, Callbacks}, _From, ProtocolState) ->
+    DemuxState = ProtocolState#nsime_udp_protocol_state.ipv4_endpoints_demux,
+    {Endpoint, NewDemuxState} = nsime_ip_endpoint_demux:allocate(DemuxState, Address, Port, Callbacks),
+    NewProtocolState = ProtocolState#nsime_udp_protocol_state{
+        ipv4_endpoints_demux = NewDemuxState
+    },
+    {reply, Endpoint, NewProtocolState};
 
 handle_call(
-    {allocate, LocalAddress, LocalPort, PeerAddress, PeerPort},
+    {allocate, LocalAddress, LocalPort, PeerAddress, PeerPort, Callbacks},
     _From, ProtocolState
 ) ->
-    DemuxPid = ProtocolState#nsime_udp_protocol_state.ipv4_endpoints_demux,
-    EndpointPid = nsime_ip_endpoint_demux:allocate(
-        DemuxPid,
+    DemuxState = ProtocolState#nsime_udp_protocol_state.ipv4_endpoints_demux,
+    {Endpoint, NewDemuxState} = nsime_ip_endpoint_demux:allocate(
+        DemuxState,
         LocalAddress,
         LocalPort,
         PeerAddress,
-        PeerPort
+        PeerPort,
+        Callbacks
     ),
-    {reply, EndpointPid, ProtocolState};
+    NewProtocolState = ProtocolState#nsime_udp_protocol_state{
+        ipv4_endpoints_demux = NewDemuxState
+    },
+    {reply, Endpoint, NewProtocolState};
 
-handle_call({deallocate, EndpointPid}, _From, ProtocolState) ->
-    DemuxPid = ProtocolState#nsime_udp_protocol_state.ipv4_endpoints_demux,
-    nsime_ip_endpoint_demux:deallocate(DemuxPid, EndpointPid),
-    {reply, ok, ProtocolState};
+handle_call({deallocate, Endpoint}, _From, ProtocolState) ->
+    DemuxState = ProtocolState#nsime_udp_protocol_state.ipv4_endpoints_demux,
+    NewDemuxState = nsime_ip_endpoint_demux:deallocate(DemuxState, Endpoint),
+    NewProtocolState = ProtocolState#nsime_udp_protocol_state{
+        ipv4_endpoints_demux = NewDemuxState
+    },
+    {reply, ok, NewProtocolState};
 
 handle_call(
     {send,
@@ -252,9 +271,9 @@ handle_call({recv, Packet, Ipv4Header, Interface}, _From, ProtocolState) ->
         false ->
             {reply, rx_csum_failed, ProtocolState};
         true ->
-            DemuxPid = ProtocolState#nsime_udp_protocol_state.ipv4_endpoints_demux,
+            DemuxState = ProtocolState#nsime_udp_protocol_state.ipv4_endpoints_demux,
             MatchingEndpoints = nsime_ip_endpoint_demux:lookup(
-                DemuxPid,
+                DemuxState,
                 DestAddress,
                 UdpHeader#nsime_udp_header.destination_port,
                 SrcAddress,
@@ -322,8 +341,6 @@ handle_call(get_ipv6_down_target, _From, ProtocolState) ->
     {reply, Callback, ProtocolState};
 
 handle_call(terminate, _From, ProtocolState) ->
-    DemuxPid = ProtocolState#nsime_udp_protocol_state.ipv4_endpoints_demux,
-    nsime_ip_endpoint_demux:destroy(DemuxPid),
     Sockets = ProtocolState#nsime_udp_protocol_state.sockets,
     lists:foreach(
         fun(S) ->

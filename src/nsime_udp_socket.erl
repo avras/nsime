@@ -29,6 +29,9 @@
 -include("nsime_ipv4_header.hrl").
 -include("nsime_ipv4_route.hrl").
 -include("nsime_ipv4_packet_info_tag.hrl").
+-include("nsime_ipv4_interface_address_state.hrl").
+-include("nsime_ipv4_interface_state.hrl").
+-include("nsime_ip_endpoint_state.hrl").
 -include("nsime_udp_socket_state.hrl").
 
 -behaviour(gen_server).
@@ -187,25 +190,25 @@ handle_call(get_socket_type, _From, SocketState) ->
 
 handle_call(bind, _From, SocketState) ->
     UdpProtocolPid = SocketState#nsime_udp_socket_state.udp_protocol,
-    EndpointPid = nsime_udp_protocol:allocate(UdpProtocolPid),
-    set_endpoint_callbacks(EndpointPid),
-    NewSocketState = SocketState#nsime_udp_socket_state{ip_endpoint = EndpointPid},
+    Callbacks = set_endpoint_callbacks(self()),
+    Endpoint = nsime_udp_protocol:allocate(UdpProtocolPid, Callbacks),
+    NewSocketState = SocketState#nsime_udp_socket_state{ip_endpoint = Endpoint},
     {reply, ok, NewSocketState};
 
 handle_call({bind, _SocketAddress = {Address, Port}}, _From, SocketState) ->
     UdpProtocolPid = SocketState#nsime_udp_socket_state.udp_protocol,
-    EndpointPid = case {Address == nsime_ipv4_address:get_any(), Port == 0} of
+    Callbacks = set_endpoint_callbacks(self()),
+    Endpoint = case {Address == nsime_ipv4_address:get_any(), Port == 0} of
         {true, true} ->
-            nsime_udp_protocol:allocate(UdpProtocolPid);
+            nsime_udp_protocol:allocate(UdpProtocolPid, Callbacks);
         {true, false} ->
-            nsime_udp_protocol:allocate(UdpProtocolPid, Port);
+            nsime_udp_protocol:allocate(UdpProtocolPid, Port, Callbacks);
         {false, true} ->
-            nsime_udp_protocol:allocate(UdpProtocolPid, Address);
+            nsime_udp_protocol:allocate(UdpProtocolPid, Address, Callbacks);
         {false, false} ->
-            nsime_udp_protocol:allocate(UdpProtocolPid, Address, Port)
+            nsime_udp_protocol:allocate(UdpProtocolPid, Address, Port, Callbacks)
     end,
-    set_endpoint_callbacks(EndpointPid),
-    NewSocketState = SocketState#nsime_udp_socket_state{ip_endpoint = EndpointPid},
+    NewSocketState = SocketState#nsime_udp_socket_state{ip_endpoint = Endpoint},
     {reply, ok, NewSocketState};
 
 handle_call(close, _From, SocketState) ->
@@ -269,15 +272,15 @@ handle_call({send, Packet, _Flags}, _From, SocketState) ->
                     },
                     {reply, error_shutdown, NewSocketState};
                 false ->
-                    case is_pid(SocketState#nsime_udp_socket_state.ip_endpoint) of
+                    case is_record(SocketState#nsime_udp_socket_state.ip_endpoint, nsime_ip_endpoint_state) of
                         true ->
                             do_send_to(Packet, SocketState);
                         false ->
                             UdpProtocolPid = SocketState#nsime_udp_socket_state.udp_protocol,
-                            EndpointPid = nsime_udp_protocol:allocate(UdpProtocolPid),
-                            set_endpoint_callbacks(EndpointPid),
+                            Callbacks = set_endpoint_callbacks(self()),
+                            Endpoint = nsime_udp_protocol:allocate(UdpProtocolPid, Callbacks),
                             NewSocketState = SocketState#nsime_udp_socket_state{
-                                ip_endpoint = EndpointPid
+                                ip_endpoint = Endpoint
                             },
                             do_send_to(Packet, NewSocketState)
                     end
@@ -285,15 +288,15 @@ handle_call({send, Packet, _Flags}, _From, SocketState) ->
     end;
 
 handle_call({send_to, Packet, _Flags, _SocketAddress = {Address, Port}}, _From, SocketState) ->
-    case is_pid(SocketState#nsime_udp_socket_state.ip_endpoint) of
+    case is_record(SocketState#nsime_udp_socket_state.ip_endpoint, nsime_ip_endpoint_state) of
         true ->
             do_send_to(Packet, Address, Port, SocketState);
         false ->
             UdpProtocolPid = SocketState#nsime_udp_socket_state.udp_protocol,
-            EndpointPid = nsime_udp_protocol:allocate(UdpProtocolPid),
-            set_endpoint_callbacks(EndpointPid),
+            Callbacks = set_endpoint_callbacks(self()),
+            Endpoint = nsime_udp_protocol:allocate(UdpProtocolPid, Callbacks),
             NewSocketState = SocketState#nsime_udp_socket_state{
-                ip_endpoint = EndpointPid
+                ip_endpoint = Endpoint
             },
             do_send_to(Packet, Address, Port, NewSocketState)
     end;
@@ -439,10 +442,10 @@ handle_call({forward_up, Packet, Ipv4Header, Port, Interface}, _From, SocketStat
 
 handle_call(destroy_endpoint, _From, SocketState) ->
     UdpProtocolPid = SocketState#nsime_udp_socket_state.udp_protocol,
-    EndpointPid = SocketState#nsime_udp_socket_state.ip_endpoint,
-    case is_pid(EndpointPid) of
+    Endpoint = SocketState#nsime_udp_socket_state.ip_endpoint,
+    case is_record(Endpoint, nsime_ip_endpoint_state) of
         true ->
-            nsime_udp_protocol:deallocate(UdpProtocolPid, EndpointPid),
+            nsime_udp_protocol:deallocate(UdpProtocolPid, Endpoint),
             NewSocketState = SocketState#nsime_udp_socket_state{ip_endpoint = undefined},
             {reply, ok, NewSocketState};
         false ->
@@ -465,31 +468,24 @@ code_change(_OldVersion, SocketState, _Extra) ->
     {ok, SocketState}.
 
 %% Helper methods %%
-set_endpoint_callbacks(EndpointPid) ->
-    nsime_ip_endpoint:set_receive_callback(
-        EndpointPid,
+set_endpoint_callbacks(UdpSocketPid) ->
+    {
         {
             nsime_udp_socket,
             forward_up,
-            [self()]
-        }
-    ),
-    nsime_ip_endpoint:set_icmp_callback(
-        EndpointPid,
+            [UdpSocketPid]
+        },
         {
             nsime_udp_socket,
             forward_icmp,
-            [self()]
-        }
-    ),
-    nsime_ip_endpoint:set_destroy_callback(
-        EndpointPid,
+            [UdpSocketPid]
+        },
         {
             nsime_udp_socket,
             destroy_endpoint,
-            [self()]
+            [UdpSocketPid]
         }
-    ).
+    }.
 
 do_send_to(
     Packet,
@@ -720,7 +716,7 @@ do_send_to(Packet, DestAddress, DestPort, SocketState) ->
                                                                     Route#nsime_ipv4_route.output_device
                                                                 ),
                                                             InterfaceAddressList =
-                                                            case is_pid(OutputInterface) of
+                                                            case is_record(OutputInterface, nsime_ipv4_interface_state) of
                                                                 true ->
                                                                     nsime_ipv4_interface:get_address_list(OutputInterface);
                                                                 false ->

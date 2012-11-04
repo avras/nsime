@@ -25,8 +25,8 @@
 -record(nsime_udp_protocol_state,
         {
           node                      :: pid(),
-          ipv4_endpoints_demux      :: pid(),
-          ipv6_endpoints_demux      :: pid(),
+          ipv4_endpoints_demux      :: #nsime_ip_endpoint_demux_state{},
+          ipv6_endpoints_demux      :: #nsime_ip_endpoint_demux_state{},
           sockets = []              :: [pid()],
           ipv4_down_target          :: nsime_callback(),
           ipv6_down_target          :: nsime_callback()

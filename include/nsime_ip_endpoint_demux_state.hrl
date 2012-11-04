@@ -22,8 +22,9 @@
 
 -record(nsime_ip_endpoint_demux_state,
         {
+          demux_id                    :: reference(),
           ephemeral_port = 49152      :: inet:port_number(),
           first_port = 49152          :: inet:port_number(),
           last_port = 65535           :: inet:port_number(),
-          endpoints = []              :: [pid()]
+          endpoints = []              :: [#nsime_ip_endpoint_state{}]
         }).

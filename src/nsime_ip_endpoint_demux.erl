@@ -25,173 +25,62 @@
 
 -include("nsime_types.hrl").
 -include("nsime_event.hrl").
+-include("nsime_ip_endpoint_state.hrl").
 -include("nsime_ip_endpoint_demux_state.hrl").
 
--behaviour(gen_server).
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-         terminate/2, code_change/3]).
-
--export([create/0, destroy/1, get_all_endpoints/1,
+-export([create/0, get_id/1, get_all_endpoints/1,
          lookup_port_local/2, lookup_local/3,
          lookup/6, simple_lookup/5,
-         allocate/1, allocate/2, allocate/3,
-         allocate/5, deallocate/2]).
+         allocate/2, allocate/3, allocate/4,
+         allocate/6, deallocate/2]).
 
 create() ->
-    {ok, Pid} = gen_server:start(?MODULE, [], []),
-    Pid.
+    #nsime_ip_endpoint_demux_state{
+        demux_id = make_ref()
+    }.
 
-destroy(DemuxPid) ->
-    gen_server:call(DemuxPid, terminate).
+get_id(DemuxState) ->
+    DemuxState#nsime_ip_endpoint_demux_state.demux_id.
 
-get_all_endpoints(DemuxPid) ->
-    gen_server:call(DemuxPid, get_all_endpoints).
+get_all_endpoints(DemuxState) ->
+    DemuxState#nsime_ip_endpoint_demux_state.endpoints.
 
-lookup_port_local(DemuxPid, Port) ->
-    gen_server:call(DemuxPid, {lookup_port_local, Port}).
+lookup_port_local(DemuxState, Port) ->
+    lists:any(
+        fun(E) ->
+            nsime_ip_endpoint:get_local_port(E) == Port
+        end,
+        DemuxState#nsime_ip_endpoint_demux_state.endpoints
+    ).
 
-lookup_local(DemuxPid, Address, Port) ->
-    gen_server:call(DemuxPid, {lookup_local, Address, Port}).
+lookup_local(DemuxState, Address, Port) ->
+    lists:any(
+        fun(E) ->
+            (nsime_ip_endpoint:get_local_address(E) == Address)
+            and (nsime_ip_endpoint:get_local_port(E) == Port)
+        end,
+        DemuxState#nsime_ip_endpoint_demux_state.endpoints
+    ).
 
 lookup(
-    DemuxPid,
+    DemuxState,
     DestAddress,
     DestPort,
     SrcAddress,
     SrcPort,
     IncomingInterface
 ) ->
-    case
-    gen_server:call(DemuxPid, {lookup,
-                               DestAddress,
-                               DestPort,
-                               SrcAddress,
-                               SrcPort,
-                               IncomingInterface
-                              })
-    of
-        ipv6_not_supported ->
-            erlang:error(ipv6_not_supported);
-        invalid_argument ->
-            erlang:error(invalid_argument);
-        EndpointPid ->
-            EndpointPid
-    end.
-
-simple_lookup(
-    DemuxPid,
-    DestAddress,
-    DestPort,
-    SrcAddress,
-    SrcPort
-) ->
-    case
-    gen_server:call(DemuxPid, {simple_lookup,
-                               DestAddress,
-                               DestPort,
-                               SrcAddress,
-                               SrcPort
-                              })
-    of
-        ipv6_not_supported ->
-            erlang:error(ipv6_not_supported);
-        invalid_argument ->
-            erlang:error(invalid_argument);
-        EndpointPid ->
-            EndpointPid
-    end.
-
-allocate(DemuxPid) ->
-    case gen_server:call(DemuxPid, allocate, infinity) of
-        ephemeral_port_allocation_failed ->
-            erlang:error(ephemeral_port_allocation_failed);
-        EndpointPid ->
-            EndpointPid
-    end.
-
-allocate(DemuxPid, AddressOrPort) ->
-    case is_integer(AddressOrPort) of
-        true ->
-            gen_server:call(DemuxPid, {allocate, nsime_ipv4_address:get_any(), AddressOrPort}, infinity);
-        false ->
-            case gen_server:call(DemuxPid, {allocate, AddressOrPort}) of
-                ephemeral_port_allocation_failed ->
-                    erlang:error(ephemeral_port_allocation_failed);
-                EndpointPid ->
-                    EndpointPid
-            end
-    end.
-
-allocate(DemuxPid, Address, Port) ->
-    case gen_server:call(DemuxPid, {allocate, Address, Port}, infinity) of
-        duplicate_address_port ->
-            erlang:error(duplicate_address_port);
-        EndpointPid ->
-            EndpointPid
-    end.
-
-allocate(DemuxPid, LocalAddress, LocalPort, PeerAddress, PeerPort) ->
-    case gen_server:call(DemuxPid, {allocate, LocalAddress, LocalPort, PeerAddress, PeerPort}) of
-        duplicate_address_port ->
-            erlang:error(duplicate_address_port);
-        EndpointPid ->
-            EndpointPid
-    end.
-
-deallocate(DemuxPid, EndpointPid) ->
-    gen_server:call(DemuxPid, {deallocate, EndpointPid}).
-
-init([]) ->
-    DemuxState = #nsime_ip_endpoint_demux_state{},
-    {ok, DemuxState}.
-
-handle_call(get_all_endpoints, _From, DemuxState) ->
-    Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
-    {reply, Endpoints, DemuxState};
-
-handle_call({lookup_port_local, Port}, _From, DemuxState) ->
-    Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
-    {
-        reply,
-        lists:any(
-            fun(X) ->
-                nsime_ip_endpoint:get_local_port(X) == Port
-            end,
-            Endpoints
-        ),
-        DemuxState
-    };
-
-handle_call({lookup_local, Address, Port}, _From, DemuxState) ->
-    Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
-    {
-        reply,
-        lists:any(
-            fun(X) ->
-                (nsime_ip_endpoint:get_local_address(X) == Address)
-                and (nsime_ip_endpoint:get_local_port(X) == Port)
-            end,
-            Endpoints
-        ),
-        DemuxState
-    };
-
-handle_call(
-    {lookup, DestAddress, DestPort, SrcAddress, SrcPort, IncomingInterface},
-    _From,
-    DemuxState
-) ->
     case {size(DestAddress), size(SrcAddress)} of
         {4, 4} ->
-            Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
+            EndpointList = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
             DestinationDevice = nsime_ipv4_interface:get_device(IncomingInterface),
             RelevantEndpoints = lists:filter(
-                fun(X) ->
-                    case nsime_ip_endpoint:get_local_port(X) == DestPort of
+                fun(E) ->
+                    case nsime_ip_endpoint:get_local_port(E) == DestPort of
                         false ->
                             false;
                         true ->
-                            BoundNetdevice = nsime_ip_endpoint:get_bound_netdevice(X),
+                            BoundNetdevice = nsime_ip_endpoint:get_bound_netdevice(E),
                             case is_pid(BoundNetdevice) of
                                 false ->
                                     true;
@@ -200,7 +89,7 @@ handle_call(
                             end
                     end
                 end,
-                Endpoints
+                EndpointList
             ),
             AddressList = nsime_ipv4_interface:get_address_list(IncomingInterface),
             MatchingInterfaceAddress =
@@ -307,33 +196,35 @@ handle_call(
             ),
             if
                 length(FinalList4) > 0 ->
-                    {reply, FinalList4, DemuxState};
+                    FinalList4;
                 length(FinalList3) > 0 ->
-                    {reply, FinalList3, DemuxState};
+                    FinalList3;
                 length(FinalList2) > 0 ->
-                    {reply, FinalList2, DemuxState};
+                    FinalList2;
                 true ->
-                    {reply, FinalList1, DemuxState}
+                    FinalList1
             end;
         {8, 8} ->
-            {reply, ipv6_not_supported, DemuxState};
+            erlang:error(ipv6_not_supported);
         _ ->
-            {reply, invalid_argument, DemuxState}
-    end;
+            erlang:error(invalid_argument)
+    end.
 
-handle_call(
-    {simple_lookup, DestAddress, DestPort, SrcAddress, SrcPort},
-    _From,
-    DemuxState
+simple_lookup(
+    DemuxState,
+    DestAddress,
+    DestPort,
+    SrcAddress,
+    SrcPort
 ) ->
     case {size(DestAddress), size(SrcAddress)} of
         {4, 4} ->
-            Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
+            EndpointList = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
             EndpointsMatchingPort = lists:filter(
                 fun(E) ->
                     nsime_ip_endpoint:get_local_port(E) == DestPort
                 end,
-                Endpoints
+                EndpointList
             ),
             ExactMatches = lists:filter(
                 fun(E) ->
@@ -345,10 +236,9 @@ handle_call(
             ),
             case length(ExactMatches) > 0 of
                 true ->
-                    [E|_] = ExactMatches,
-                    {reply, E, DemuxState};
+                    hd(ExactMatches);
                 false ->
-                    {E, _} = lists:foldl(
+                    {Endpoint, _} = lists:foldl(
                         fun(E, {ChosenE, Genericity}) ->
                             Temp = case {
                                 nsime_ip_endpoint:get_local_address(E) ==
@@ -375,67 +265,66 @@ handle_call(
                         {undefined, 3},
                         EndpointsMatchingPort
                     ),
-                    {reply, E, DemuxState}
+                    Endpoint
             end;
         {8, 8} ->
-            {reply, ipv6_not_supported, DemuxState};
+            erlang:error(ipv6_not_supported);
         _ ->
-            {reply, invalid_argument, DemuxState}
-    end;
+            erlang:error(invalid_argument)
+    end.
 
-handle_call(allocate, _From, DemuxState) ->
-    Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
+allocate(DemuxState, Callbacks) ->
+    EndpointList = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
     case allocate_ephemeral_port(DemuxState) of
-        0 ->
-            {reply, ephemeral_port_allocation_failed, DemuxState};
-        Port ->
-            NewEndpoint =
-                nsime_ip_endpoint:create(nsime_ipv4_address:get_any(), Port),
-            NewDemuxState = DemuxState#nsime_ip_endpoint_demux_state{
-                endpoints = [NewEndpoint | Endpoints]
+        {0, _} ->
+            erlang:error(ephemeral_port_allocation_failed);
+        {Port, NewDemuxState} ->
+            NewEndpoint = nsime_ip_endpoint:create(nsime_ipv4_address:get_any(), Port, Callbacks),
+            NewerDemuxState = NewDemuxState#nsime_ip_endpoint_demux_state{
+                endpoints = [NewEndpoint | EndpointList]
             },
-            {reply, NewEndpoint, NewDemuxState}
-    end;
+            {NewEndpoint, NewerDemuxState}
+    end.
 
-handle_call({allocate, Address}, _From, DemuxState) ->
-    Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
-    case allocate_ephemeral_port(DemuxState) of
-        0 ->
-            {reply, ephemeral_port_allocation_failed, DemuxState};
-        Port ->
-            NewEndpoint =
-                nsime_ip_endpoint:create(Address, Port),
-            NewDemuxState = DemuxState#nsime_ip_endpoint_demux_state{
-                endpoints = [NewEndpoint | Endpoints]
-            },
-            {reply, NewEndpoint, NewDemuxState}
-    end;
+allocate(DemuxState, AddressOrPort, Callbacks) ->
+    case is_integer(AddressOrPort) of
+        true ->
+            allocate(DemuxState, nsime_ipv4_address:get_any(), AddressOrPort, Callbacks);
+        false ->
+            EndpointList = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
+            case allocate_ephemeral_port(DemuxState) of
+                {0, _} ->
+                    erlang:error(ephemeral_port_allocation_failed);
+                {Port, NewDemuxState} ->
+                    NewEndpoint = nsime_ip_endpoint:create(AddressOrPort, Port, Callbacks),
+                    NewerDemuxState = NewDemuxState#nsime_ip_endpoint_demux_state{
+                        endpoints = [NewEndpoint | EndpointList]
+                    },
+                    {NewEndpoint, NewerDemuxState}
+            end
+    end.
 
-handle_call({allocate, Address, Port}, _From, DemuxState) ->
-    Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
+allocate(DemuxState, Address, Port, Callbacks) ->
+    EndpointList = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
     case lists:any(
-        fun(X) ->
-            (nsime_ip_endpoint:get_local_address(X) == Address)
-            and (nsime_ip_endpoint:get_local_port(X) == Port)
+        fun(E) ->
+            (nsime_ip_endpoint:get_local_address(E) == Address)
+            and (nsime_ip_endpoint:get_local_port(E) == Port)
         end,
-        Endpoints
+        EndpointList
     ) of
         true ->
-            {reply, duplicate_address_port, DemuxState};
+            erlang:error(duplicate_address_port);
         false ->
-            NewEndpoint = nsime_ip_endpoint:create(Address, Port),
+            NewEndpoint = nsime_ip_endpoint:create(Address, Port, Callbacks),
             NewDemuxState = DemuxState#nsime_ip_endpoint_demux_state{
-                endpoints = [NewEndpoint | Endpoints]
+                endpoints = [NewEndpoint | EndpointList]
             },
-            {reply, NewEndpoint, NewDemuxState}
-    end;
+            {NewEndpoint, NewDemuxState}
+    end.
 
-handle_call(
-    {allocate, LocalAddress, LocalPort, PeerAddress, PeerPort},
-    _From,
-    DemuxState
-) ->
-    Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
+allocate(DemuxState, LocalAddress, LocalPort, PeerAddress, PeerPort, Callbacks) ->
+    EndpointList = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
     case lists:any(
         fun(E) ->
             (nsime_ip_endpoint:get_local_port(E) == LocalPort) and
@@ -443,49 +332,25 @@ handle_call(
             (nsime_ip_endpoint:get_peer_port(E) == PeerPort) and
             (nsime_ip_endpoint:get_peer_address(E) == PeerAddress)
         end,
-        Endpoints
+        EndpointList
     ) of
         true ->
-            {reply, duplicate_address_port, DemuxState};
+            erlang:error(duplicate_address_port);
         false ->
-            NewEndpoint = nsime_ip_endpoint:create(LocalAddress, LocalPort),
-            nsime_ip_endpoint:set_peer(NewEndpoint, PeerAddress, PeerPort),
+            NewEndpoint = nsime_ip_endpoint:create(LocalAddress, LocalPort, Callbacks),
+            NewerEndpoint = nsime_ip_endpoint:set_peer(NewEndpoint, PeerAddress, PeerPort),
             NewDemuxState = DemuxState#nsime_ip_endpoint_demux_state{
-                endpoints = [NewEndpoint | Endpoints]
+                endpoints = [NewerEndpoint | EndpointList]
             },
-            {reply, NewEndpoint, NewDemuxState}
-    end;
+            {NewEndpoint, NewDemuxState}
+    end.
 
-handle_call({deallocate, EndpointPid}, _From, DemuxState) ->
-    Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
-    NewEndpoints = lists:delete(EndpointPid, Endpoints),
-    nsime_ip_endpoint:destroy(EndpointPid),
-    NewDemuxState = DemuxState#nsime_ip_endpoint_demux_state{
-        endpoints = NewEndpoints
-    },
-    {reply, ok, NewDemuxState};
-
-handle_call(terminate, _From, DemuxState) ->
-    Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
-    lists:foreach(
-        fun(E) ->
-            nsime_ip_endpoint:destroy(E)
-        end,
-        Endpoints
-    ),
-    {stop, normal, stopped, DemuxState}.
-
-handle_cast(_Request, DemuxState) ->
-    {noreply, DemuxState}.
-
-handle_info(_Request, DemuxState) ->
-    {noreply, DemuxState}.
-
-terminate(_Reason, _State) ->
-    ok.
-
-code_change(_OldVersion, DemuxState, _Extra) ->
-    {ok, DemuxState}.
+deallocate(DemuxState, Endpoint) ->
+    EndpointList = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
+    NewEndpointList = lists:delete(Endpoint, EndpointList),
+    DemuxState#nsime_ip_endpoint_demux_state{
+        endpoints = NewEndpointList
+    }.
 
 %% Helper methods %%
 allocate_ephemeral_port(DemuxState) ->
@@ -497,7 +362,7 @@ allocate_ephemeral_port(DemuxState) ->
 allocate_ephemeral_port(DemuxState, Count) ->
     if
         Count < 1 ->
-            0;
+            {0, DemuxState};
         true ->
             EphemeralPort = DemuxState#nsime_ip_endpoint_demux_state.ephemeral_port,
             FirstPort = DemuxState#nsime_ip_endpoint_demux_state.first_port,
@@ -508,12 +373,12 @@ allocate_ephemeral_port(DemuxState, Count) ->
                 false ->
                     EphemeralPort + 1
             end,
-            Endpoints = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
+            EndpointList = DemuxState#nsime_ip_endpoint_demux_state.endpoints,
             case lists:any(
-                fun(X) ->
-                    nsime_ip_endpoint:get_local_port(X) == Port
+                fun(E) ->
+                    nsime_ip_endpoint:get_local_port(E) == Port
                 end,
-                Endpoints
+                EndpointList
             ) of
                 true ->
                     allocate_ephemeral_port(
@@ -523,6 +388,6 @@ allocate_ephemeral_port(DemuxState, Count) ->
                         Count-1
                     );
                 false ->
-                    Port
+                    {Port, DemuxState}
             end
     end.

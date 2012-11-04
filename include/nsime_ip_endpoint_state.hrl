@@ -22,6 +22,7 @@
 
 -record(nsime_ip_endpoint_state,
         {
+          endpoint_id                 :: reference(),
           local_address               :: inet:ip_address(),
           local_port                  :: inet:port_number(),
           peer_address                :: inet:ip_address(),
