@@ -30,6 +30,5 @@
           dropped_byte_count = 0        :: non_neg_integer(),
           max_byte_count = infinity     :: non_neg_integer(),
           max_packet_count = infinity   :: non_neg_integer(),
-          device_id = undefined         :: pid(),
           packets = queue:new()         :: queue()
         }).

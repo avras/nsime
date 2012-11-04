@@ -26,6 +26,7 @@
 -include("nsime_types.hrl").
 -include("nsime_event.hrl").
 -include("nsime_packet.hrl").
+-include("nsime_droptail_queue_state.hrl").
 -include("nsime_ptp_netdevice_state.hrl").
 
 -behaviour(gen_server).
@@ -39,7 +40,7 @@
          set_address/2, get_address/1,
          set_data_rate/2, set_interframe_gap/2,
          get_channel/1, set_receive_error_model/2,
-         set_queue/2, get_queue/1,
+         set_queue_state/2, get_queue_state/1,
          set_queue_module/2, get_queue_module/1,
          set_mtu/2, get_mtu/1, attach_channel/2,
          set_interface/2, get_interface/1,
@@ -112,11 +113,11 @@ get_channel(DevicePid) ->
 set_receive_error_model(DevicePid, ErrorModel) ->
     gen_server:call(DevicePid, {set_receive_error_model, ErrorModel}).
 
-set_queue(DevicePid, QueuePid) ->
-    gen_server:call(DevicePid, {set_queue, QueuePid}).
+set_queue_state(DevicePid, QueueState) ->
+    gen_server:call(DevicePid, {set_queue_state, QueueState}).
 
-get_queue(DevicePid) ->
-    gen_server:call(DevicePid, get_queue).
+get_queue_state(DevicePid) ->
+    gen_server:call(DevicePid, get_queue_state).
 
 set_queue_module(DevicePid, QueueModule) ->
     gen_server:call(DevicePid, {set_queue_module, QueueModule}).
@@ -179,10 +180,10 @@ receive_packet(DevicePid, Packet) ->
     gen_server:call(DevicePid, {receive_packet, Packet}).
 
 init([]) ->
-    Queue = nsime_droptail_queue:create(),
+    QueueState = nsime_droptail_queue:create(),
     DeviceState = #nsime_ptp_netdevice_state{
         queue_module = nsime_droptail_queue,
-        queue = Queue
+        queue_state = QueueState
     },
     {ok, DeviceState};
 
@@ -241,13 +242,13 @@ handle_call({set_receive_error_model, ErrorModel}, _From, DeviceState) ->
     NewDeviceState = DeviceState#nsime_ptp_netdevice_state{receive_error_model = ErrorModel},
     {reply, ok, NewDeviceState};
 
-handle_call({set_queue, QueuePid}, _From, DeviceState) ->
-    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{queue = QueuePid},
+handle_call({set_queue_state, QueueState}, _From, DeviceState) ->
+    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{queue_state = QueueState},
     {reply, ok, NewDeviceState};
 
-handle_call(get_queue, _From, DeviceState) ->
-    QueuePid = DeviceState#nsime_ptp_netdevice_state.queue,
-    {reply, QueuePid, DeviceState};
+handle_call(get_queue_state, _From, DeviceState) ->
+    QueueState = DeviceState#nsime_ptp_netdevice_state.queue_state,
+    {reply, QueueState, DeviceState};
 
 handle_call({set_queue_module, QueueModule}, _From, DeviceState) ->
     NewDeviceState = DeviceState#nsime_ptp_netdevice_state{queue_module = QueueModule},
@@ -338,9 +339,12 @@ handle_call({transmit_start, Packet}, _From, DeviceState) ->
             {reply, true, NewDeviceState};
         {busy, true} ->
             QueueModule = DeviceState#nsime_ptp_netdevice_state.queue_module,
-            QueuePid = DeviceState#nsime_ptp_netdevice_state.queue,
-            QueueModule:enqueue_packet(QueuePid, Packet),
-            {reply, true, DeviceState};
+            QueueState = DeviceState#nsime_ptp_netdevice_state.queue_state,
+            NewQueueState = QueueModule:enqueue_packet(QueueState, Packet),
+            NewDeviceState = DeviceState#nsime_ptp_netdevice_state{
+                queue_state = NewQueueState
+            },
+            {reply, true, NewDeviceState};
         {_, false} ->
             {reply, false, DeviceState}
     end;
@@ -369,9 +373,12 @@ handle_call({send, PacketWithoutHeader, _Address, ProtocolNumber}, _From, Device
             {reply, true, NewDeviceState};
         {busy, true} ->
             QueueModule = DeviceState#nsime_ptp_netdevice_state.queue_module,
-            QueuePid = DeviceState#nsime_ptp_netdevice_state.queue,
-            QueueModule:enqueue_packet(QueuePid, Packet),
-            {reply, true, DeviceState};
+            QueueState = DeviceState#nsime_ptp_netdevice_state.queue_state,
+            NewQueueState = QueueModule:enqueue_packet(QueueState, Packet),
+            NewDeviceState = DeviceState#nsime_ptp_netdevice_state{
+                queue_state = NewQueueState
+            },
+            {reply, true, NewDeviceState};
         {_, false} ->
             {reply, false, DeviceState}
     end;
@@ -417,17 +424,22 @@ handle_call({receive_packet, Packet}, _From, DeviceState) ->
 handle_call(transmit_complete, _From, DeviceState) ->
     case DeviceState#nsime_ptp_netdevice_state.tx_state of
         busy ->
-            NewDeviceState = DeviceState#nsime_ptp_netdevice_state{
-                tx_state = ready,
-                current_packet = none
-            },
             QueueModule = DeviceState#nsime_ptp_netdevice_state.queue_module,
-            QueuePid = DeviceState#nsime_ptp_netdevice_state.queue,
-            Packet = QueueModule:dequeue_packet(QueuePid),
+            QueueState = DeviceState#nsime_ptp_netdevice_state.queue_state,
+            {Packet, NewQueueState} = QueueModule:dequeue_packet(QueueState),
             case Packet of
                 none ->
+                    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{
+                        tx_state = ready,
+                        current_packet = none
+                    },
                     ok;
                 _ ->
+                    NewDeviceState = DeviceState#nsime_ptp_netdevice_state{
+                        tx_state = ready,
+                        current_packet = none,
+                        queue_state = NewQueueState
+                    },
                     InterframeGap = DeviceState#nsime_ptp_netdevice_state.interframe_gap,
                     NextTxEvent = #nsime_event{
                         time = InterframeGap,
@@ -452,15 +464,8 @@ handle_cast(_Request, DeviceState) ->
 handle_info(_Request, DeviceState) ->
     {noreply, DeviceState}.
 
-terminate(_Reason, DeviceState) ->
-    QueueModule = DeviceState#nsime_ptp_netdevice_state.queue_module,
-    QueuePid = DeviceState#nsime_ptp_netdevice_state.queue,
-    case is_pid(QueuePid) of
-        true ->
-            QueueModule:destroy(QueuePid);
-        false ->
-            ok
-    end.
+terminate(_Reason, _DeviceState) ->
+    ok.
 
 code_change(_OldVersion, DeviceState, _Extra) ->
     {ok, DeviceState}.

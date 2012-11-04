@@ -32,7 +32,7 @@
             interframe_gap = {0, sec}                     :: nsime_time(),
             channel                                       :: pid(),
             queue_module = nsime_drop_tail_queue          :: module(),
-            queue                                         :: pid(),
+            queue_state                                   :: undefined | #nsime_droptail_queue_state{},
             receive_error_model                           :: pid(),
             mac_tx_trace = {none, none, none}             :: nsime_callback(),
             mac_tx_drop_trace = {none, none, none}        :: nsime_callback(),
