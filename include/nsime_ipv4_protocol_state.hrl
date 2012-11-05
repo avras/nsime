@@ -34,6 +34,7 @@
           weak_es_model = false                         :: boolean(),
           default_ttl = 64                              :: 0..255,
           identification = 0                            :: 0..65535,
+          checksum_enabled = false                      :: boolean(),
           send_outgoing_trace = {none, none, none}      :: nsime_callback(),
           unicast_forward_trace = {none, none, none}    :: nsime_callback(),
           local_deliver_trace = {none, none, none}      :: nsime_callback(),
