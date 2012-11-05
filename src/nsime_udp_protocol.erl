@@ -139,7 +139,8 @@ get_ipv6_down_target(ProtocolPid) ->
 
 init([]) ->
     ProtocolState = #nsime_udp_protocol_state{
-        ipv4_endpoints_demux = nsime_ip_endpoint_demux:create()
+        ipv4_endpoints_demux = nsime_ip_endpoint_demux:create(),
+        checksum_enabled = nsime_config:checksum_enabled()
     },
     {ok, ProtocolState}.
 
@@ -228,15 +229,21 @@ handle_call(
 ) ->
     Length = Packet#nsime_packet.size + 8,
     Data = Packet#nsime_packet.data,
-    Checksum = nsime_udp_header:calculate_checksum(
-        Data,
-        SrcAddress,
-        DestAddress,
-        SrcPort,
-        DestPort,
-        Length,
-        ?UDP_PROTOCOL_NUMBER
-    ),
+    Checksum =
+    case ProtocolState#nsime_udp_protocol_state.checksum_enabled of
+        true ->
+            nsime_udp_header:calculate_checksum(
+                Data,
+                SrcAddress,
+                DestAddress,
+                SrcPort,
+                DestPort,
+                Length,
+                ?UDP_PROTOCOL_NUMBER
+            );
+        false ->
+            0
+    end,
     UdpHeader = nsime_udp_header:serialize(
         SrcPort,
         DestPort,
@@ -258,15 +265,21 @@ handle_call({recv, Packet, Ipv4Header, Interface}, _From, ProtocolState) ->
     UdpHeader = nsime_udp_header:deserialize(<<UdpHeaderBinary:64>>),
     DestAddress = nsime_ipv4_header:get_destination_address(Ipv4Header),
     SrcAddress = nsime_ipv4_header:get_source_address(Ipv4Header),
-    Checksum = nsime_udp_header:calculate_checksum(
-        <<Payload/binary>>,
-        SrcAddress,
-        DestAddress,
-        UdpHeader#nsime_udp_header.source_port,
-        UdpHeader#nsime_udp_header.destination_port,
-        UdpHeader#nsime_udp_header.length,
-        ?UDP_PROTOCOL_NUMBER
-    ),
+    Checksum =
+    case ProtocolState#nsime_udp_protocol_state.checksum_enabled of
+        true ->
+            nsime_udp_header:calculate_checksum(
+                <<Payload/binary>>,
+                SrcAddress,
+                DestAddress,
+                UdpHeader#nsime_udp_header.source_port,
+                UdpHeader#nsime_udp_header.destination_port,
+                UdpHeader#nsime_udp_header.length,
+                ?UDP_PROTOCOL_NUMBER
+            );
+        false ->
+            0
+    end,
     case (Checksum == UdpHeader#nsime_udp_header.checksum) of
         false ->
             {reply, rx_csum_failed, ProtocolState};

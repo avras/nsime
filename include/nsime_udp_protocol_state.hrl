@@ -29,5 +29,6 @@
           ipv6_endpoints_demux      :: #nsime_ip_endpoint_demux_state{},
           sockets = []              :: [pid()],
           ipv4_down_target          :: nsime_callback(),
-          ipv6_down_target          :: nsime_callback()
+          ipv6_down_target          :: nsime_callback(),
+          checksum_enabled = false  :: boolean()
         }).
