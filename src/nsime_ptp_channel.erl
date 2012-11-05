@@ -38,24 +38,12 @@
 
 create() ->
     {ok, Pid} = gen_server:start(?MODULE, [], []),
-    case lists:member(nsime_channel_list, erlang:registered()) of
-        true ->
-            nsime_channel_list:add(Pid);
-        false ->
-            nsime_channel_list:start(),
-            nsime_channel_list:add(Pid)
-    end,
+    nsime_channel_list:add(Pid),
     Pid.
 
 create(ChannelState = #nsime_ptp_channel_state{}) ->
     {ok, Pid} = gen_server:start(?MODULE, ChannelState, []),
-    case lists:member(nsime_channel_list, erlang:registered()) of
-        true ->
-            nsime_channel_list:add(Pid);
-        false ->
-            nsime_channel_list:start(),
-            nsime_channel_list:add(Pid)
-    end,
+    nsime_channel_list:add(Pid),
     Pid.
 
 destroy(ChannelPid) ->

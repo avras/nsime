@@ -58,6 +58,8 @@ init(Scheduler) ->
     },
     nsime_config:start(),
     nsime_config:disable_checksum(),
+    nsime_node_list:start(),
+    nsime_channel_list:start(),
     {ok, SimulatorState}.
 
 run() ->

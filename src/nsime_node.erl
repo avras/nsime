@@ -38,13 +38,7 @@
 
 create() ->
     {ok, Pid} = gen_server:start(?MODULE, [], []),
-    case lists:member(nsime_node_list, erlang:registered()) of
-        true ->
-            nsime_node_list:add(Pid);
-        false ->
-            nsime_node_list:start(),
-            nsime_node_list:add(Pid)
-    end,
+    nsime_node_list:add(Pid),
     Pid.
 
 create(NumNodes) ->
@@ -52,7 +46,15 @@ create(NumNodes) ->
         0 ->
             [];
         _ ->
-            lists:map(fun(_) -> create() end, lists:seq(1, NumNodes))
+            NodePids = lists:map(
+                fun(_) ->
+                    {ok, Pid} = gen_server:start(?MODULE, [], []),
+                    Pid
+                end,
+                lists:seq(1, NumNodes)
+            ),
+            nsime_node_list:add_list(NodePids),
+            NodePids
     end.
 
 destroy(NodePid) ->

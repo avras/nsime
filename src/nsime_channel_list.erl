@@ -46,21 +46,16 @@ get_channel_list() ->
     gen_server:call(?MODULE, get_channel_list).
 
 init([]) ->
-    ChannelPidList = gb_sets:empty(),
+    ChannelPidList = [],
     {ok, ChannelPidList}.
 
 handle_call({add, ChannelPid}, _From, ChannelPidList) ->
-    NewChannelPidList = gb_sets:add(ChannelPid, ChannelPidList),
+    NewChannelPidList = [ChannelPid | ChannelPidList],
     {reply, ok, NewChannelPidList};
 
 handle_call({delete, ChannelPid}, _From, ChannelPidList) ->
-    case gb_sets:is_element(ChannelPid, ChannelPidList) of
-        true ->
-            NewChannelPidList = gb_sets:delete(ChannelPid, ChannelPidList),
-            {reply, ok, NewChannelPidList};
-        false ->
-            {reply, none, ChannelPidList}
-        end;
+    NewChannelPidList = lists:delete(ChannelPid, ChannelPidList),
+    {reply, ok, NewChannelPidList};
 
 handle_call(get_channel_list, _From, ChannelPidList) ->
     {reply, ChannelPidList, ChannelPidList};
@@ -77,7 +72,7 @@ handle_info(_Request, ChannelPidList) ->
 terminate(_Reason, ChannelPidList) ->
     lists:foreach(
         fun(Channel) -> catch gen_server:call(Channel, terminate) end,
-        gb_sets:to_list(ChannelPidList)
+        ChannelPidList
     ),
     ok.
 

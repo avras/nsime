@@ -28,7 +28,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([start/0, stop/0, add/1, delete/1, get_node_list/0]).
+-export([start/0, stop/0, add/1, add_list/1, delete/1, get_node_list/0]).
 
 start() ->
     gen_server:start({local, ?MODULE}, ?MODULE, [], []).
@@ -39,6 +39,9 @@ stop() ->
 add(NodePid) ->
     gen_server:call(?MODULE, {add, NodePid}).
 
+add_list(NodePids) ->
+    gen_server:call(?MODULE, {add_list, NodePids}).
+
 delete(NodePid) ->
     gen_server:call(?MODULE, {delete, NodePid}).
 
@@ -46,21 +49,20 @@ get_node_list() ->
     gen_server:call(?MODULE, get_node_list).
 
 init([]) ->
-    NodePidList = gb_sets:empty(),
+    NodePidList = [],
     {ok, NodePidList}.
 
 handle_call({add, NodePid}, _From, NodePidList) ->
-    NewNodePidList = gb_sets:add(NodePid, NodePidList),
+    NewNodePidList = [NodePid | NodePidList],
+    {reply, ok, NewNodePidList};
+
+handle_call({add_list, NodePids}, _From, NodePidList) ->
+    NewNodePidList = lists:append(NodePids, NodePidList),
     {reply, ok, NewNodePidList};
 
 handle_call({delete, NodePid}, _From, NodePidList) ->
-    case gb_sets:is_element(NodePid, NodePidList) of
-        true ->
-            NewNodePidList = gb_sets:delete(NodePid, NodePidList),
-            {reply, ok, NewNodePidList};
-        false ->
-            {reply, none, NodePidList}
-        end;
+    NewNodePidList = lists:delete(NodePid, NodePidList),
+    {reply, ok, NewNodePidList};
 
 handle_call(get_node_list, _From, NodePidList) ->
     {reply, NodePidList, NodePidList};
@@ -77,7 +79,7 @@ handle_info(_Request, NodePidList) ->
 terminate(_Reason, NodePidList) ->
     lists:foreach(
         fun(Node) -> catch nsime_node:destroy(Node) end,
-        gb_sets:to_list(NodePidList)
+        NodePidList
     ),
     ok.
 
