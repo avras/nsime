@@ -43,6 +43,8 @@ start(SchedulerType) ->
     case SchedulerType of
         gb_trees ->
             nsime_gbtrees_scheduler;
+        orddict ->
+            nsime_orddict_scheduler;
         _ ->
             erlang:error(unsupported_scheduler)
     end,
