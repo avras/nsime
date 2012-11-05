@@ -58,8 +58,8 @@
          set_fragment_expiration_timeout/2, set_transmit_trace/2,
          set_receive_trace/2, set_drop_trace/2,
          set_send_outgoing_trace/2, set_unicast_forward_trace/2,
-         set_local_deliver_trace/2, ip_forward/4, local_deliver/4,
-         do_local_deliver/4, route_input_error/3]).
+         set_local_deliver_trace/2, ip_forward/4, do_ip_forward/4,
+         local_deliver/4, do_local_deliver/4, route_input_error/3]).
 
 create() ->
     {ok, Pid} = gen_server:start(?MODULE, [], []),
@@ -199,14 +199,7 @@ set_local_deliver_trace(ProtocolPid, TraceCallback) ->
     gen_server:call(ProtocolPid, {set_local_deliver_trace, TraceCallback}).
 
 ip_forward(ProtocolPid, Route, Packet, Ipv4Header) ->
-    case gen_server:call(ProtocolPid, {ip_forward, Route, Packet, Ipv4Header}) of
-        ipv4_fragmentation_not_supported ->
-            erlang:error(ipv4_fragmentation_not_supported);
-        icmpv4_protocol_not_found ->
-            erlang:error(icmpv4_protocol_not_found);
-        ok ->
-            ok
-    end.
+    gen_server:call(ProtocolPid, {ip_forward, Route, Packet, Ipv4Header}).
 
 local_deliver(ProtocolPid, Packet, Ipv4Header, Interface) ->
     gen_server:call(ProtocolPid, {local_deliver, Packet, Ipv4Header, Interface}).
@@ -337,7 +330,7 @@ handle_call({recv, DevicePid, Packet, _Protocol, _FromAddress, _ToAddress, _Pack
                         NewIpv4Header,
                         DevicePid,
                         Interface,
-                        {?MODULE, ip_forward, [self()]},
+                        {?MODULE, do_ip_forward, [ProtocolState]},
                         none,
                         {?MODULE, do_local_deliver, [ProtocolState]},
                         ProtocolState#nsime_ipv4_protocol_state.drop_trace,
@@ -501,7 +494,8 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
                                         NewProtocolState#nsime_ipv4_protocol_state.send_outgoing_trace,
                                         [Ipv4Header, NewPacket, Interface]
                                     ),
-                                    send_real_out(Route, NewPacket, Ipv4Header, NewProtocolState);
+                                    send_real_out(Route, NewPacket, Ipv4Header, NewProtocolState),
+                                    {reply, ok, NewProtocolState};
                                 false ->
                                     {reply, nsime_situation_not_implemented, ProtocolState}
                             end;
@@ -541,7 +535,8 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
                                                 NewProtocolState#nsime_ipv4_protocol_state.send_outgoing_trace,
                                                 [Ipv4Header, NewPacket, Interface]
                                             ),
-                                            send_real_out(NewRoute, NewPacket, Ipv4Header, NewProtocolState);
+                                            send_real_out(NewRoute, NewPacket, Ipv4Header, NewProtocolState),
+                                            {reply, ok, NewProtocolState};
                                         {error_noroutetohost, undefined} ->
                                             nsime_callback:apply(
                                                 ProtocolState#nsime_ipv4_protocol_state.drop_trace,
@@ -557,7 +552,8 @@ handle_call({send, Packet, SrcAddress, DestAddress, Protocol, Route}, _From, Pro
     end;
 
 handle_call({send_with_header, Packet, Ipv4Header, Route}, _From, ProtocolState) ->
-    send_real_out(Route, Packet, Ipv4Header, ProtocolState);
+    send_real_out(Route, Packet, Ipv4Header, ProtocolState),
+    {reply, ok, ProtocolState};
 
 handle_call({add_interface, DevicePid}, _From, ProtocolState) ->
     NodePid =  ProtocolState#nsime_ipv4_protocol_state.node,
@@ -978,86 +974,8 @@ handle_call({set_local_deliver_trace, TraceCallback}, _From, ProtocolState) ->
     {reply, ok, NewProtocolState};
 
 handle_call({ip_forward, Route, Packet, Ipv4Header}, _From, ProtocolState) ->
-    InterfaceList = ProtocolState#nsime_ipv4_protocol_state.interfaces,
-    DevicePid = Route#nsime_ipv4_route.output_device,
-    Interface = lists:foldl(
-        fun(I, Match) ->
-            case is_record(Match, nsime_ipv4_interface_state) of
-                true ->
-                    Match;
-                false ->
-                    case nsime_ipv4_interface:get_device(I) == DevicePid of
-                        true ->
-                            I;
-                        false ->
-                            none
-                    end
-            end
-        end,
-        none,
-        InterfaceList
-    ),
-    NewIpv4Header = nsime_ipv4_header:set_ttl(Ipv4Header, nsime_ipv4_header:get_ttl(Ipv4Header) - 1),
-    case nsime_ipv4_header:get_ttl(NewIpv4Header) == 0 of
-        true ->
-            case
-                (nsime_ipv4_header:get_protocol(NewIpv4Header) =/= nsime_icmpv4_protocol:protocol_number())
-                and (
-                        nsime_ipv4_address:is_broadcast(
-                            nsime_ipv4_header:get_destination_address(
-                                NewIpv4Header
-                            )
-                        ) == false
-                    )
-                and (
-                        nsime_ipv4_address:is_multicast(
-                            nsime_ipv4_header:get_destination_address(
-                                NewIpv4Header
-                            )
-                        ) == false
-                    )
-            of
-                true ->
-                    ProtocolList = ProtocolState#nsime_ipv4_protocol_state.layer4_protocols,
-                    IcmpPid =
-                    case
-                    lists:filter(
-                        fun(P) ->
-                            nsime_layer4_protocol:protocol_number(P) == nsime_icmpv4_protocol:protocol_number()
-                        end,
-                        ProtocolList
-                    )
-                    of
-                        [] ->
-                            undefined;
-                        [FirstMatch|_] ->
-                            FirstMatch
-                    end,
-                    case is_pid(IcmpPid) of
-                        false ->
-                            {reply, icmpv4_protocol_not_found, ProtocolState};
-                        true ->
-                            nsime_icmpv4_protocol:send_time_exceeded_ttl(IcmpPid, NewIpv4Header, Packet),
-                            nsime_callback:apply(
-                                ProtocolState#nsime_ipv4_protocol_state.drop_trace,
-                                [NewIpv4Header, Packet, drop_ttl_expired, self(), Interface]
-                            ),
-                            {reply, ok, ProtocolState}
-                    end;
-                false ->
-                    nsime_callback:apply(
-                        ProtocolState#nsime_ipv4_protocol_state.drop_trace,
-                        [NewIpv4Header, Packet, drop_ttl_expired, self(), Interface]
-                    ),
-                    {reply, ok, ProtocolState}
-            end;
-        false ->
-            nsime_callback:apply(
-                ProtocolState#nsime_ipv4_protocol_state.unicast_forward_trace,
-                [NewIpv4Header, Packet, Interface]
-            ),
-            send_real_out(Route, Packet, NewIpv4Header, ProtocolState)
-    end;
+    do_ip_forward(ProtocolState, Route, Packet, Ipv4Header),
+    {reply, ok, ProtocolState};
 
 handle_call({local_deliver, Packet, Ipv4Header, Interface}, _From, ProtocolState) ->
     do_local_deliver(ProtocolState, Packet, Ipv4Header, Interface),
@@ -1117,7 +1035,7 @@ send_real_out(Route, Packet, Ipv4Header, ProtocolState) ->
                 ProtocolState#nsime_ipv4_protocol_state.drop_trace,
                 [Ipv4Header, Packet, drop_no_route, self(), none]
             ),
-            {reply, ok, ProtocolState};
+            ok;
         true ->
             Ipv4HeaderBinary = nsime_ipv4_header:serialize(Ipv4Header),
             Data = Packet#nsime_packet.data,
@@ -1153,21 +1071,21 @@ send_real_out(Route, Packet, Ipv4Header, ProtocolState) ->
                                 nsime_netdevice:get_mtu(nsime_ipv4_interface:get_device(Interface))
                             of
                                 true ->
-                                    {reply, ipv4_fragmentation_not_supported, ProtocolState};
+                                    erlang:error(ipv4_fragmentation_not_supported);
                                 false ->
                                     nsime_callback:apply(
                                         ProtocolState#nsime_ipv4_protocol_state.transmit_trace,
                                         [NewPacket, self(), Interface]
                                     ),
                                     nsime_ipv4_interface:send(Interface, NewPacket, Route#nsime_ipv4_route.gateway, self()),
-                                    {reply, ok, ProtocolState}
+                                    ok
                             end;
                         false ->
                             nsime_callback:apply(
                                 ProtocolState#nsime_ipv4_protocol_state.drop_trace,
                                 [Ipv4Header, Packet, drop_interface_down, self(), Interface]
                             ),
-                            {reply, ok, ProtocolState}
+                            ok
                     end;
                 true ->
                     case is_record(Interface, nsime_ipv4_interface_state) andalso nsime_ipv4_interface:is_up(Interface) of
@@ -1177,7 +1095,7 @@ send_real_out(Route, Packet, Ipv4Header, ProtocolState) ->
                                 nsime_netdevice:get_mtu(nsime_ipv4_interface:get_device(Interface))
                             of
                                 true ->
-                                    {reply, ipv4_fragmentation_not_supported, ProtocolState};
+                                    erlang:error(ipv4_fragmentation_not_supported);
                                 false ->
                                     nsime_callback:apply(
                                         ProtocolState#nsime_ipv4_protocol_state.transmit_trace,
@@ -1189,14 +1107,14 @@ send_real_out(Route, Packet, Ipv4Header, ProtocolState) ->
                                         nsime_ipv4_header:get_destination_address(Ipv4Header),
                                         self()
                                     ),
-                                    {reply, ok, ProtocolState}
+                                    ok
                             end;
                         false ->
                             nsime_callback:apply(
                                 ProtocolState#nsime_ipv4_protocol_state.drop_trace,
                                 [Ipv4Header, Packet, drop_interface_down, self(), Interface]
                             ),
-                            {reply, ok, ProtocolState}
+                            ok
                     end
             end
     end.
@@ -1274,3 +1192,84 @@ do_local_deliver(ProtocolState, Packet, Ipv4Header, Interface) ->
         false ->
             ok
     end.
+
+do_ip_forward(ProtocolState, Route, Packet, Ipv4Header) ->
+    InterfaceList = ProtocolState#nsime_ipv4_protocol_state.interfaces,
+    DevicePid = Route#nsime_ipv4_route.output_device,
+    Interface = lists:foldl(
+        fun(I, Match) ->
+            case is_record(Match, nsime_ipv4_interface_state) of
+                true ->
+                    Match;
+                false ->
+                    case nsime_ipv4_interface:get_device(I) == DevicePid of
+                        true ->
+                            I;
+                        false ->
+                            none
+                    end
+            end
+        end,
+        none,
+        InterfaceList
+    ),
+    NewIpv4Header = nsime_ipv4_header:set_ttl(Ipv4Header, nsime_ipv4_header:get_ttl(Ipv4Header) - 1),
+    case nsime_ipv4_header:get_ttl(NewIpv4Header) == 0 of
+        true ->
+            case
+                (nsime_ipv4_header:get_protocol(NewIpv4Header) =/= nsime_icmpv4_protocol:protocol_number())
+                and (
+                        nsime_ipv4_address:is_broadcast(
+                            nsime_ipv4_header:get_destination_address(
+                                NewIpv4Header
+                            )
+                        ) == false
+                    )
+                and (
+                        nsime_ipv4_address:is_multicast(
+                            nsime_ipv4_header:get_destination_address(
+                                NewIpv4Header
+                            )
+                        ) == false
+                    )
+            of
+                true ->
+                    ProtocolList = ProtocolState#nsime_ipv4_protocol_state.layer4_protocols,
+                    IcmpPid =
+                    case
+                    lists:filter(
+                        fun(P) ->
+                            nsime_layer4_protocol:protocol_number(P) == nsime_icmpv4_protocol:protocol_number()
+                        end,
+                        ProtocolList
+                    )
+                    of
+                        [] ->
+                            undefined;
+                        [FirstMatch|_] ->
+                            FirstMatch
+                    end,
+                    case is_pid(IcmpPid) of
+                        false ->
+                            erlang:error(icmpv4_protocol_not_found);
+                        true ->
+                            nsime_icmpv4_protocol:send_time_exceeded_ttl(IcmpPid, NewIpv4Header, Packet),
+                            nsime_callback:apply(
+                                ProtocolState#nsime_ipv4_protocol_state.drop_trace,
+                                [NewIpv4Header, Packet, drop_ttl_expired, self(), Interface]
+                            )
+                    end;
+                false ->
+                    nsime_callback:apply(
+                        ProtocolState#nsime_ipv4_protocol_state.drop_trace,
+                        [NewIpv4Header, Packet, drop_ttl_expired, self(), Interface]
+                    )
+            end;
+        false ->
+            nsime_callback:apply(
+                ProtocolState#nsime_ipv4_protocol_state.unicast_forward_trace,
+                [NewIpv4Header, Packet, Interface]
+            ),
+            send_real_out(Route, Packet, NewIpv4Header, ProtocolState)
+    end.
+

@@ -90,15 +90,10 @@ route_input(
                                 undefined ->
                                     false;
                                 _ ->
-                                    {Mod, Fun, Args} = UnicastForwardCallback,
-                                    NewArgs = lists:flatten([Args, [Route, Packet, Ipv4Header]]),
-                                    Event = #nsime_event{
-                                        module = Mod,
-                                        function = Fun,
-                                        arguments = NewArgs,
-                                        eventid = make_ref()
-                                    },
-                                    nsime_simulator:schedule_now(Event),
+                                    nsime_callback:apply(
+                                        UnicastForwardCallback,
+                                        [Route, Packet, Ipv4Header]
+                                    ),
                                     true
                             end
                     end;
@@ -107,15 +102,10 @@ route_input(
                         undefined ->
                             false;
                         _ ->
-                            {Mod, Fun, Args} = LocalDeliverCallback,
-                            NewArgs = lists:flatten([Args, [Packet, Ipv4Header, Interface]]),
-                            Event = #nsime_event{
-                                module = Mod,
-                                function = Fun,
-                                arguments = NewArgs,
-                                eventid = make_ref()
-                            },
-                            nsime_simulator:schedule_now(Event),
+                            nsime_callback:apply(
+                                LocalDeliverCallback,
+                                [Packet, Ipv4Header, Interface]
+                            ),
                             true
                     end
 
