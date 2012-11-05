@@ -26,7 +26,7 @@
         {
           bound_netdevice                             :: pid(),
           receive_packet_info = false                 :: boolean(),
-          ip_endpoint                                 :: pid(),
+          ip_endpoint                                 :: #nsime_ip_endpoint_state{},
           node                                        :: pid(),
           udp_protocol                                :: pid(),
           default_address                             :: inet:ip_address(),
