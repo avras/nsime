@@ -52,9 +52,9 @@ stop() ->
     gen_server:call(?MODULE, terminate, infinity).
 
 init(Scheduler) ->
-    Scheduler:create(),
     SimulatorState = #nsime_simulator_state{
-        scheduler = Scheduler
+        scheduler = Scheduler,
+        scheduler_state = Scheduler:create()
     },
     nsime_config:start(),
     nsime_config:disable_checksum(),
@@ -94,17 +94,25 @@ handle_call({schedule, Time, Event}, _From, State) ->
     EventTime = nsime_time:add(State#nsime_simulator_state.current_time, Time),
     NewEvent = Event#nsime_event{time = EventTime},
     Scheduler = State#nsime_simulator_state.scheduler,
-    Scheduler:insert(NewEvent),
+    SchedulerState = State#nsime_simulator_state.scheduler_state,
+    NewSchedulerState = Scheduler:insert(SchedulerState, NewEvent),
     NumEvents = State#nsime_simulator_state.num_remaining_events,
-    NewState = State#nsime_simulator_state{num_remaining_events = NumEvents + 1},
+    NewState = State#nsime_simulator_state{
+        scheduler_state = NewSchedulerState,
+        num_remaining_events = NumEvents + 1
+    },
     {reply, NewEvent, NewState};
 
 handle_call({cancel, Event}, _From, State) ->
     Scheduler = State#nsime_simulator_state.scheduler,
-    case Scheduler:remove(Event) of
-        ok ->
+    SchedulerState = State#nsime_simulator_state.scheduler_state,
+    case Scheduler:remove(SchedulerState, Event) of
+        {ok, NewSchedulerState} ->
             NumEvents = State#nsime_simulator_state.num_remaining_events,
-            NewState = State#nsime_simulator_state{num_remaining_events = NumEvents - 1},
+            NewState = State#nsime_simulator_state{
+                scheduler_state = NewSchedulerState,
+                num_remaining_events = NumEvents - 1
+            },
             {reply, ok, NewState};
         none ->
             {reply, none, State}
@@ -112,18 +120,19 @@ handle_call({cancel, Event}, _From, State) ->
 
 handle_call(run, _From, State) ->
     Scheduler = State#nsime_simulator_state.scheduler,
-    case Scheduler:is_empty() of
-        false ->
-            Event = Scheduler:remove_next(),
+    SchedulerState = State#nsime_simulator_state.scheduler_state,
+    case Scheduler:remove_next(SchedulerState) of
+        {Event, NewSchedulerState} ->
             NumEvents = State#nsime_simulator_state.num_remaining_events,
             NumExecutedEvents = State#nsime_simulator_state.num_executed_events,
             NewState = State#nsime_simulator_state{
-                            current_time = Event#nsime_event.time,
-                            num_remaining_events = NumEvents - 1,
-                            num_executed_events = NumExecutedEvents + 1
+                scheduler_state = NewSchedulerState,
+                current_time = Event#nsime_event.time,
+                num_remaining_events = NumEvents - 1,
+                num_executed_events = NumExecutedEvents + 1
             },
             {reply, {event, Event}, NewState};
-        true ->
+        none ->
             {reply, none, State}
     end;
 
@@ -139,9 +148,7 @@ handle_cast(_Request, State) ->
 handle_info(_Request, State) ->
     {noreply, State}.
 
-terminate(_Reason, State) ->
-    Scheduler = State#nsime_simulator_state.scheduler,
-    Scheduler:stop(),
+terminate(_Reason, _State) ->
     lists:foreach(
         fun(A) ->
             Pid = erlang:whereis(A),
