@@ -60,15 +60,10 @@ route_input(
         )
     of
         true ->
-            {Mod, Fun, Args} = LocalDeliverCallback,
-            NewArgs = lists:flatten([Args, [Packet, Ipv4Header, Interface]]),
-            Event = #nsime_event{
-                module = Mod,
-                function = Fun,
-                arguments = NewArgs,
-                eventid = make_ref()
-            },
-            nsime_simulator:schedule_now(Event),
+            nsime_callback:apply(
+                LocalDeliverCallback,
+                [Packet, Ipv4Header, Interface]
+            ),
             case nsime_ipv4_address:is_multicast(DestinationAddress) of
                 false ->
                     true;

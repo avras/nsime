@@ -59,7 +59,7 @@
          set_receive_trace/2, set_drop_trace/2,
          set_send_outgoing_trace/2, set_unicast_forward_trace/2,
          set_local_deliver_trace/2, ip_forward/4, local_deliver/4,
-         route_input_error/3]).
+         do_local_deliver/4, route_input_error/3]).
 
 create() ->
     {ok, Pid} = gen_server:start(?MODULE, [], []),
@@ -339,7 +339,7 @@ handle_call({recv, DevicePid, Packet, _Protocol, _FromAddress, _ToAddress, _Pack
                         Interface,
                         {?MODULE, ip_forward, [self()]},
                         none,
-                        {?MODULE, local_deliver, [self()]},
+                        {?MODULE, do_local_deliver, [ProtocolState]},
                         ProtocolState#nsime_ipv4_protocol_state.drop_trace,
                         InterfaceList
                     )
@@ -1060,78 +1060,8 @@ handle_call({ip_forward, Route, Packet, Ipv4Header}, _From, ProtocolState) ->
     end;
 
 handle_call({local_deliver, Packet, Ipv4Header, Interface}, _From, ProtocolState) ->
-    nsime_callback:apply(
-        ProtocolState#nsime_ipv4_protocol_state.local_deliver_trace,
-        [Ipv4Header, Packet, Interface]
-    ),
-    Layer4ProtocolPid = hd(lists:filter(
-        fun(P) ->
-            nsime_layer4_protocol:protocol_number(P) ==
-            nsime_ipv4_header:get_protocol(Ipv4Header)
-        end,
-        ProtocolState#nsime_ipv4_protocol_state.layer4_protocols
-    )),
-    case is_pid(Layer4ProtocolPid) of
-        true ->
-            RxStatus = nsime_layer4_protocol:recv(Layer4ProtocolPid, Packet, Ipv4Header, Interface),
-            case RxStatus of
-                rx_ok ->
-                    {reply, ok, ProtocolState};
-                rx_endpoint_closed ->
-                    {reply, ok, ProtocolState};
-                rx_csum_failed ->
-                    {reply, ok, ProtocolState};
-                rx_endpoint_unreach ->
-                    DestAddress = nsime_ipv4_header:get_destination_address(Ipv4Header),
-                    case
-                        (nsime_ipv4_address:is_broadcast(DestAddress)) or
-                        (nsime_ipv4_address:is_multicast(DestAddress))
-                    of
-                        true ->
-                            {reply, ok, ProtocolState};
-                        false ->
-                            InterfaceAddressList = nsime_ipv4_interface:get_address_list(Interface),
-                            SubnetDirected = lists:foldl(
-                                fun(A, Directed) ->
-                                    case Directed of
-                                        true ->
-                                            true;
-                                        false ->
-                                            Mask = nsime_ipv4_interface_address:get_mask(A),
-                                            LocalAddress = nsime_ipv4_interface_address:get_local_address(A),
-                                            nsime_ipv4_address:is_subnet_directed_broadcast(DestAddress, Mask) and
-                                            (
-                                                nsime_ipv4_address:combine_mask(DestAddress, Mask) ==
-                                                nsime_ipv4_address:combine_mask(LocalAddress, Mask)
-                                            )
-                                    end
-                                end,
-                                false,
-                                InterfaceAddressList
-                            ),
-                            case SubnetDirected of
-                                false ->
-                                    IcmpPidList = lists:filter(
-                                        fun(P) ->
-                                            nsime_layer4_protocol:protocol_number(P) == nsime_icmpv4_protocol:protocol_number()
-                                        end,
-                                        ProtocolState#nsime_ipv4_protocol_state.layer4_protocols
-                                    ),
-                                    case IcmpPidList of
-                                        [] ->
-                                            {reply, ok, ProtocolState};
-                                        [IcmpPid | _] ->
-                                            nsime_icmpv4_protocol:send_dest_unreach_port(IcmpPid, Ipv4Header, Packet),
-                                            {reply, ok, ProtocolState}
-                                    end;
-                                true ->
-                                    {reply, ok, ProtocolState}
-                            end
-                    end
-            end;
-        false ->
-            {reply, ok, ProtocolState}
-    end;
+    do_local_deliver(ProtocolState, Packet, Ipv4Header, Interface),
+    {reply, ok, ProtocolState};
 
 handle_call({route_input_error, Packet, Ipv4Header}, _From, ProtocolState) ->
     nsime_callback:apply(
@@ -1269,4 +1199,78 @@ send_real_out(Route, Packet, Ipv4Header, ProtocolState) ->
                             {reply, ok, ProtocolState}
                     end
             end
+    end.
+
+do_local_deliver(ProtocolState, Packet, Ipv4Header, Interface) ->
+    nsime_callback:apply(
+        ProtocolState#nsime_ipv4_protocol_state.local_deliver_trace,
+        [Ipv4Header, Packet, Interface]
+    ),
+    Layer4ProtocolPid = hd(lists:filter(
+        fun(P) ->
+            nsime_layer4_protocol:protocol_number(P) ==
+            nsime_ipv4_header:get_protocol(Ipv4Header)
+        end,
+        ProtocolState#nsime_ipv4_protocol_state.layer4_protocols
+    )),
+    case is_pid(Layer4ProtocolPid) of
+        true ->
+            RxStatus = nsime_layer4_protocol:recv(Layer4ProtocolPid, Packet, Ipv4Header, Interface),
+            case RxStatus of
+                rx_ok ->
+                    ok;
+                rx_endpoint_closed ->
+                    ok;
+                rx_csum_failed ->
+                    ok;
+                rx_endpoint_unreach ->
+                    DestAddress = nsime_ipv4_header:get_destination_address(Ipv4Header),
+                    case
+                        (nsime_ipv4_address:is_broadcast(DestAddress)) or
+                        (nsime_ipv4_address:is_multicast(DestAddress))
+                    of
+                        true ->
+                            ok;
+                        false ->
+                            InterfaceAddressList = nsime_ipv4_interface:get_address_list(Interface),
+                            SubnetDirected = lists:foldl(
+                                fun(A, Directed) ->
+                                    case Directed of
+                                        true ->
+                                            true;
+                                        false ->
+                                            Mask = nsime_ipv4_interface_address:get_mask(A),
+                                            LocalAddress = nsime_ipv4_interface_address:get_local_address(A),
+                                            nsime_ipv4_address:is_subnet_directed_broadcast(DestAddress, Mask) and
+                                            (
+                                                nsime_ipv4_address:combine_mask(DestAddress, Mask) ==
+                                                nsime_ipv4_address:combine_mask(LocalAddress, Mask)
+                                            )
+                                    end
+                                end,
+                                false,
+                                InterfaceAddressList
+                            ),
+                            case SubnetDirected of
+                                false ->
+                                    IcmpPidList = lists:filter(
+                                        fun(P) ->
+                                            nsime_layer4_protocol:protocol_number(P) == nsime_icmpv4_protocol:protocol_number()
+                                        end,
+                                        ProtocolState#nsime_ipv4_protocol_state.layer4_protocols
+                                    ),
+                                    case IcmpPidList of
+                                        [] ->
+                                            ok;
+                                        [IcmpPid | _] ->
+                                            nsime_icmpv4_protocol:send_dest_unreach_port(IcmpPid, Ipv4Header, Packet),
+                                            ok
+                                    end;
+                                true ->
+                                    ok
+                            end
+                    end
+            end;
+        false ->
+            ok
     end.
