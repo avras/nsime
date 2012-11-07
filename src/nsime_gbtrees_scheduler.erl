@@ -26,8 +26,8 @@
 -include("nsime_types.hrl").
 -include("nsime_event.hrl").
 
--export([create/0, is_empty/1, insert/2,
-         remove/2, remove_next/1]).
+-export([create/0, is_empty/1, insert/2, remove/2, remove_next/1,
+         remove_next_simultaneous/1]).
 
 create() ->
     gb_trees:empty().
@@ -77,6 +77,15 @@ remove_next(EventQueue) ->
                     NewerEventQueue = gb_trees:insert(Time, RemainingEvents, NewEventQueue),
                     {FirstEvent, NewerEventQueue}
             end;
+        true ->
+            none
+    end.
+
+remove_next_simultaneous(EventQueue) ->
+    case gb_trees:is_empty(EventQueue) of
+        false ->
+            {_Time, EarliestEvents, NewEventQueue} = gb_trees:take_smallest(EventQueue),
+            {EarliestEvents, NewEventQueue};
         true ->
             none
     end.
