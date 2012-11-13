@@ -29,7 +29,9 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -include("nsime_types.hrl").
+-include("nsime_event.hrl").
 -include("nsime_packet.hrl").
+-include("nsime_droptail_queue_state.hrl").
 -include("nsime_ptp_netdevice_state.hrl").
 
 all() -> [
@@ -97,6 +99,7 @@ test_set_get_callbacks(_) ->
     ?assertEqual(nsime_netdevice:destroy(DevicePid), stopped).
 
 test_send(_) ->
+    nsime_simulator:start(),
     ChannelPid = nsime_ptp_channel:create(),
     ?assert(is_pid(ChannelPid)),
     DevicePid1 = nsime_ptp_netdevice:create(),
@@ -118,7 +121,6 @@ test_send(_) ->
     InterFrameGap = {10, micro_sec},
     ?assertEqual(nsime_ptp_netdevice:set_interframe_gap(DevicePid1, InterFrameGap), ok),
 
-    nsime_simulator:start(),
     ?assertEqual(nsime_netdevice:send(DevicePid1, Packet, address, 16#86DD), true),
 
     ?assertEqual(nsime_simulator:stop(), simulation_complete),
