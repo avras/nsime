@@ -342,7 +342,7 @@ allocate(DemuxState, LocalAddress, LocalPort, PeerAddress, PeerPort, Callbacks) 
             NewDemuxState = DemuxState#nsime_ip_endpoint_demux_state{
                 endpoints = [NewerEndpoint | EndpointList]
             },
-            {NewEndpoint, NewDemuxState}
+            {NewerEndpoint, NewDemuxState}
     end.
 
 deallocate(DemuxState, Endpoint) ->
