@@ -112,8 +112,8 @@ drop_packet(QueueState, PacketId) ->
 
 dequeue_all_packets(QueueState) ->
     case dequeue_packet(QueueState) of
-        {none, _NewQueueState} ->
-            ok;
+        {none, _} ->
+            QueueState;
         {#nsime_packet{}, NewQueueState} ->
             dequeue_all_packets(NewQueueState)
     end.
