@@ -31,7 +31,11 @@
 -include("nsime_types.hrl").
 -include("nsime_packet.hrl").
 -include("nsime_ipv4_header.hrl").
+-include("nsime_ip_endpoint_state.hrl").
+-include("nsime_ip_endpoint_demux_state.hrl").
 -include("nsime_udp_protocol_state.hrl").
+-include("nsime_ipv4_interface_address_state.hrl").
+-include("nsime_ipv4_interface_state.hrl").
 
 all() -> [
             test_protocol_number,
@@ -46,15 +50,18 @@ end_per_suite(Config) ->
     Config.
 
 test_protocol_number(_) ->
+    {ok, _Pid} = nsime_config:start(),
     ProtocolPid = nsime_udp_protocol:create(),
     ?assert(is_pid(ProtocolPid)),
     ?assertEqual(
         nsime_layer4_protocol:protocol_number(ProtocolPid),
         nsime_udp_protocol:protocol_number()
     ),
-    ?assertEqual(nsime_udp_protocol:destroy(ProtocolPid), stopped).
+    ?assertEqual(nsime_udp_protocol:destroy(ProtocolPid), stopped),
+    ?assertEqual(nsime_config:stop(), stopped).
 
 test_recv(_) ->
+    {ok, _Pid} = nsime_config:start(),
     ProtocolPid = nsime_udp_protocol:create(),
     ?assert(is_pid(ProtocolPid)),
     ?assertEqual(
@@ -71,8 +78,9 @@ test_recv(_) ->
         ttl = 32
     },
     ?assertEqual(
-        nsime_layer4_protocol:recv(ProtocolPid, Packet1, Ipv4Header, undefined),
-        rx_csum_failed
+        nsime_layer4_protocol:recv(ProtocolPid, Packet1, Ipv4Header, #nsime_ipv4_interface_state{}),
+        rx_endpoint_unreach
     ),
 
-    ?assertEqual(nsime_udp_protocol:destroy(ProtocolPid), stopped).
+    ?assertEqual(nsime_udp_protocol:destroy(ProtocolPid), stopped),
+    ?assertEqual(nsime_config:stop(), stopped).
