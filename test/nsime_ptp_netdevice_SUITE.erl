@@ -30,6 +30,7 @@
 
 -include("nsime_types.hrl").
 -include("nsime_packet.hrl").
+-include("nsime_droptail_queue_state.hrl").
 -include("nsime_ptp_netdevice_state.hrl").
 
 all() -> [
@@ -58,7 +59,6 @@ test_creation_shutdown(_) ->
     ?assertEqual(nsime_ptp_netdevice:get_address(DevicePid), undefined),
     ?assertEqual(nsime_ptp_netdevice:get_channel(DevicePid), undefined),
     ?assertEqual(nsime_ptp_netdevice:get_queue_module(DevicePid), nsime_droptail_queue),
-    ?assert(is_pid(nsime_ptp_netdevice:get_queue(DevicePid))),
     ?assertNot(nsime_ptp_netdevice:is_link_up(DevicePid)),
     ?assertEqual(nsime_ptp_netdevice:get_mtu(DevicePid), 1500),
     ?assertEqual(nsime_ptp_netdevice:get_interface(DevicePid), undefined),
@@ -102,12 +102,12 @@ test_set_get_components(_) ->
     ?assertEqual(nsime_ptp_netdevice:set_data_rate(DevicePid, DataRate), ok),
     InterFrameGap = {10, micro_sec},
     ?assertEqual(nsime_ptp_netdevice:set_interframe_gap(DevicePid, InterFrameGap), ok),
-    QueuePid = list_to_pid("<0.2.2>"),
-    ?assertEqual(nsime_ptp_netdevice:set_queue(DevicePid, QueuePid), ok),
-    ?assertEqual(nsime_ptp_netdevice:get_queue(DevicePid), QueuePid),
-    QueueModule = some_queue,
+    QueueModule = nsime_droptail_queue,
     ?assertEqual(nsime_ptp_netdevice:set_queue_module(DevicePid, QueueModule), ok),
     ?assertEqual(nsime_ptp_netdevice:get_queue_module(DevicePid), QueueModule),
+    QueueState = #nsime_droptail_queue_state{max_packet_count = 10, max_byte_count = 10000},
+    ?assertEqual(nsime_ptp_netdevice:set_queue_module(DevicePid, QueueState), ok),
+    ?assertEqual(nsime_ptp_netdevice:get_queue_module(DevicePid), QueueState),
     ErrorModel = list_to_pid("<0.2.3>"),
     ?assertEqual(nsime_ptp_netdevice:set_receive_error_model(DevicePid, ErrorModel), ok),
     MTU = 1000,
@@ -118,6 +118,7 @@ test_set_get_components(_) ->
     ?assertEqual(nsime_ptp_netdevice:get_interface(DevicePid), InterfacePid).
 
 test_attach_channel(_) ->
+    nsime_simulator:start(),
     ChannelPid = nsime_ptp_channel:create(),
     ?assert(is_pid(ChannelPid)),
     DevicePid1 = nsime_ptp_netdevice:create(),
@@ -134,10 +135,12 @@ test_attach_channel(_) ->
     ?assertEqual(nsime_ptp_netdevice:attach_channel(DevicePid2, ChannelPid), ok),
     ?assert(nsime_ptp_netdevice:is_link_up(DevicePid2)),
     ?assertEqual(nsime_ptp_netdevice:attach_channel(DevicePid3, ChannelPid), none),
-    ?assertNot(nsime_ptp_netdevice:is_link_up(DevicePid3)).
+    ?assertNot(nsime_ptp_netdevice:is_link_up(DevicePid3)),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete).
 
 test_transmit_start(_) ->
-   ChannelPid = nsime_ptp_channel:create(),
+    nsime_simulator:start(),
+    ChannelPid = nsime_ptp_channel:create(),
     ?assert(is_pid(ChannelPid)),
     DevicePid1 = nsime_ptp_netdevice:create(),
     ?assert(is_pid(DevicePid1)),
@@ -156,7 +159,6 @@ test_transmit_start(_) ->
     InterFrameGap = {10, micro_sec},
     ?assertEqual(nsime_ptp_netdevice:set_interframe_gap(DevicePid1, InterFrameGap), ok),
 
-    nsime_simulator:start(),
     ?assertEqual(nsime_ptp_netdevice:transmit_start(DevicePid1, Packet), true),
 
     ?assertEqual(nsime_ptp_netdevice:transmit_start(DevicePid1, Packet), true),
