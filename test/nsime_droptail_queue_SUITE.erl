@@ -33,14 +33,11 @@
 -include("nsime_droptail_queue_state.hrl").
 
 all() -> [
-            test_creation_shutdown,
-            test_creation_with_initial_state,
+            test_creation,
             test_enqueue_dequeue,
             test_drop_packet,
             test_dequeue_all_packets,
-            test_reset_statistics,
-            test_set_get_device_id,
-            test_cast_info_codechange
+            test_reset_statistics
          ].
 
 
@@ -50,57 +47,33 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     Config.
 
-test_creation_shutdown(_) ->
-   QueuePid = nsime_droptail_queue:create(),
-    case is_pid(QueuePid) of
-        false ->
-            ct:fail("Failed to create nsime_droptail_queue process",[]);
-        true ->
-            ?assert(nsime_droptail_queue:is_empty(QueuePid)),
-            QueueStats = nsime_droptail_queue:get_statistics(QueuePid),
-            ?assertEqual(QueueStats#nsime_droptail_queue_state.current_packet_count, 0),
-            ?assertEqual(QueueStats#nsime_droptail_queue_state.current_byte_count, 0),
-            ?assertEqual(QueueStats#nsime_droptail_queue_state.received_packet_count, 0),
-            ?assertEqual(QueueStats#nsime_droptail_queue_state.received_byte_count, 0),
-            ?assertEqual(QueueStats#nsime_droptail_queue_state.dropped_packet_count, 0),
-            ?assertEqual(QueueStats#nsime_droptail_queue_state.dropped_byte_count, 0),
-            ?assertEqual(QueueStats#nsime_droptail_queue_state.max_packet_count, infinity),
-            ?assertEqual(QueueStats#nsime_droptail_queue_state.max_byte_count, infinity),
-            ?assertEqual(QueueStats#nsime_droptail_queue_state.device_id, undefined),
-            ?assert(queue:is_empty(QueueStats#nsime_droptail_queue_state.packets)),
-            ?assertEqual(nsime_droptail_queue:destroy(QueuePid), stopped)
-    end.
-
-test_creation_with_initial_state(_) ->
-    MaxPackets = 2,
-    QueueState = #nsime_droptail_queue_state{max_packet_count = MaxPackets},
-    QueuePid = nsime_droptail_queue:create(QueueState),
-    QueueStats = nsime_droptail_queue:get_statistics(QueuePid),
+test_creation(_) ->
+    QueueState = nsime_droptail_queue:create(),
+    ?assert(is_record(QueueState, nsime_droptail_queue_state)),
+    ?assert(nsime_droptail_queue:is_empty(QueueState)),
+    QueueStats = nsime_droptail_queue:get_statistics(QueueState),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.current_packet_count, 0),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.current_byte_count, 0),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.received_packet_count, 0),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.received_byte_count, 0),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.dropped_packet_count, 0),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.dropped_byte_count, 0),
-    ?assertEqual(QueueStats#nsime_droptail_queue_state.max_packet_count, 2),
+    ?assertEqual(QueueStats#nsime_droptail_queue_state.max_packet_count, infinity),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.max_byte_count, infinity),
-    ?assertEqual(QueueStats#nsime_droptail_queue_state.device_id, undefined),
-    ?assert(queue:is_empty(QueueStats#nsime_droptail_queue_state.packets)),
-    ?assertEqual(nsime_droptail_queue:destroy(QueuePid), stopped).
-
+    ?assert(queue:is_empty(QueueStats#nsime_droptail_queue_state.packets)).
 
 test_enqueue_dequeue(_) ->
     MaxPackets = 2,
     MaxBytes = 2000,
     QueueState = #nsime_droptail_queue_state{max_packet_count = MaxPackets, max_byte_count = MaxBytes},
-    QueuePid = nsime_droptail_queue:create(QueueState),
-    ?assert(nsime_droptail_queue:is_empty(QueuePid)),
+    ?assert(nsime_droptail_queue:is_empty(QueueState)),
    
     Size = 1000,
     Packet1 = create_packet(Size),
-    ?assertEqual(nsime_droptail_queue:enqueue_packet(QueuePid, Packet1), ok),
-    ?assertNot(nsime_droptail_queue:is_empty(QueuePid)),
-    QueueStats1 = nsime_droptail_queue:get_statistics(QueuePid),
+    QueueState1 = nsime_droptail_queue:enqueue_packet(QueueState, Packet1),
+    ?assert(is_record(QueueState1, nsime_droptail_queue_state)),
+    ?assertNot(nsime_droptail_queue:is_empty(QueueState1)),
+    QueueStats1 = nsime_droptail_queue:get_statistics(QueueState1),
     ?assertEqual(QueueStats1#nsime_droptail_queue_state.current_packet_count, 1),
     ?assertEqual(QueueStats1#nsime_droptail_queue_state.current_byte_count, Size),
     ?assertEqual(QueueStats1#nsime_droptail_queue_state.received_packet_count, 1),
@@ -112,9 +85,10 @@ test_enqueue_dequeue(_) ->
 
 
     Packet2 = create_packet(1000),
-    ?assertEqual(nsime_droptail_queue:enqueue_packet(QueuePid, Packet2), ok),
-    ?assertNot(nsime_droptail_queue:is_empty(QueuePid)),
-    QueueStats2 = nsime_droptail_queue:get_statistics(QueuePid),
+    QueueState2 = nsime_droptail_queue:enqueue_packet(QueueState1, Packet2),
+    ?assert(is_record(QueueState2, nsime_droptail_queue_state)),
+    ?assertNot(nsime_droptail_queue:is_empty(QueueState2)),
+    QueueStats2 = nsime_droptail_queue:get_statistics(QueueState2),
     ?assertEqual(QueueStats2#nsime_droptail_queue_state.current_packet_count, 2),
     ?assertEqual(QueueStats2#nsime_droptail_queue_state.current_byte_count, 2*Size),
     ?assertEqual(QueueStats2#nsime_droptail_queue_state.received_packet_count, 2),
@@ -124,9 +98,10 @@ test_enqueue_dequeue(_) ->
     ?assertEqual(QueueStats2#nsime_droptail_queue_state.max_packet_count, MaxPackets),
     ?assertEqual(QueueStats2#nsime_droptail_queue_state.max_byte_count, MaxBytes),
 
-    ?assertEqual(nsime_droptail_queue:enqueue_packet(QueuePid, create_packet(1000)), dropped),
-    ?assertNot(nsime_droptail_queue:is_empty(QueuePid)),
-    QueueStats3 = nsime_droptail_queue:get_statistics(QueuePid),
+    QueueState3 = nsime_droptail_queue:enqueue_packet(QueueState2, create_packet(1000)),
+    ?assert(is_record(QueueState3, nsime_droptail_queue_state)),
+    ?assertNot(nsime_droptail_queue:is_empty(QueueState3)),
+    QueueStats3 = nsime_droptail_queue:get_statistics(QueueState3),
     ?assertEqual(QueueStats3#nsime_droptail_queue_state.current_packet_count, 2),
     ?assertEqual(QueueStats3#nsime_droptail_queue_state.current_byte_count, 2*Size),
     ?assertEqual(QueueStats3#nsime_droptail_queue_state.received_packet_count, 2),
@@ -136,9 +111,9 @@ test_enqueue_dequeue(_) ->
     ?assertEqual(QueueStats3#nsime_droptail_queue_state.max_packet_count, MaxPackets),
     ?assertEqual(QueueStats3#nsime_droptail_queue_state.max_byte_count, MaxBytes),
 
-    ?assertEqual(nsime_droptail_queue:dequeue_packet(QueuePid), Packet1),
-    ?assertNot(nsime_droptail_queue:is_empty(QueuePid)),
-    QueueStats4 = nsime_droptail_queue:get_statistics(QueuePid),
+    {Packet1, QueueState4} = nsime_droptail_queue:dequeue_packet(QueueState3),
+    ?assertNot(nsime_droptail_queue:is_empty(QueueState4)),
+    QueueStats4 = nsime_droptail_queue:get_statistics(QueueState4),
     ?assertEqual(QueueStats4#nsime_droptail_queue_state.current_packet_count, 1),
     ?assertEqual(QueueStats4#nsime_droptail_queue_state.current_byte_count, Size),
     ?assertEqual(QueueStats4#nsime_droptail_queue_state.received_packet_count, 2),
@@ -148,9 +123,9 @@ test_enqueue_dequeue(_) ->
     ?assertEqual(QueueStats4#nsime_droptail_queue_state.max_packet_count, MaxPackets),
     ?assertEqual(QueueStats4#nsime_droptail_queue_state.max_byte_count, MaxBytes),
 
-    ?assertEqual(nsime_droptail_queue:dequeue_packet(QueuePid), Packet2),
-    ?assert(nsime_droptail_queue:is_empty(QueuePid)),
-    QueueStats5 = nsime_droptail_queue:get_statistics(QueuePid),
+    {Packet2, QueueState5} = nsime_droptail_queue:dequeue_packet(QueueState4),
+    ?assert(nsime_droptail_queue:is_empty(QueueState5)),
+    QueueStats5 = nsime_droptail_queue:get_statistics(QueueState5),
     ?assertEqual(QueueStats5#nsime_droptail_queue_state.current_packet_count, 0),
     ?assertEqual(QueueStats5#nsime_droptail_queue_state.current_byte_count, 0),
     ?assertEqual(QueueStats5#nsime_droptail_queue_state.received_packet_count, 2),
@@ -160,9 +135,9 @@ test_enqueue_dequeue(_) ->
     ?assertEqual(QueueStats5#nsime_droptail_queue_state.max_packet_count, MaxPackets),
     ?assertEqual(QueueStats5#nsime_droptail_queue_state.max_byte_count, MaxBytes),
 
-    ?assertEqual(nsime_droptail_queue:dequeue_packet(QueuePid), none),
-    ?assert(nsime_droptail_queue:is_empty(QueuePid)),
-    QueueStats6 = nsime_droptail_queue:get_statistics(QueuePid),
+    ?assertEqual(nsime_droptail_queue:dequeue_packet(QueueState5), {none, QueueState5}),
+    ?assert(nsime_droptail_queue:is_empty(QueueState5)),
+    QueueStats6 = nsime_droptail_queue:get_statistics(QueueState5),
     ?assertEqual(QueueStats6#nsime_droptail_queue_state.current_packet_count, 0),
     ?assertEqual(QueueStats6#nsime_droptail_queue_state.current_byte_count, 0),
     ?assertEqual(QueueStats6#nsime_droptail_queue_state.received_packet_count, 2),
@@ -170,25 +145,25 @@ test_enqueue_dequeue(_) ->
     ?assertEqual(QueueStats6#nsime_droptail_queue_state.dropped_packet_count, 1),
     ?assertEqual(QueueStats6#nsime_droptail_queue_state.dropped_byte_count, Size),
     ?assertEqual(QueueStats6#nsime_droptail_queue_state.max_packet_count, MaxPackets),
-    ?assertEqual(QueueStats6#nsime_droptail_queue_state.max_byte_count, MaxBytes),
-
-    ?assertEqual(nsime_droptail_queue:destroy(QueuePid), stopped).
+    ?assertEqual(QueueStats6#nsime_droptail_queue_state.max_byte_count, MaxBytes).
 
 test_drop_packet(_) ->
     MaxPackets = 3,
     MaxBytes = 3000,
     QueueState = #nsime_droptail_queue_state{max_packet_count = MaxPackets, max_byte_count = MaxBytes},
-    QueuePid = nsime_droptail_queue:create(QueueState),
-    ?assert(is_pid(QueuePid)),
+    ?assert(is_record(QueueState, nsime_droptail_queue_state)),
     Size = 1000,
     Packet1 = create_packet(Size),
     PacketId1 = Packet1#nsime_packet.id,
     Packet2 = create_packet(Size),
-    ?assertEqual(nsime_droptail_queue:enqueue_packet(QueuePid, Packet1), ok),
-    ?assertEqual(nsime_droptail_queue:enqueue_packet(QueuePid, Packet2), ok),
+    QueueState1 = nsime_droptail_queue:enqueue_packet(QueueState, Packet1),
+    ?assert(is_record(QueueState1, nsime_droptail_queue_state)),
+    QueueState2 = nsime_droptail_queue:enqueue_packet(QueueState1, Packet2),
+    ?assert(is_record(QueueState2, nsime_droptail_queue_state)),
 
-    ?assertEqual(nsime_droptail_queue:drop_packet(QueuePid, PacketId1), ok),
-    QueueStats = nsime_droptail_queue:get_statistics(QueuePid),
+    QueueState3 = nsime_droptail_queue:drop_packet(QueueState2, PacketId1),
+    ?assert(is_record(QueueState3, nsime_droptail_queue_state)),
+    QueueStats = nsime_droptail_queue:get_statistics(QueueState3),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.current_packet_count, 1),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.current_byte_count, Size),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.received_packet_count, 2),
@@ -198,37 +173,34 @@ test_drop_packet(_) ->
     ?assertEqual(QueueStats#nsime_droptail_queue_state.max_packet_count, MaxPackets),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.max_byte_count, MaxBytes),
 
-    ?assertEqual(nsime_droptail_queue:drop_packet(QueuePid, PacketId1), none),
-    ?assertEqual(QueueStats#nsime_droptail_queue_state.current_packet_count, 1),
-    ?assertEqual(QueueStats#nsime_droptail_queue_state.current_byte_count, Size),
-    ?assertEqual(QueueStats#nsime_droptail_queue_state.received_packet_count, 2),
-    ?assertEqual(QueueStats#nsime_droptail_queue_state.received_byte_count, 2*Size),
-    ?assertEqual(QueueStats#nsime_droptail_queue_state.dropped_packet_count, 1),
-    ?assertEqual(QueueStats#nsime_droptail_queue_state.dropped_byte_count, Size),
-    ?assertEqual(QueueStats#nsime_droptail_queue_state.max_packet_count, MaxPackets),
-    ?assertEqual(QueueStats#nsime_droptail_queue_state.max_byte_count, MaxBytes),
+    QueueState3 = nsime_droptail_queue:drop_packet(QueueState3, PacketId1),
 
-    ?assertEqual(nsime_droptail_queue:enqueue_packet(QueuePid, Packet1), ok),
-    ?assertEqual(nsime_droptail_queue:enqueue_packet(QueuePid, Packet1), ok),
-    ?assertEqual(nsime_droptail_queue:drop_packet(QueuePid, PacketId1), invalid_state),
-    ?assertEqual(nsime_droptail_queue:dequeue_packet(QueuePid), Packet2),
-    ?assertEqual(nsime_droptail_queue:dequeue_packet(QueuePid), Packet1),
-    ?assertEqual(nsime_droptail_queue:dequeue_packet(QueuePid), Packet1),
-    ?assertEqual(nsime_droptail_queue:destroy(QueuePid), stopped).
+    QueueState4 = nsime_droptail_queue:enqueue_packet(QueueState3, Packet1),
+    ?assert(is_record(QueueState4, nsime_droptail_queue_state)),
+    QueueState5 = nsime_droptail_queue:enqueue_packet(QueueState4, Packet1),
+    ?assert(is_record(QueueState5, nsime_droptail_queue_state)),
+    QueueState5 = nsime_droptail_queue:drop_packet(QueueState5, PacketId1),
+    {Packet2, QueueState6} = nsime_droptail_queue:dequeue_packet(QueueState5),
+    ?assert(is_record(QueueState6, nsime_droptail_queue_state)),
+    {Packet1, QueueState7} = nsime_droptail_queue:dequeue_packet(QueueState6),
+    ?assert(is_record(QueueState7, nsime_droptail_queue_state)),
+    {Packet1, QueueState8} = nsime_droptail_queue:dequeue_packet(QueueState7),
+    ?assert(is_record(QueueState8, nsime_droptail_queue_state)).
 
 test_dequeue_all_packets(_) ->
     MaxPackets = 3,
     MaxBytes = 3000,
     QueueState = #nsime_droptail_queue_state{max_packet_count = MaxPackets, max_byte_count = MaxBytes},
-    QueuePid = nsime_droptail_queue:create(QueueState),
-    ?assert(is_pid(QueuePid)),
+    ?assert(is_record(QueueState, nsime_droptail_queue_state)),
     Size = 1000,
     Packet1 = create_packet(Size),
     Packet2 = create_packet(Size),
-    ?assertEqual(nsime_droptail_queue:enqueue_packet(QueuePid, Packet1), ok),
-    ?assertEqual(nsime_droptail_queue:enqueue_packet(QueuePid, Packet2), ok),
+    QueueState1 = nsime_droptail_queue:enqueue_packet(QueueState, Packet1),
+    ?assert(is_record(QueueState1, nsime_droptail_queue_state)),
+    QueueState2 = nsime_droptail_queue:enqueue_packet(QueueState1, Packet2),
+    ?assert(is_record(QueueState2, nsime_droptail_queue_state)),
 
-    QueueStats = nsime_droptail_queue:get_statistics(QueuePid),
+    QueueStats = nsime_droptail_queue:get_statistics(QueueState2),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.current_packet_count, 2),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.current_byte_count, 2*Size),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.received_packet_count, 2),
@@ -238,9 +210,8 @@ test_dequeue_all_packets(_) ->
     ?assertEqual(QueueStats#nsime_droptail_queue_state.max_packet_count, MaxPackets),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.max_byte_count, MaxBytes),
 
-    ?assertEqual(nsime_droptail_queue:dequeue_all_packets(QueuePid), ok),
-    ?assert(nsime_droptail_queue:is_empty(QueuePid)),
-    QueueStats1 = nsime_droptail_queue:get_statistics(QueuePid),
+    QueueState3 = nsime_droptail_queue:dequeue_all_packets(QueueState2),
+    QueueStats1 = nsime_droptail_queue:get_statistics(QueueState3),
     ?assertEqual(QueueStats1#nsime_droptail_queue_state.current_packet_count, 0),
     ?assertEqual(QueueStats1#nsime_droptail_queue_state.current_byte_count, 0),
     ?assertEqual(QueueStats1#nsime_droptail_queue_state.received_packet_count, 2),
@@ -248,27 +219,23 @@ test_dequeue_all_packets(_) ->
     ?assertEqual(QueueStats1#nsime_droptail_queue_state.dropped_packet_count, 0),
     ?assertEqual(QueueStats1#nsime_droptail_queue_state.dropped_byte_count, 0),
     ?assertEqual(QueueStats1#nsime_droptail_queue_state.max_packet_count, MaxPackets),
-    ?assertEqual(QueueStats1#nsime_droptail_queue_state.max_byte_count, MaxBytes),
-
-    ?assertEqual(nsime_droptail_queue:destroy(QueuePid), stopped).
+    ?assertEqual(QueueStats1#nsime_droptail_queue_state.max_byte_count, MaxBytes).
 
 test_reset_statistics(_) ->
     MaxPackets = 3,
     MaxBytes = 3000,
     QueueState = #nsime_droptail_queue_state{max_packet_count = MaxPackets, max_byte_count = MaxBytes},
-    QueuePid = nsime_droptail_queue:create(QueueState),
-    ?assert(is_pid(QueuePid)),
-    DevicePid = nsime_ptp_netdevice:create(),
-    ?assert(is_pid(DevicePid)),
-    ?assertEqual(nsime_droptail_queue:set_device_id(QueuePid, DevicePid), ok),
+    ?assert(is_record(QueueState, nsime_droptail_queue_state)),
 
     Size = 1000,
     Packet1 = create_packet(Size),
     Packet2 = create_packet(Size),
-    ?assertEqual(nsime_droptail_queue:enqueue_packet(QueuePid, Packet1), ok),
-    ?assertEqual(nsime_droptail_queue:enqueue_packet(QueuePid, Packet2), ok),
+    QueueState1 = nsime_droptail_queue:enqueue_packet(QueueState, Packet1),
+    ?assert(is_record(QueueState1, nsime_droptail_queue_state)),
+    QueueState2 = nsime_droptail_queue:enqueue_packet(QueueState1, Packet2),
+    ?assert(is_record(QueueState2, nsime_droptail_queue_state)),
 
-    QueueStats = nsime_droptail_queue:get_statistics(QueuePid),
+    QueueStats = nsime_droptail_queue:get_statistics(QueueState2),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.current_packet_count, 2),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.current_byte_count, 2*Size),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.received_packet_count, 2),
@@ -277,11 +244,10 @@ test_reset_statistics(_) ->
     ?assertEqual(QueueStats#nsime_droptail_queue_state.dropped_byte_count, 0),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.max_packet_count, MaxPackets),
     ?assertEqual(QueueStats#nsime_droptail_queue_state.max_byte_count, MaxBytes),
-    ?assertEqual(QueueStats#nsime_droptail_queue_state.device_id, DevicePid),
 
-    ?assertEqual(nsime_droptail_queue:reset_statistics(QueuePid), ok),
-    ?assertNot(nsime_droptail_queue:is_empty(QueuePid)),
-    QueueStats1 = nsime_droptail_queue:get_statistics(QueuePid),
+    QueueState3 = nsime_droptail_queue:reset_statistics(QueueState2),
+    ?assertNot(nsime_droptail_queue:is_empty(QueueState3)),
+    QueueStats1 = nsime_droptail_queue:get_statistics(QueueState3),
     ?assertEqual(QueueStats1#nsime_droptail_queue_state.current_packet_count, 0),
     ?assertEqual(QueueStats1#nsime_droptail_queue_state.current_byte_count, 0),
     ?assertEqual(QueueStats1#nsime_droptail_queue_state.received_packet_count, 0),
@@ -289,34 +255,7 @@ test_reset_statistics(_) ->
     ?assertEqual(QueueStats1#nsime_droptail_queue_state.dropped_packet_count, 0),
     ?assertEqual(QueueStats1#nsime_droptail_queue_state.dropped_byte_count, 0),
     ?assertEqual(QueueStats1#nsime_droptail_queue_state.max_packet_count, MaxPackets),
-    ?assertEqual(QueueStats1#nsime_droptail_queue_state.max_byte_count, MaxBytes),
-    ?assertEqual(QueueStats#nsime_droptail_queue_state.device_id, DevicePid),
-
-    ?assertEqual(nsime_droptail_queue:dequeue_packet(QueuePid), Packet1),
-    ?assertEqual(nsime_droptail_queue:dequeue_packet(QueuePid), Packet2),
-
-    ?assertEqual(nsime_droptail_queue:destroy(QueuePid), stopped),
-    ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid), stopped).
-
-test_set_get_device_id(_) ->
-    QueuePid = nsime_droptail_queue:create(),
-    ?assert(is_pid(QueuePid)),
-    DevicePid = nsime_ptp_netdevice:create(),
-    ?assert(is_pid(DevicePid)),
-    ?assertEqual(nsime_droptail_queue:set_device_id(QueuePid, DevicePid), ok),
-    QueueStats = nsime_droptail_queue:get_statistics(QueuePid),
-    ?assertEqual(QueueStats#nsime_droptail_queue_state.device_id, DevicePid),
-    ?assertEqual(nsime_droptail_queue:get_device_id(QueuePid), DevicePid),
-    ?assertEqual(nsime_droptail_queue:destroy(QueuePid), stopped),
-    ?assertEqual(nsime_ptp_netdevice:destroy(DevicePid), stopped).
-
-test_cast_info_codechange(_) ->
-    QueuePid = nsime_droptail_queue:create(),
-    ?assert(is_pid(QueuePid)),
-    gen_server:cast(QueuePid, junk),
-    QueuePid ! junk,
-    nsime_droptail_queue:code_change(junk, junk, junk),
-    ?assertEqual(nsime_droptail_queue:destroy(QueuePid), stopped).
+    ?assertEqual(QueueStats1#nsime_droptail_queue_state.max_byte_count, MaxBytes).
 
 create_packet(Size) ->
     #nsime_packet{
