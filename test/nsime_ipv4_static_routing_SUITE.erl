@@ -34,6 +34,8 @@
 -include("nsime_ipv4_route.hrl").
 -include("nsime_ipv4_routing_table_entry.hrl").
 -include("nsime_ipv4_static_routing_state.hrl").
+-include("nsime_ipv4_interface_address_state.hrl").
+-include("nsime_ipv4_interface_state.hrl").
 
 all() -> [
             test_creation_shutdown,
@@ -41,8 +43,7 @@ all() -> [
             test_notify_interfaces_updown,
             test_add_remove_addresses,
             test_route_input,
-            test_route_output,
-            test_cast_info_codechange
+            test_route_output
          ].
 
 
@@ -53,82 +54,71 @@ end_per_suite(Config) ->
     Config.
 
 test_creation_shutdown(_) ->
-    RoutingPid = nsime_ipv4_static_routing:create(),
-    ?assert(is_pid(RoutingPid)),
-    ?assertEqual(nsime_ipv4_static_routing:get_network_routes(RoutingPid), []),
-    Ipv4ProtocolPid = nsime_ipv4_protocol:create(),
-    InterfaceList = nsime_ipv4_protocol:get_interface_list(Ipv4ProtocolPid),
-    ?assertEqual(nsime_ipv4_static_routing:set_ipv4_protocol(RoutingPid, Ipv4ProtocolPid, InterfaceList), ok),
-    ?assertEqual(nsime_ipv4_protocol:destroy(Ipv4ProtocolPid), stopped),
-    ?assertEqual(nsime_ipv4_static_routing:destroy(RoutingPid), stopped).
+    {nsime_ipv4_static_routing, RoutingState} = nsime_ipv4_static_routing:create(),
+    ?assert(is_record(RoutingState, nsime_ipv4_static_routing_state)),
+    ?assertEqual(nsime_ipv4_static_routing:get_network_routes(RoutingState), []).
 
 test_add_routes(_) ->
-    RoutingPid = nsime_ipv4_static_routing:create(),
-    ?assert(is_pid(RoutingPid)),
-    InterfacePid = nsime_ipv4_interface:create(),
+    {nsime_ipv4_static_routing, RoutingState} = nsime_ipv4_static_routing:create(),
+    ?assert(is_record(RoutingState, nsime_ipv4_static_routing_state)),
+    InterfaceState = nsime_ipv4_interface:create(),
+    InterfaceId = nsime_ipv4_interface:get_id(InterfaceState),
     NetworkAddress = {10, 107, 1, 1},
     NetworkMask = {255, 255, 255, 0},
     Metric = 5,
     NetworkRoute1 = nsime_ipv4_routing_table_entry:create_network_route(
         NetworkAddress,
         NetworkMask,
-        InterfacePid,
+        InterfaceId,
         Metric
     ),
-    ?assertEqual(
-        nsime_ipv4_static_routing:add_network_route(
-            RoutingPid,
-            NetworkAddress,
-            NetworkMask,
-            InterfacePid,
-            Metric
-        ),
-        ok
+    RoutingState1 = nsime_ipv4_static_routing:add_network_route(
+        RoutingState,
+        NetworkAddress,
+        NetworkMask,
+        InterfaceId,
+        Metric
     ),
-    RouteList1 = nsime_ipv4_static_routing:get_network_routes(RoutingPid),
+    ?assert(is_record(RoutingState1, nsime_ipv4_static_routing_state)),
+    RouteList1 = nsime_ipv4_static_routing:get_network_routes(RoutingState1),
     ?assert(lists:member(NetworkRoute1, RouteList1)),
+
     NextHop = {10, 250, 1, 1},
     NetworkRoute2 = nsime_ipv4_routing_table_entry:create_network_route(
         NetworkAddress,
         NetworkMask,
         NextHop,
-        InterfacePid,
+        InterfaceId,
         Metric
     ),
     ?assertNot(lists:member(NetworkRoute2, RouteList1)),
-    ?assertEqual(
-        nsime_ipv4_static_routing:add_network_route(
-            RoutingPid,
-            NetworkAddress,
-            NetworkMask,
-            NextHop,
-            InterfacePid,
-            Metric
-        ),
-        ok
+    RoutingState2 = nsime_ipv4_static_routing:add_network_route(
+        RoutingState1,
+        NetworkAddress,
+        NetworkMask,
+        NextHop,
+        InterfaceId,
+        Metric
     ),
-    RouteList2 = nsime_ipv4_static_routing:get_network_routes(RoutingPid),
+    RouteList2 = nsime_ipv4_static_routing:get_network_routes(RoutingState2),
     ?assert(lists:member(NetworkRoute2, RouteList2)),
     ?assert(lists:member(NetworkRoute1, RouteList2)),
 
     NetworkRoute3 = nsime_ipv4_routing_table_entry:create_network_route(
         NetworkAddress,
         nsime_ipv4_mask:get_ones(),
-        InterfacePid,
+        InterfaceId,
         Metric
     ),
     ?assertNot(lists:member(NetworkRoute3, RouteList2)),
     ?assertNot(lists:member(NetworkRoute3, RouteList1)),
-    ?assertEqual(
-        nsime_ipv4_static_routing:add_host_route(
-            RoutingPid,
-            NetworkAddress,
-            InterfacePid,
-            Metric
-        ),
-        ok
+    RoutingState3 = nsime_ipv4_static_routing:add_host_route(
+        RoutingState2,
+        NetworkAddress,
+        InterfaceId,
+        Metric
     ),
-    RouteList3 = nsime_ipv4_static_routing:get_network_routes(RoutingPid),
+    RouteList3 = nsime_ipv4_static_routing:get_network_routes(RoutingState3),
     ?assert(lists:member(NetworkRoute3, RouteList3)),
     ?assert(lists:member(NetworkRoute2, RouteList3)),
     ?assert(lists:member(NetworkRoute1, RouteList3)),
@@ -137,23 +127,20 @@ test_add_routes(_) ->
         NetworkAddress,
         nsime_ipv4_mask:get_ones(),
         NextHop,
-        InterfacePid,
+        InterfaceId,
         Metric
     ),
     ?assertNot(lists:member(NetworkRoute4, RouteList3)),
     ?assertNot(lists:member(NetworkRoute4, RouteList2)),
     ?assertNot(lists:member(NetworkRoute4, RouteList1)),
-    ?assertEqual(
-        nsime_ipv4_static_routing:add_host_route(
-            RoutingPid,
-            NetworkAddress,
-            NextHop,
-            InterfacePid,
-            Metric
-        ),
-        ok
+    RoutingState4 = nsime_ipv4_static_routing:add_host_route(
+        RoutingState3,
+        NetworkAddress,
+        NextHop,
+        InterfaceId,
+        Metric
     ),
-    RouteList4 = nsime_ipv4_static_routing:get_network_routes(RoutingPid),
+    RouteList4 = nsime_ipv4_static_routing:get_network_routes(RoutingState4),
     ?assert(lists:member(NetworkRoute4, RouteList4)),
     ?assert(lists:member(NetworkRoute3, RouteList4)),
     ?assert(lists:member(NetworkRoute2, RouteList4)),
@@ -163,188 +150,159 @@ test_add_routes(_) ->
         nsime_ipv4_address:get_zero(),
         nsime_ipv4_mask:get_zero(),
         NextHop,
-        InterfacePid,
+        InterfaceId,
         Metric
     ),
     ?assertNot(lists:member(DefaultRoute, RouteList4)),
     ?assertNot(lists:member(DefaultRoute, RouteList3)),
     ?assertNot(lists:member(DefaultRoute, RouteList2)),
     ?assertNot(lists:member(DefaultRoute, RouteList1)),
-    ?assertEqual(
-        nsime_ipv4_static_routing:set_default_route(
-            RoutingPid,
-            NextHop,
-            InterfacePid,
-            Metric
-        ),
-        ok
+    RoutingState5 = nsime_ipv4_static_routing:set_default_route(
+        RoutingState4,
+        NextHop,
+        InterfaceId,
+        Metric
     ),
-    RouteList5 = nsime_ipv4_static_routing:get_network_routes(RoutingPid),
+    RouteList5 = nsime_ipv4_static_routing:get_network_routes(RoutingState5),
     ?assert(lists:member(DefaultRoute, RouteList5)),
     ?assert(lists:member(NetworkRoute4, RouteList5)),
     ?assert(lists:member(NetworkRoute3, RouteList5)),
     ?assert(lists:member(NetworkRoute2, RouteList5)),
-    ?assert(lists:member(NetworkRoute1, RouteList5)),
-
-    ?assertEqual(nsime_ipv4_static_routing:destroy(RoutingPid), stopped).
+    ?assert(lists:member(NetworkRoute1, RouteList5)).
 
 test_notify_interfaces_updown(_) ->
-    RoutingPid = nsime_ipv4_static_routing:create(),
-    ?assert(is_pid(RoutingPid)),
-    InterfacePid1 = nsime_ipv4_interface:create(),
+    {nsime_ipv4_static_routing, RoutingState} = nsime_ipv4_static_routing:create(),
+    ?assert(is_record(RoutingState, nsime_ipv4_static_routing_state)),
+    InterfaceState = nsime_ipv4_interface:create(),
+    ?assert(is_record(InterfaceState, nsime_ipv4_interface_state)),
     Address1 = {10, 107, 1, 1},
     Mask = {255, 255, 255, 0},
-    AddressPid1 = nsime_ipv4_interface_address:create(Address1, Mask),
-    ?assert(is_pid(AddressPid1)),
-    ?assertEqual(nsime_ipv4_interface:add_address(InterfacePid1, AddressPid1), ok),
-    AddressPid2 = nsime_ipv4_interface_address:create(),
-    ?assert(is_pid(AddressPid2)),
-    ?assertEqual(nsime_ipv4_interface:add_address(InterfacePid1, AddressPid2), ok),
-    ?assertEqual(nsime_ipv4_static_routing:get_network_routes(RoutingPid), []),
-    ?assertEqual(
-        nsime_ipv4_static_routing:notify_interface_up(
-            RoutingPid,
-            InterfacePid1
-        ),
-        ok
+    AddressState1 = nsime_ipv4_interface_address:create(Address1, Mask),
+    ?assert(is_record(AddressState1, nsime_ipv4_interface_address_state)),
+    InterfaceState1 = nsime_ipv4_interface:add_address(InterfaceState, AddressState1),
+    AddressState2 = nsime_ipv4_interface_address:create(),
+    ?assert(is_record(AddressState2, nsime_ipv4_interface_address_state)),
+    InterfaceState2 = nsime_ipv4_interface:add_address(InterfaceState1, AddressState2),
+    ?assertEqual(nsime_ipv4_static_routing:get_network_routes(RoutingState), []),
+    RoutingState1 = nsime_ipv4_static_routing:notify_interface_up(
+        RoutingState,
+        nsime_ipv4_interface:get_id(InterfaceState2),
+        [InterfaceState2]
     ),
-    InterfacePid2 = nsime_ipv4_interface:create(),
+    InterfaceState3 = nsime_ipv4_interface:create(),
     Address2 = {10, 107, 2, 1},
-    AddressPid3 = nsime_ipv4_interface_address:create(Address2, Mask),
-    ?assert(is_pid(AddressPid3)),
-    ?assertEqual(nsime_ipv4_interface:add_address(InterfacePid2, AddressPid3), ok),
-    ?assertEqual(
-        nsime_ipv4_static_routing:notify_interface_up(
-            RoutingPid,
-            InterfacePid2
-        ),
-        ok
+    AddressState3 = nsime_ipv4_interface_address:create(Address2, Mask),
+    ?assert(is_record(AddressState3, nsime_ipv4_interface_address_state)),
+    InterfaceState4 = nsime_ipv4_interface:add_address(InterfaceState3, AddressState3),
+    RoutingState2 = nsime_ipv4_static_routing:notify_interface_up(
+        RoutingState1,
+        nsime_ipv4_interface:get_id(InterfaceState4),
+        [InterfaceState2, InterfaceState4]
     ),
     NetworkRoute1 = nsime_ipv4_routing_table_entry:create_network_route(
         nsime_ipv4_address:combine_mask(Address1, Mask),
         Mask,
-        InterfacePid1,
+        nsime_ipv4_interface:get_id(InterfaceState2),
         0
     ),
     NetworkRoute2 = nsime_ipv4_routing_table_entry:create_network_route(
         nsime_ipv4_address:combine_mask(Address2, Mask),
         Mask,
-        InterfacePid2,
+        nsime_ipv4_interface:get_id(InterfaceState4),
         0
     ),
     ?assert(
         lists:member(
             NetworkRoute1,
-            nsime_ipv4_static_routing:get_network_routes(RoutingPid)
+            nsime_ipv4_static_routing:get_network_routes(RoutingState2)
         )
     ),
     ?assert(
         lists:member(
             NetworkRoute2,
-            nsime_ipv4_static_routing:get_network_routes(RoutingPid)
+            nsime_ipv4_static_routing:get_network_routes(RoutingState2)
         )
     ),
-    ?assertEqual(
-        nsime_ipv4_static_routing:notify_interface_down(
-            RoutingPid,
-            InterfacePid1
-        ),
-        ok
+    RoutingState3 = nsime_ipv4_static_routing:notify_interface_down(
+        RoutingState2,
+        nsime_ipv4_interface:get_id(InterfaceState1),
+        [InterfaceState2, InterfaceState4]
     ),
-    ?assertEqual(nsime_ipv4_static_routing:get_network_routes(RoutingPid), [NetworkRoute2]),
-    ?assertEqual(
-        nsime_ipv4_static_routing:notify_interface_down(
-            RoutingPid,
-            InterfacePid2
-        ),
-        ok
+    ?assertEqual(nsime_ipv4_static_routing:get_network_routes(RoutingState3), [NetworkRoute2]),
+    RoutingState4 = nsime_ipv4_static_routing:notify_interface_down(
+        RoutingState3,
+        nsime_ipv4_interface:get_id(InterfaceState4),
+        [InterfaceState2, InterfaceState4]
     ),
-    ?assertEqual(nsime_ipv4_static_routing:get_network_routes(RoutingPid), []),
-    ?assertEqual(nsime_ipv4_static_routing:destroy(RoutingPid), stopped).
+    ?assertEqual(nsime_ipv4_static_routing:get_network_routes(RoutingState4), []).
 
 test_add_remove_addresses(_) ->
-    RoutingPid = nsime_ipv4_static_routing:create(),
-    ?assert(is_pid(RoutingPid)),
-    InterfacePid = nsime_ipv4_interface:create(),
-    AddressPid = nsime_ipv4_interface_address:create(),
-    ?assertEqual(nsime_ipv4_interface:add_address(InterfacePid, AddressPid), ok),
-    ?assertEqual(
-        nsime_ipv4_static_routing:notify_add_address(
-            RoutingPid,
-            InterfacePid,
-            AddressPid
-        ),
-        ok
+    {nsime_ipv4_static_routing, RoutingState} = nsime_ipv4_static_routing:create(),
+    ?assert(is_record(RoutingState, nsime_ipv4_static_routing_state)),
+    InterfaceState = nsime_ipv4_interface:create(),
+    AddressState = nsime_ipv4_interface_address:create(),
+    InterfaceState1 = nsime_ipv4_interface:add_address(InterfaceState, AddressState),
+    RoutingState1 = nsime_ipv4_static_routing:notify_add_address(
+        RoutingState,
+        nsime_ipv4_interface:get_id(InterfaceState1),
+        AddressState,
+        [InterfaceState1]
     ),
-    ?assertEqual(nsime_ipv4_interface:set_up(InterfacePid), ok),
-    ?assertEqual(
-        nsime_ipv4_static_routing:notify_add_address(
-            RoutingPid,
-            InterfacePid,
-            AddressPid
-        ),
-        ok
+    InterfaceState2 = nsime_ipv4_interface:set_up(InterfaceState1),
+    RoutingState2 = nsime_ipv4_static_routing:notify_add_address(
+        RoutingState1,
+        nsime_ipv4_interface:get_id(InterfaceState2),
+        AddressState,
+        [InterfaceState2]
     ),
-    ?assertEqual(nsime_ipv4_static_routing:get_network_routes(RoutingPid), []),
+    ?assertEqual(nsime_ipv4_static_routing:get_network_routes(RoutingState2), []),
     Address = {10, 107, 1, 1},
     Mask = {255, 255, 255, 0},
-    ?assertEqual(
-        nsime_ipv4_interface_address:set_local_address(AddressPid, Address),
-        ok
-    ),
-    ?assertEqual(nsime_ipv4_interface_address:set_mask(AddressPid, Mask), ok),
-    ?assertEqual(
-        nsime_ipv4_static_routing:notify_add_address(
-            RoutingPid,
-            InterfacePid,
-            AddressPid
-        ),
-        ok
+    AddressState1 = nsime_ipv4_interface_address:set_local_address(AddressState, Address),
+    AddressState2 = nsime_ipv4_interface_address:set_mask(AddressState1, Mask),
+    RoutingState3 = nsime_ipv4_static_routing:notify_add_address(
+        RoutingState2,
+        nsime_ipv4_interface:get_id(InterfaceState2),
+        AddressState2,
+        [InterfaceState2]
     ),
     NetworkRoute = nsime_ipv4_routing_table_entry:create_network_route(
         nsime_ipv4_address:combine_mask(Address, Mask),
         Mask,
-        InterfacePid,
+        nsime_ipv4_interface:get_id(InterfaceState2),
         0
     ),
-    ?assertEqual(nsime_ipv4_static_routing:get_network_routes(RoutingPid), [NetworkRoute]),
-    ?assertEqual(nsime_ipv4_interface:set_down(InterfacePid), ok),
-    ?assertEqual(
-        nsime_ipv4_static_routing:add_host_route(
-            RoutingPid,
-            Address,
-            InterfacePid,
-            0
-        ),
-        ok
+    ?assertEqual(nsime_ipv4_static_routing:get_network_routes(RoutingState3), [NetworkRoute]),
+    InterfaceState3 = nsime_ipv4_interface:set_down(InterfaceState2),
+    RoutingState4 = nsime_ipv4_static_routing:add_host_route(
+        RoutingState3,
+        Address,
+        nsime_ipv4_interface:get_id(InterfaceState3),
+        0
     ),
-    ?assertEqual(
-        nsime_ipv4_static_routing:notify_remove_address(
-            RoutingPid,
-            InterfacePid,
-            AddressPid
-        ),
-        ok
+    RoutingState5 = nsime_ipv4_static_routing:notify_remove_address(
+        RoutingState4,
+        nsime_ipv4_interface:get_id(InterfaceState3),
+        AddressState2,
+        [InterfaceState3]
     ),
-    ?assertEqual(nsime_ipv4_interface:set_up(InterfacePid), ok),
-    ?assertEqual(
-        nsime_ipv4_static_routing:notify_remove_address(
-            RoutingPid,
-            InterfacePid,
-            AddressPid
-        ),
-        ok
-    ),
-    ?assertEqual(nsime_ipv4_static_routing:destroy(RoutingPid), stopped).
+    InterfaceState4 = nsime_ipv4_interface:set_up(InterfaceState3),
+    RoutingState6 = nsime_ipv4_static_routing:notify_remove_address(
+        RoutingState5,
+        nsime_ipv4_interface:get_id(InterfaceState4),
+        AddressState2,
+        [InterfaceState4]
+    ).
 
 test_route_input(_) ->
-    RoutingPid = nsime_ipv4_static_routing:create(),
-    ?assert(is_pid(RoutingPid)),
-    InterfacePid1 = nsime_ipv4_interface:create(),
+    {nsime_ipv4_static_routing, RoutingState} = nsime_ipv4_static_routing:create(),
+    ?assert(is_record(RoutingState, nsime_ipv4_static_routing_state)),
+    InterfaceState1 = nsime_ipv4_interface:create(),
+    InterfaceId1 = nsime_ipv4_interface:get_id(InterfaceState1),
     DevicePid = nsime_ptp_netdevice:create(),
     ?assert(is_pid(DevicePid)),
-    ?assertEqual(nsime_ptp_netdevice:set_interface(DevicePid, InterfacePid1), ok),
-    ?assertEqual(nsime_ipv4_interface:set_device(InterfacePid1, DevicePid), ok),
+    ?assertEqual(nsime_ptp_netdevice:set_interface(DevicePid, InterfaceId1), ok),
+    InterfaceState2 = nsime_ipv4_interface:set_device(InterfaceState1, DevicePid),
     DestinationAddress1 = {224, 0, 0, 1},
     Ipv4Header1 = #nsime_ipv4_header{
         destination_address = DestinationAddress1
@@ -352,11 +310,11 @@ test_route_input(_) ->
     Packet = #nsime_packet{},
     ?assertEqual(
         catch nsime_ipv4_static_routing:route_input(
-            RoutingPid,
+            RoutingState,
             Packet,
             Ipv4Header1,
             DevicePid,
-            InterfacePid1,
+            InterfaceState2,
             junk,
             junk,
             junk,
@@ -368,19 +326,19 @@ test_route_input(_) ->
 
     DestinationAddress2 = {10, 107, 1, 1},
     Mask1 = {255, 255, 255, 0},
-    AddressPid1 = nsime_ipv4_interface_address:create(DestinationAddress2, Mask1),
-    ?assert(is_pid(AddressPid1)),
-    ?assertEqual(nsime_ipv4_interface:add_address(InterfacePid1, AddressPid1), ok),
+    AddressState1 = nsime_ipv4_interface_address:create(DestinationAddress2, Mask1),
+    ?assert(is_record(AddressState1, nsime_ipv4_interface_address_state)),
+    InterfaceState3 = nsime_ipv4_interface:add_address(InterfaceState2, AddressState1),
     Ipv4Header2 = #nsime_ipv4_header{
         destination_address = DestinationAddress2
     },
     ?assertEqual(
         nsime_ipv4_static_routing:route_input(
-            RoutingPid,
+            RoutingState,
             Packet,
             Ipv4Header2,
             DevicePid,
-            InterfacePid1,
+            InterfaceState3,
             junk,
             junk,
             junk,
@@ -391,16 +349,16 @@ test_route_input(_) ->
     ),
     ?assertEqual(
         nsime_ipv4_static_routing:route_input(
-            RoutingPid,
+            RoutingState,
             Packet,
             Ipv4Header2,
             DevicePid,
-            InterfacePid1,
+            InterfaceState3,
             junk,
             junk,
             undefined,
             undefined,
-            [InterfacePid1]
+            [InterfaceState3]
         ),
         false
     ),
@@ -421,16 +379,16 @@ test_route_input(_) ->
     ?assert(lists:member(nsime_simulator, erlang:registered())),
     ?assertEqual(
         nsime_ipv4_static_routing:route_input(
-            RoutingPid,
+            RoutingState,
             Packet,
             Ipv4Header2,
             DevicePid,
-            InterfacePid1,
+            InterfaceState3,
             junk,
             junk,
             LocalDeliverCallback,
             ErrorCallback,
-            [InterfacePid1]
+            [InterfaceState3]
         ),
         true
     ),
@@ -439,14 +397,14 @@ test_route_input(_) ->
         {local_deliver, Ref2} ->
             ok
     end,
-    ?assertEqual(nsime_ipv4_interface:set_forwarding(InterfacePid1, false), ok),
+    InterfaceState4 = nsime_ipv4_interface:set_forwarding(InterfaceState3, false),
     ?assertEqual(
         nsime_ipv4_static_routing:route_input(
-            RoutingPid,
+            RoutingState,
             Packet,
             Ipv4Header2,
             DevicePid,
-            InterfacePid1,
+            InterfaceState4,
             junk,
             junk,
             LocalDeliverCallback,
@@ -461,18 +419,16 @@ test_route_input(_) ->
             ok
     end,
 
-    ?assertEqual(nsime_ipv4_interface:set_forwarding(InterfacePid1, true), ok),
+    InterfaceState5 = nsime_ipv4_interface:set_forwarding(InterfaceState4, true),
     Mask2 = {255, 255, 0, 0},
-    AddressPid2 = nsime_ipv4_interface_address:create(DestinationAddress2, Mask2),
-    ?assert(is_pid(AddressPid2)),
-    ?assertEqual(nsime_ipv4_interface:set_up(InterfacePid1), ok),
-    ?assertEqual(
-        nsime_ipv4_static_routing:notify_add_address(
-            RoutingPid,
-            InterfacePid1,
-            AddressPid2
-        ),
-        ok
+    AddressState2 = nsime_ipv4_interface_address:create(DestinationAddress2, Mask2),
+    ?assert(is_record(AddressState2, nsime_ipv4_interface_address_state)),
+    InterfaceState6 = nsime_ipv4_interface:set_up(InterfaceState5),
+    RoutingState1 = nsime_ipv4_static_routing:notify_add_address(
+        RoutingState,
+        nsime_ipv4_interface:get_id(InterfaceState6),
+        AddressState2,
+        [InterfaceState6]
     ),
 
     Ref3 = make_ref(),
@@ -481,18 +437,21 @@ test_route_input(_) ->
         unicast_forward_tester,
         [self(), Ref3]
     },
+    Ipv4Header3 = Ipv4Header2#nsime_ipv4_header{
+        destination_address = {10, 107, 1, 100}
+    },
     ?assertEqual(
         nsime_ipv4_static_routing:route_input(
-            RoutingPid,
+            RoutingState1,
             Packet,
-            Ipv4Header2,
+            Ipv4Header3,
             DevicePid,
-            InterfacePid1,
+            InterfaceState6,
             UnicastForwardCallback,
             junk,
             LocalDeliverCallback,
             ErrorCallback,
-            []
+            [InterfaceState6]
         ),
         true
     ),
@@ -502,24 +461,22 @@ test_route_input(_) ->
             ok
     end,
 
-    ?assertEqual(nsime_simulator:stop(), simulation_complete),
-    ?assertEqual(nsime_ipv4_static_routing:destroy(RoutingPid), stopped).
+    ?assertEqual(nsime_simulator:stop(), simulation_complete).
 
 test_route_output(_) ->
-    RoutingPid = nsime_ipv4_static_routing:create(),
-    ?assert(is_pid(RoutingPid)),
-    InterfacePid1 = nsime_ipv4_interface:create(),
+    {nsime_ipv4_static_routing, RoutingState} = nsime_ipv4_static_routing:create(),
+    ?assert(is_record(RoutingState, nsime_ipv4_static_routing_state)),
+    InterfaceState1 = nsime_ipv4_interface:create(),
     Address1 = {10, 107, 1, 1},
     Mask1 = {255, 255, 255, 0},
-    AddressPid1 = nsime_ipv4_interface_address:create(Address1, Mask1),
-    ?assert(is_pid(AddressPid1)),
-    ?assertEqual(nsime_ipv4_interface:add_address(InterfacePid1, AddressPid1), ok),
-    ?assertEqual(
-        nsime_ipv4_static_routing:notify_interface_up(
-            RoutingPid,
-            InterfacePid1
-        ),
-        ok
+    AddressState1 = nsime_ipv4_interface_address:create(Address1, Mask1),
+    ?assert(is_record(AddressState1, nsime_ipv4_interface_address_state)),
+    InterfaceState2 = nsime_ipv4_interface:add_address(InterfaceState1, AddressState1),
+    InterfaceId2 = nsime_ipv4_interface:get_id(InterfaceState2),
+    RoutingState1 = nsime_ipv4_static_routing:notify_interface_up(
+        RoutingState,
+        InterfaceId2,
+        [InterfaceState2]
     ),
     DestinationAddress = {224, 0, 0, 1},
     Ipv4Header = #nsime_ipv4_header{
@@ -528,8 +485,8 @@ test_route_output(_) ->
     Packet = #nsime_packet{},
     DevicePid = nsime_ptp_netdevice:create(),
     ?assert(is_pid(DevicePid)),
-    ?assertEqual(nsime_ptp_netdevice:set_interface(DevicePid, InterfacePid1), ok),
-    ?assertEqual(nsime_ipv4_interface:set_device(InterfacePid1, DevicePid), ok),
+    ?assertEqual(nsime_ptp_netdevice:set_interface(DevicePid, InterfaceId2), ok),
+    InterfaceState3 = nsime_ipv4_interface:set_device(InterfaceState2, DevicePid),
     Route = #nsime_ipv4_route{
         destination = DestinationAddress,
         source = Address1,
@@ -539,46 +496,44 @@ test_route_output(_) ->
     ?assertMatch(
         {error_noterror, Route},
         nsime_ipv4_static_routing:route_output(
-            RoutingPid,
-            Packet,
+            RoutingState1,
             Ipv4Header,
-            DevicePid
+            DevicePid,
+            [InterfaceState3]
         )
     ),
     DestinationAddress1 = {192, 168, 1, 1},
     ?assertMatch(
         {error_noroutetohost, undefined},
         nsime_ipv4_static_routing:route_output(
-            RoutingPid,
-            Packet,
+            RoutingState1,
             Ipv4Header#nsime_ipv4_header{
                 destination_address = DestinationAddress1
             },
-            DevicePid
+            DevicePid,
+            [InterfaceState3]
         )
     ),
     ?assertMatch(
         {error_noroutetohost, undefined},
         nsime_ipv4_static_routing:route_output(
-            RoutingPid,
-            Packet,
+            RoutingState1,
             Ipv4Header#nsime_ipv4_header{
                 destination_address = Address1
             },
-            list_to_pid("<0.0.0>")
+            list_to_pid("<0.0.0>"),
+            [InterfaceState3]
         )
     ),
     Mask2 = {255, 255, 0, 0},
-    AddressPid2 = nsime_ipv4_interface_address:create(Address1, Mask2),
-    ?assert(is_pid(AddressPid2)),
-    ?assertEqual(nsime_ipv4_interface:set_up(InterfacePid1), ok),
-    ?assertEqual(
-        nsime_ipv4_static_routing:notify_add_address(
-            RoutingPid,
-            InterfacePid1,
-            AddressPid2
-        ),
-        ok
+    AddressState2 = nsime_ipv4_interface_address:create(Address1, Mask2),
+    ?assert(is_record(AddressState2, nsime_ipv4_interface_address_state)),
+    InterfaceState4 = nsime_ipv4_interface:set_up(InterfaceState3),
+    RoutingState2 = nsime_ipv4_static_routing:notify_add_address(
+        RoutingState1,
+        nsime_ipv4_interface:get_id(InterfaceState4),
+        AddressState2,
+        [InterfaceState4]
     ),
     Route2 = #nsime_ipv4_route{
         destination = nsime_ipv4_address:combine_mask(
@@ -592,15 +547,27 @@ test_route_output(_) ->
     ?assertMatch(
         {error_noterror, Route2},
         nsime_ipv4_static_routing:route_output(
-            RoutingPid,
-            Packet,
+            RoutingState2,
             Ipv4Header#nsime_ipv4_header{
                 destination_address = Address1
             },
-            DevicePid
+            DevicePid,
+            [InterfaceState4]
         )
     ),
-    ?assertEqual(nsime_ipv4_interface_address:set_secondary(AddressPid1), ok),
+    AddressState3 = nsime_ipv4_interface_address:set_secondary(AddressState1),
+    RoutingState3 = nsime_ipv4_static_routing:notify_remove_address(
+        RoutingState2,
+        nsime_ipv4_interface:get_id(InterfaceState4),
+        AddressState1,
+        [InterfaceState4]
+    ),
+    RoutingState4 = nsime_ipv4_static_routing:notify_add_address(
+        RoutingState3,
+        nsime_ipv4_interface:get_id(InterfaceState4),
+        AddressState3,
+        [InterfaceState4]
+    ),
     Route3 = #nsime_ipv4_route{
         destination = nsime_ipv4_address:combine_mask(
             Address1,
@@ -613,81 +580,84 @@ test_route_output(_) ->
     ?assertMatch(
         {error_noterror, Route3},
         nsime_ipv4_static_routing:route_output(
-            RoutingPid,
-            Packet,
+            RoutingState4,
             Ipv4Header#nsime_ipv4_header{
                 destination_address = Address1
             },
-            DevicePid
+            DevicePid,
+            [InterfaceState4]
         )
     ),
 
     Mask3 = {255, 255, 255, 128},
-    AddressPid3 = nsime_ipv4_interface_address:create(Address1, Mask3),
-    ?assert(is_pid(AddressPid3)),
-    ?assertEqual(
-        nsime_ipv4_static_routing:notify_add_address(
-            RoutingPid,
-            InterfacePid1,
-            AddressPid3
-        ),
-        ok
+    AddressState4 = nsime_ipv4_interface_address:create(Address1, Mask3),
+    ?assert(is_record(AddressState4, nsime_ipv4_interface_address_state)),
+    RoutingState5 = nsime_ipv4_static_routing:notify_add_address(
+        RoutingState4,
+        nsime_ipv4_interface:get_id(InterfaceState4),
+        AddressState4,
+        [InterfaceState4]
     ),
-    ?assertEqual(nsime_ipv4_interface_address:set_primary(AddressPid1), ok),
+    AddressState5 = nsime_ipv4_interface_address:set_primary(AddressState3),
+    RoutingState6 = nsime_ipv4_static_routing:notify_remove_address(
+        RoutingState5,
+        nsime_ipv4_interface:get_id(InterfaceState4),
+        AddressState3,
+        [InterfaceState4]
+    ),
+    RoutingState7 = nsime_ipv4_static_routing:notify_add_address(
+        RoutingState6,
+        nsime_ipv4_interface:get_id(InterfaceState4),
+        AddressState5,
+        [InterfaceState4]
+    ),
     ?assertMatch(
         {error_noterror, Route3},
         nsime_ipv4_static_routing:route_output(
-            RoutingPid,
-            Packet,
+            RoutingState7,
             Ipv4Header#nsime_ipv4_header{
                 destination_address = Address1
             },
-            DevicePid
+            DevicePid,
+            [InterfaceState4]
         )
     ),
-    AddressPid4 = nsime_ipv4_interface_address:create(Address1, Mask3),
-    ?assert(is_pid(AddressPid4)),
-    ?assertEqual(
-        nsime_ipv4_static_routing:notify_add_address(
-            RoutingPid,
-            InterfacePid1,
-            AddressPid4
-        ),
-        ok
+    AddressState6 = nsime_ipv4_interface_address:create(Address1, Mask3),
+    ?assert(is_record(AddressState6, nsime_ipv4_interface_address_state)),
+    RoutingState8 = nsime_ipv4_static_routing:notify_add_address(
+        RoutingState7,
+        nsime_ipv4_interface:get_id(InterfaceState4),
+        AddressState6,
+        [InterfaceState4]
     ),
     ?assertMatch(
         {error_noterror, Route3},
         nsime_ipv4_static_routing:route_output(
-            RoutingPid,
-            Packet,
+            RoutingState8,
             Ipv4Header#nsime_ipv4_header{
                 destination_address = Address1
             },
-            DevicePid
+            DevicePid,
+            [InterfaceState4]
         )
     ),
 
     Gateway1 = {10, 250, 1, 1},
-    ?assertEqual(
-        nsime_ipv4_static_routing:add_host_route(
-            RoutingPid,
-            Address1,
-            Gateway1,
-            InterfacePid1,
-            50
-        ),
-        ok
+    InterfaceId4 = nsime_ipv4_interface:get_id(InterfaceState4),
+    RoutingState9 = nsime_ipv4_static_routing:add_host_route(
+        RoutingState8,
+        Address1,
+        Gateway1,
+        InterfaceId4,
+        50
     ),
     Gateway2 = {10, 250, 1, 2},
-    ?assertEqual(
-        nsime_ipv4_static_routing:add_host_route(
-            RoutingPid,
-            Address1,
-            Gateway2,
-            InterfacePid1,
-            10
-        ),
-        ok
+    RoutingState10 = nsime_ipv4_static_routing:add_host_route(
+        RoutingState9,
+        Address1,
+        Gateway2,
+        InterfaceId4,
+        10
     ),
 
     Route4 = #nsime_ipv4_route{
@@ -699,23 +669,14 @@ test_route_output(_) ->
     ?assertMatch(
         {error_noterror, Route4},
         nsime_ipv4_static_routing:route_output(
-            RoutingPid,
-            Packet,
+            RoutingState10,
             Ipv4Header#nsime_ipv4_header{
                 destination_address = Address1
             },
-            DevicePid
+            DevicePid,
+            [InterfaceState4]
         )
-    ),
-    ?assertEqual(nsime_ipv4_static_routing:destroy(RoutingPid), stopped).
-
-test_cast_info_codechange(_) ->
-    RoutingPid = nsime_ipv4_static_routing:create(),
-    ?assert(is_pid(RoutingPid)),
-    gen_server:cast(RoutingPid, junk),
-    RoutingPid ! junk,
-    nsime_ipv4_static_routing:code_change(junk, junk, junk),
-    ?assertEqual(nsime_ipv4_static_routing:destroy(RoutingPid), stopped).
+    ).
 
 %% Helper methods %%
 
