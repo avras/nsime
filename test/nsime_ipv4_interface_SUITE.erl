@@ -29,13 +29,13 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -include("nsime_types.hrl").
+-include("nsime_ipv4_interface_address_state.hrl").
 -include("nsime_ipv4_interface_state.hrl").
 
 all() -> [
             test_creation_shutdown,
             test_set_get_components,
-            test_add_remove_addresses,
-            test_cast_info_codechange
+            test_add_remove_addresses
          ].
 
 
@@ -46,91 +46,53 @@ end_per_suite(Config) ->
     Config.
 
 test_creation_shutdown(_) ->
-    InterfacePid = nsime_ipv4_interface:create(),
-    ?assert(is_pid(InterfacePid)),
-    ?assertEqual(nsime_ipv4_interface:destroy(InterfacePid), stopped).
+    InterfaceState = nsime_ipv4_interface:create(),
+    ?assert(is_record(InterfaceState, nsime_ipv4_interface_state)).
 
 test_set_get_components(_) ->
-    InterfacePid = nsime_ipv4_interface:create(),
-    ?assert(is_pid(InterfacePid)),
-    NodePid = list_to_pid("<0.0.0>"),
-    ?assertEqual(
-        nsime_ipv4_interface:set_node(
-            InterfacePid,
-            NodePid
-        ),
-        ok
-    ),
+    InterfaceState = nsime_ipv4_interface:create(),
+    ?assert(is_record(InterfaceState, nsime_ipv4_interface_state)),
+
     DevicePid = list_to_pid("<0.0.1>"),
-    ?assertEqual(
-        nsime_ipv4_interface:set_device(
-            InterfacePid,
-            DevicePid
-        ),
-        ok
-    ),
-    ?assertEqual(
-        nsime_ipv4_interface:get_device(InterfacePid),
-        DevicePid
-    ),
+    InterfaceState1 = nsime_ipv4_interface:set_device(InterfaceState, DevicePid),
+    ?assert(is_record(InterfaceState1, nsime_ipv4_interface_state)),
+    ?assertEqual(nsime_ipv4_interface:get_device(InterfaceState1), DevicePid),
+
     ArpCachePid = list_to_pid("<0.0.2>"),
-    ?assertEqual(
-        nsime_ipv4_interface:set_arp_cache(
-            InterfacePid,
-            ArpCachePid
-        ),
-        ok
-    ),
-    ?assertEqual(
-        nsime_ipv4_interface:get_arp_cache(InterfacePid),
-        ArpCachePid
-    ),
+    InterfaceState2 = nsime_ipv4_interface:set_arp_cache(InterfaceState1, ArpCachePid),
+    ?assert(is_record(InterfaceState2, nsime_ipv4_interface_state)),
+    ?assertEqual(nsime_ipv4_interface:get_arp_cache(InterfaceState2), ArpCachePid),
+
     Metric = 5,
-    ?assertEqual(
-        nsime_ipv4_interface:set_metric(
-            InterfacePid,
-            Metric
-        ),
-        ok
-    ),
-    ?assertEqual(
-        nsime_ipv4_interface:get_metric(InterfacePid),
-        Metric
-    ),
-    ?assertNot(nsime_ipv4_interface:is_up(InterfacePid)),
-    ?assert(nsime_ipv4_interface:is_forwarding(InterfacePid)),
-    ?assert(nsime_ipv4_interface:is_down(InterfacePid)),
-    ?assertEqual(nsime_ipv4_interface:set_up(InterfacePid), ok),
-    ?assert(nsime_ipv4_interface:is_up(InterfacePid)),
-    ?assertNot(nsime_ipv4_interface:is_down(InterfacePid)),
-    ?assertEqual(nsime_ipv4_interface:set_down(InterfacePid), ok),
-    ?assertNot(nsime_ipv4_interface:is_up(InterfacePid)),
-    ?assertEqual(nsime_ipv4_interface:set_forwarding(InterfacePid, false), ok),
-    ?assertNot(nsime_ipv4_interface:is_forwarding(InterfacePid)),
-    ?assertEqual(nsime_ipv4_interface:destroy(InterfacePid), stopped).
+    InterfaceState3 = nsime_ipv4_interface:set_metric(InterfaceState2, Metric),
+    ?assertEqual(nsime_ipv4_interface:get_metric(InterfaceState3), Metric),
+
+    ?assertNot(nsime_ipv4_interface:is_up(InterfaceState3)),
+    ?assert(nsime_ipv4_interface:is_forwarding(InterfaceState3)),
+    ?assert(nsime_ipv4_interface:is_down(InterfaceState3)),
+
+    InterfaceState4 = nsime_ipv4_interface:set_up(InterfaceState3),
+    ?assert(nsime_ipv4_interface:is_up(InterfaceState4)),
+    ?assertNot(nsime_ipv4_interface:is_down(InterfaceState4)),
+
+    InterfaceState5 = nsime_ipv4_interface:set_down(InterfaceState4),
+    ?assertNot(nsime_ipv4_interface:is_up(InterfaceState5)),
+
+    InterfaceState6 = nsime_ipv4_interface:set_forwarding(InterfaceState5, false),
+    ?assertNot(nsime_ipv4_interface:is_forwarding(InterfaceState6)).
 
 test_add_remove_addresses(_) ->
-    InterfacePid = nsime_ipv4_interface:create(),
-    ?assert(is_pid(InterfacePid)),
-    AddressPid1 = nsime_ipv4_interface_address:create(),
-    ?assertEqual(nsime_ipv4_interface:add_address(InterfacePid, AddressPid1), ok),
-    ?assertEqual(nsime_ipv4_interface:get_address_list(InterfacePid), [AddressPid1]),
-    AddressPid2 = nsime_ipv4_interface_address:create(),
-    ?assertEqual(nsime_ipv4_interface:add_address(InterfacePid, AddressPid2), ok),
-    AddressList = nsime_ipv4_interface:get_address_list(InterfacePid),
-    ?assert(lists:member(AddressPid1, AddressList)),
-    ?assert(lists:member(AddressPid2, AddressList)),
-    ?assertEqual(nsime_ipv4_interface:remove_address(InterfacePid, AddressPid1), ok),
-    AddressList1 = nsime_ipv4_interface:get_address_list(InterfacePid),
-    ?assertNot(lists:member(AddressPid1, AddressList1)),
-    ?assert(lists:member(AddressPid2, AddressList1)),
-    ?assertEqual(nsime_ipv4_interface_address:destroy(AddressPid1), stopped),
-    ?assertEqual(nsime_ipv4_interface:destroy(InterfacePid), stopped).
-
-test_cast_info_codechange(_) ->
-    InterfacePid = nsime_ipv4_interface:create(),
-    ?assert(is_pid(InterfacePid)),
-    gen_server:cast(InterfacePid, junk),
-    InterfacePid ! junk,
-    nsime_ipv4_interface:code_change(junk, junk, junk),
-    ?assertEqual(nsime_ipv4_interface:destroy(InterfacePid), stopped).
+    InterfaceState = nsime_ipv4_interface:create(),
+    ?assert(is_record(InterfaceState, nsime_ipv4_interface_state)),
+    AddressState1 = nsime_ipv4_interface_address:create(),
+    InterfaceState1 = nsime_ipv4_interface:add_address(InterfaceState, AddressState1),
+    ?assertEqual(nsime_ipv4_interface:get_address_list(InterfaceState1), [AddressState1]),
+    AddressState2 = nsime_ipv4_interface_address:create(),
+    InterfaceState2 = nsime_ipv4_interface:add_address(InterfaceState1, AddressState2),
+    AddressList = nsime_ipv4_interface:get_address_list(InterfaceState2),
+    ?assert(lists:member(AddressState1, AddressList)),
+    ?assert(lists:member(AddressState2, AddressList)),
+    InterfaceState3 = nsime_ipv4_interface:remove_address(InterfaceState2, AddressState1),
+    AddressList1 = nsime_ipv4_interface:get_address_list(InterfaceState3),
+    ?assertNot(lists:member(AddressState1, AddressList1)),
+    ?assert(lists:member(AddressState2, AddressList1)).
