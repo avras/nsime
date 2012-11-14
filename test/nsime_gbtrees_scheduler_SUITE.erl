@@ -32,9 +32,8 @@
 -include("nsime_event.hrl").
 
 all() -> [
-          test_creation_shutdown,
-          {group, testgroup_insertion_deletion},
-          test_cast_info_codechange
+          test_creation,
+          {group, testgroup_insertion_deletion}
          ].
 
 groups() ->
@@ -49,7 +48,8 @@ groups() ->
           test_insert_remove_next_events_unique_timestamps,
           test_insert_remove_next_events_duplicate_timestamps,
           test_insert_remove_events_unique_timestamps,
-          test_insert_remove_events_duplicate_timestamps
+          test_insert_remove_events_duplicate_timestamps,
+          test_remove_next_simultaneous
         ]
     }].
 
@@ -65,64 +65,44 @@ init_per_group(testgroup_insertion_deletion, Config) ->
 end_per_group(testgroup_insertion_deletion, Config) ->
     Config.
 
-test_creation_shutdown(_) ->
-    nsime_gbtrees_scheduler:create(),
-    Pid = erlang:whereis(nsime_gbtrees_scheduler),
-        case Pid of
-            undefined ->
-                ct:fail("Failed to create nsime_gbtrees_scheduler process",[]);
-            _ ->
-                ?assert(erlang:is_pid(Pid)),
-                ?assert(lists:member(nsime_gbtrees_scheduler, erlang:registered())),
-                ?assertEqual(nsime_gbtrees_scheduler:stop(), stopped),
-                ?assertNot(lists:member(nsime_gbtrees_scheduler, erlang:registered()))
-        end.
+test_creation(_) ->
+    SchedulerState = nsime_gbtrees_scheduler:create(),
+    ?assertEqual(SchedulerState, gb_trees:empty()).
 
 test_empty_initally(_) ->
-    nsime_gbtrees_scheduler:create(),
-    ?assert(nsime_gbtrees_scheduler:is_empty()),
-    nsime_gbtrees_scheduler:stop().
+    SchedulerState = nsime_gbtrees_scheduler:create(),
+    ?assert(nsime_gbtrees_scheduler:is_empty(SchedulerState)).
 
 test_insert_single_event(_) ->
-    nsime_gbtrees_scheduler:create(),
-    ?assert(nsime_gbtrees_scheduler:is_empty()),
+    SchedulerState = nsime_gbtrees_scheduler:create(),
+    ?assert(nsime_gbtrees_scheduler:is_empty(SchedulerState)),
     Time = {5, sec},
     Event = create_nsime_event(Time),
-    ?assertEqual(nsime_gbtrees_scheduler:insert(Event), ok),
-    ?assertNot(nsime_gbtrees_scheduler:is_empty()),
-    EventQueue = nsime_gbtrees_scheduler:get_event_queue(),
-    case gb_trees:lookup(nsime_time:value(Time), EventQueue) of
-        {value, [FirstEvent | RestOfEvents]} ->
-            ?assertEqual(FirstEvent, Event),
-            ?assertEqual(RestOfEvents, []);
-        _ ->
-            ?assert(false)
-    end,
-    nsime_gbtrees_scheduler:stop().
+    SchedulerState1 = nsime_gbtrees_scheduler:insert(SchedulerState, Event),
+    ?assertNot(nsime_gbtrees_scheduler:is_empty(SchedulerState1)).
 
 test_remove_next_single_event(_) ->
-    nsime_gbtrees_scheduler:create(),
+    SchedulerState = nsime_gbtrees_scheduler:create(),
+    ?assert(nsime_gbtrees_scheduler:is_empty(SchedulerState)),
     Time = {6, sec},
     Event = create_nsime_event(Time),
-    nsime_gbtrees_scheduler:insert(Event),
-    ?assertEqual(nsime_gbtrees_scheduler:remove_next(), Event),
-    ?assert(nsime_gbtrees_scheduler:is_empty()),
-    ?assertEqual(nsime_gbtrees_scheduler:remove_next(), none),
-    nsime_gbtrees_scheduler:stop().
+    SchedulerState1 = nsime_gbtrees_scheduler:insert(SchedulerState, Event),
+    {Event, SchedulerState2} = nsime_gbtrees_scheduler:remove_next(SchedulerState1),
+    ?assert(nsime_gbtrees_scheduler:is_empty(SchedulerState2)),
+    ?assertEqual(nsime_gbtrees_scheduler:remove_next(SchedulerState2), none).
 
 test_remove_single_event(_) ->
-    nsime_gbtrees_scheduler:create(),
+    SchedulerState = nsime_gbtrees_scheduler:create(),
+    ?assert(nsime_gbtrees_scheduler:is_empty(SchedulerState)),
     Time = {6, sec},
     Event = create_nsime_event(Time),
-    nsime_gbtrees_scheduler:insert(Event),
-    ?assertEqual(nsime_gbtrees_scheduler:remove(Event), ok),
-    ?assert(nsime_gbtrees_scheduler:is_empty()),
-    ?assertEqual(nsime_gbtrees_scheduler:remove(Event), none),
+    SchedulerState1 = nsime_gbtrees_scheduler:insert(SchedulerState, Event),
+    {ok, SchedulerState2} = nsime_gbtrees_scheduler:remove(SchedulerState1, Event),
+    ?assert(nsime_gbtrees_scheduler:is_empty(SchedulerState2)),
+    ?assertEqual(nsime_gbtrees_scheduler:remove(SchedulerState2, Event), none),
     NewTime = nsime_time:add(Time, {1, sec}),
-    nsime_gbtrees_scheduler:insert(Event#nsime_event{time = NewTime}),
-    ?assertEqual(nsime_gbtrees_scheduler:remove(Event), none),
-    nsime_gbtrees_scheduler:stop().
-
+    SchedulerState3 = nsime_gbtrees_scheduler:insert(SchedulerState2, Event#nsime_event{time = NewTime}),
+    ?assertEqual(nsime_gbtrees_scheduler:remove(SchedulerState3, Event), none).
 
 test_insert_remove_next_events_unique_timestamps(_) ->
     N = 100,
@@ -136,19 +116,26 @@ test_insert_remove_next_events_duplicate_timestamps(_) ->
     insert_remove_next_events_from_timestamps(Timestamps).
 
 insert_remove_next_events_from_timestamps(Timestamps) ->
-    nsime_gbtrees_scheduler:create(),
-    EventList = lists:map(fun (Time) -> create_nsime_event(Time) end, Timestamps),
-    ReturnCodes = lists:map(fun (Event) -> nsime_gbtrees_scheduler:insert(Event) end, EventList),
-    lists:map(fun (Code) -> ?assertEqual(Code, ok) end, ReturnCodes),
-    lists:map(fun (_) ->
-                  Event = nsime_gbtrees_scheduler:remove_next(),
-                  ?assert(lists:member(Event, EventList))
-              end,
-              Timestamps
-             ),
-    ?assert(nsime_gbtrees_scheduler:is_empty()),
-    ?assertEqual(nsime_gbtrees_scheduler:remove_next(), none),
-    nsime_gbtrees_scheduler:stop().
+    SchedulerState = nsime_gbtrees_scheduler:create(),
+    EventList = lists:map(fun(Time) -> create_nsime_event(Time) end, Timestamps),
+    SchedulerState1 = lists:foldl(
+        fun(Event, State) ->
+            nsime_gbtrees_scheduler:insert(State, Event)
+        end,
+        SchedulerState,
+        EventList
+    ),
+    SchedulerState2 = lists:foldl(
+        fun(_, State) ->
+             {Event, NewState} = nsime_gbtrees_scheduler:remove_next(State),
+             ?assert(lists:member(Event, EventList)),
+             NewState
+         end,
+         SchedulerState1,
+         Timestamps
+    ),
+    ?assert(nsime_gbtrees_scheduler:is_empty(SchedulerState2)),
+    ?assertEqual(nsime_gbtrees_scheduler:remove_next(SchedulerState2), none).
 
 test_insert_remove_events_unique_timestamps(_) ->
     N = 100,
@@ -163,25 +150,47 @@ test_insert_remove_events_duplicate_timestamps(_) ->
 
 
 insert_remove_events_from_timestamps(Timestamps) ->
-    nsime_gbtrees_scheduler:create(),
+    SchedulerState = nsime_gbtrees_scheduler:create(),
     EventList = lists:map(fun (Time) -> create_nsime_event(Time) end, Timestamps),
-    InsertReturnCodes = lists:map(fun (Event) -> nsime_gbtrees_scheduler:insert(Event) end, EventList),
-    lists:map(fun (Code) -> ?assertEqual(Code, ok) end, InsertReturnCodes),
-    RemoveReturnCodes = lists:map(fun (Event) -> nsime_gbtrees_scheduler:remove(Event) end, EventList),
-    ?assert(nsime_gbtrees_scheduler:is_empty()),
-    lists:map(fun (Code) -> ?assertEqual(Code, ok) end, RemoveReturnCodes),
-    Event = create_nsime_event(5),
-    ?assertEqual(nsime_gbtrees_scheduler:remove(Event), none),
-    nsime_gbtrees_scheduler:stop().
+    SchedulerState1 = lists:foldl(
+        fun(Event, State) ->
+            nsime_gbtrees_scheduler:insert(State, Event)
+        end,
+        SchedulerState,
+        EventList
+    ),
+    SchedulerState2 = lists:foldl(
+        fun(Event, State) ->
+             {ok, NewState} = nsime_gbtrees_scheduler:remove(State, Event),
+             NewState
+         end,
+         SchedulerState1,
+         EventList
+    ),
+    ?assertEqual(SchedulerState2, gb_trees:empty()).
 
-test_cast_info_codechange(_) ->
-    nsime_gbtrees_scheduler:create(),
-    Pid = erlang:whereis(nsime_gbtrees_scheduler),
-    ?assert(erlang:is_pid(Pid)),
-    gen_server:cast(nsime_gbtrees_scheduler, junk),
-    Pid ! junk,
-    nsime_gbtrees_scheduler:code_change(junk, junk, junk),
-    ?assertEqual(nsime_gbtrees_scheduler:stop(), stopped).
+test_remove_next_simultaneous(_) ->
+    N = 100,
+    Time = {73, sec},
+    Timestamps = lists:duplicate(N, Time),
+    SchedulerState = nsime_gbtrees_scheduler:create(),
+    ?assertEqual(nsime_gbtrees_scheduler:remove_next_simultaneous(SchedulerState), none),
+    EventList = lists:map(fun(T) -> create_nsime_event(T) end, Timestamps),
+    SchedulerState1 = lists:foldl(
+        fun(Event, State) ->
+            nsime_gbtrees_scheduler:insert(State, Event)
+        end,
+        SchedulerState,
+        EventList
+    ),
+    {NextSimultaneousEvents, SchedulerState2} = nsime_gbtrees_scheduler:remove_next_simultaneous(SchedulerState1),
+    ?assertEqual(SchedulerState2, gb_trees:empty()),
+    lists:foreach(
+        fun(Event) ->
+            ?assert(lists:member(Event, EventList))
+        end,
+        NextSimultaneousEvents
+    ).
 
 create_nsime_event(Time) ->    
     #nsime_event{
