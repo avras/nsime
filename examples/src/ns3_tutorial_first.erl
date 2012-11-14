@@ -23,9 +23,13 @@
 -module(ns3_tutorial_first).
 -author("Saravanan Vijayakumaran").
 
--export([start/0]).
+-export([start/0, start/1]).
 
 start() ->
+    start(["1"]).
+
+start([MaxPacketsString]) ->
+    MaxPackets = list_to_integer(MaxPacketsString),
     nsime_simulator:start(),
     NodePidList = nsime_node:create(2),
     [Node1, Node2] = NodePidList,
@@ -45,7 +49,7 @@ start() ->
     nsime_udp_echo_server:set_listen_port(UdpEchoServerPid, 9),
     nsime_node:add_application(Node2, UdpEchoServerPid),
     nsime_udp_echo_server:schedule_start(UdpEchoServerPid, {0, sec}),
-    nsime_udp_echo_server:schedule_stop(UdpEchoServerPid, {10, sec}),
+    nsime_udp_echo_server:schedule_stop(UdpEchoServerPid, {10*MaxPackets, sec}),
 
     [_Interface1, Interface2] = InterfacePidList,
     UdpEchoClientPid = nsime_udp_echo_client:create(),
@@ -53,12 +57,12 @@ start() ->
         hd(nsime_ipv4_interface:get_address_list(Interface2))
     ),
     nsime_udp_echo_client:set_remote(UdpEchoClientPid, RemoteAddress, 9),
-    nsime_udp_echo_client:set_max_packets(UdpEchoClientPid, 1),
+    nsime_udp_echo_client:set_max_packets(UdpEchoClientPid, MaxPackets),
     nsime_udp_echo_client:set_inter_packet_gap(UdpEchoClientPid, {1, sec}),
     nsime_udp_echo_client:set_data_size(UdpEchoClientPid, 1024),
     nsime_node:add_application(Node1, UdpEchoClientPid),
     nsime_udp_echo_client:schedule_start(UdpEchoClientPid, {2, sec}),
-    nsime_udp_echo_client:schedule_stop(UdpEchoClientPid, {10, sec}),
+    nsime_udp_echo_client:schedule_stop(UdpEchoClientPid, {10*MaxPackets, sec}),
 
     nsime_simulator:run(),
     nsime_ptp_helper:destroy(PtpHelperPid),
