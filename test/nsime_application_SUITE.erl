@@ -46,6 +46,7 @@ test_creation_shutdown(_) ->
     ?assertEqual(nsime_application:destroy(ServerPid), stopped).
 
 test_start(_) ->
+    nsime_simulator:start(),
     ServerPid = nsime_udp_echo_server:create(),
     ?assert(is_pid(ServerPid)),
     ?assertEqual(nsime_udp_echo_server:set_listen_port(ServerPid, 9), ok),
@@ -62,7 +63,6 @@ test_start(_) ->
 
     ?assertEqual(nsime_application:start(ServerPid), ok),
     ?assertEqual(nsime_application:start(ServerPid), ok),
-    nsime_simulator:start(),
     ?assertEqual(nsime_application:schedule_start(ServerPid, {0, sec}), ok),
     ?assertEqual(nsime_application:stop(ServerPid), ok),
 
