@@ -62,6 +62,8 @@ end_per_group(testgroup_all, Config) ->
     Config.
 
 test_creation_shutdown(_) ->
+    nsime_node_list:start(),
+    ?assert(lists:member(nsime_node_list, erlang:registered())),
     NodePid = nsime_node:create(),
     ?assert(is_pid(NodePid)),
     ?assertMatch([], nsime_node:get_netdevices(NodePid)),
@@ -70,6 +72,8 @@ test_creation_shutdown(_) ->
     ?assertEqual(nsime_node_list:stop(), stopped).
 
 test_creation_multiple_nodes(_) ->
+    nsime_node_list:start(),
+    ?assert(lists:member(nsime_node_list, erlang:registered())),
     ?assertEqual(nsime_node:create(0), []),
     N = 10,
     NodePidList = nsime_node:create(N),
@@ -86,6 +90,9 @@ test_creation_multiple_nodes(_) ->
     ?assertEqual(nsime_node_list:stop(), stopped).
 
 test_add_object(_) ->
+    nsime_node_list:start(),
+    nsime_config:start(),
+    ?assert(lists:member(nsime_node_list, erlang:registered())),
     NodePid = nsime_node:create(),
     ?assert(is_pid(NodePid)),
     UdpProtocolPid = nsime_udp_protocol:create(),
@@ -94,9 +101,12 @@ test_add_object(_) ->
     ?assertEqual(nsime_node:get_object(NodePid, udp_protocol), UdpProtocolPid),
     ?assertEqual(nsime_udp_protocol:destroy(UdpProtocolPid), stopped),
     ?assertEqual(nsime_node:destroy(NodePid), stopped),
+    ?assertEqual(nsime_config:stop(), stopped),
     ?assertEqual(nsime_node_list:stop(), stopped).
 
 test_add_netdevice(_) ->
+    nsime_node_list:start(),
+    ?assert(lists:member(nsime_node_list, erlang:registered())),
     NodePid = nsime_node:create(),
     ?assert(is_pid(NodePid)),
     DevicePid = nsime_ptp_netdevice:create(),
@@ -118,6 +128,8 @@ test_add_application(_) ->
     ?assertEqual(nsime_simulator:stop(), simulation_complete).
 
 test_protocol_handler(_) ->
+    nsime_node_list:start(),
+    ?assert(lists:member(nsime_node_list, erlang:registered())),
     NodePid = nsime_node:create(),
     ?assert(is_pid(NodePid)),
     DevicePid = nsime_ptp_netdevice:create(),
@@ -161,6 +173,8 @@ test_protocol_handler(_) ->
     ?assertEqual(nsime_node_list:stop(), stopped).
 
 test_cast_info_codechange(_) ->
+    nsime_node_list:start(),
+    ?assert(lists:member(nsime_node_list, erlang:registered())),
     NodePid = nsime_node:create(),
     ?assert(is_pid(NodePid)),
     gen_server:cast(NodePid, junk),
