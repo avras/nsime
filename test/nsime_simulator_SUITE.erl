@@ -49,25 +49,20 @@ end_per_suite(Config) ->
 test_start_stop(_) ->
     nsime_simulator:start(),
     ?assert(lists:member(nsime_simulator, erlang:registered())),
-    ?assert(lists:member(nsime_gbtrees_scheduler, erlang:registered())),
     ?assertEqual(nsime_simulator:current_time(), {0, sec}),
     ?assertEqual(nsime_simulator:stop(), simulation_complete),
     ?assertNot(lists:member(nsime_simulator, erlang:registered())),
-    ?assertNot(lists:member(nsime_gbtrees_scheduler, erlang:registered())),
 
     ?assertError(unsupported_scheduler, nsime_simulator:start(junk)),
 
     nsime_simulator:start(gb_trees),
     ?assert(lists:member(nsime_simulator, erlang:registered())),
-    ?assert(lists:member(nsime_gbtrees_scheduler, erlang:registered())),
     ?assertEqual(nsime_simulator:stop(), simulation_complete),
-    ?assertNot(lists:member(nsime_simulator, erlang:registered())),
-    ?assertNot(lists:member(nsime_gbtrees_scheduler, erlang:registered())).
+    ?assertNot(lists:member(nsime_simulator, erlang:registered())).
 
 test_schedule_run(_) ->
     nsime_simulator:start(gb_trees),
     ?assert(lists:member(nsime_simulator, erlang:registered())),
-    ?assert(lists:member(nsime_gbtrees_scheduler, erlang:registered())),
 
     Time1 = {1, sec},
     Ref1 = make_ref(),
@@ -99,13 +94,11 @@ test_schedule_run(_) ->
     ?assertError(invalid_argument, nsime_simulator:schedule(junk, Event1)),
 
     ?assertEqual(nsime_simulator:stop(), simulation_complete),
-    ?assertNot(lists:member(nsime_simulator, erlang:registered())),
-    ?assertNot(lists:member(nsime_gbtrees_scheduler, erlang:registered())).
+    ?assertNot(lists:member(nsime_simulator, erlang:registered())).
 
 test_cancel_event(_) ->
     nsime_simulator:start(gb_trees),
     ?assert(lists:member(nsime_simulator, erlang:registered())),
-    ?assert(lists:member(nsime_gbtrees_scheduler, erlang:registered())),
 
     Time0 = {0, sec},
     Ref0 = make_ref(),
@@ -141,8 +134,7 @@ test_cancel_event(_) ->
     ?assertEqual(nsime_simulator:cancel(Event2#nsime_event{time = Time2}), none),
 
     ?assertEqual(nsime_simulator:stop(), simulation_complete),
-    ?assertNot(lists:member(nsime_simulator, erlang:registered())),
-    ?assertNot(lists:member(nsime_gbtrees_scheduler, erlang:registered())).
+    ?assertNot(lists:member(nsime_simulator, erlang:registered())).
 
 test_cast_info_codechange(_) ->
     nsime_simulator:start(),
