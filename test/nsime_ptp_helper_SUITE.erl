@@ -50,6 +50,7 @@ test_creation_shutdown(_) ->
     ?assertEqual(nsime_ptp_helper:destroy(HelperPid), stopped).
 
 test_install(_) ->
+    nsime_simulator:start(),
     HelperPid = nsime_ptp_helper:create(),
     ?assert(is_pid(HelperPid)),
     DataRate = {5, mega_bits_per_sec},
@@ -70,7 +71,8 @@ test_install(_) ->
     ChannelPid2 = nsime_ptp_netdevice:get_channel(DevicePid2),
     ?assert(ChannelPid1 == ChannelPid2),
     ?assertEqual(nsime_ptp_channel:get_channel_delay(ChannelPid1), Delay),
-    ?assertEqual(nsime_ptp_helper:destroy(HelperPid), stopped).
+    ?assertEqual(nsime_ptp_helper:destroy(HelperPid), stopped),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete).
 
 test_cast_info_codechange(_) ->
     HelperPid = nsime_ptp_helper:create(),
