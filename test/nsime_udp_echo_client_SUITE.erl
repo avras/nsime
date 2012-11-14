@@ -53,6 +53,8 @@ test_creation_shutdown(_) ->
     ?assertEqual(nsime_udp_echo_client:destroy(ClientPid), stopped).
 
 test_set_get_components(_) ->
+    nsime_simulator:start(),
+    ?assert(lists:member(nsime_simulator, erlang:registered())),
     ClientPid = nsime_udp_echo_client:create(),
     ?assert(is_pid(ClientPid)),
     NodePid = nsime_node:create(),
@@ -85,9 +87,12 @@ test_set_get_components(_) ->
     ?assertEqual(nsime_udp_echo_client:get_receive_trace_callback(ClientPid), Callback2),
 
     ?assertEqual(nsime_node:destroy(NodePid), stopped),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete),
     ?assertEqual(nsime_udp_echo_client:destroy(ClientPid), stopped).
 
 test_start(_) ->
+    nsime_simulator:start(),
+    ?assert(lists:member(nsime_simulator, erlang:registered())),
     ClientPid = nsime_udp_echo_client:create(),
     ?assert(is_pid(ClientPid)),
     Address = {10, 107, 1, 1},
@@ -103,9 +108,6 @@ test_start(_) ->
     ?assertEqual(nsime_node:add_object(NodePid, nsime_udp_protocol, UdpProtocolPid), ok),
     ?assertEqual(nsime_udp_protocol:set_node(UdpProtocolPid, NodePid), ok),
 
-    nsime_simulator:start(),
-    ?assert(lists:member(nsime_simulator, erlang:registered())),
-    ?assert(lists:member(nsime_gbtrees_scheduler, erlang:registered())),
     ?assertEqual(nsime_udp_echo_client:start(ClientPid), ok),
     ?assertEqual(nsime_udp_echo_client:start(ClientPid), ok),
     ?assertEqual(nsime_udp_echo_client:schedule_start(ClientPid, {0, sec}), ok),
@@ -116,6 +118,8 @@ test_start(_) ->
     ?assertEqual(nsime_udp_echo_client:destroy(ClientPid), stopped).
 
 test_send(_) ->
+    nsime_simulator:start(),
+    ?assert(lists:member(nsime_simulator, erlang:registered())),
     ClientPid = nsime_udp_echo_client:create(),
     ?assert(is_pid(ClientPid)),
     DataSize = 1500,
@@ -137,9 +141,6 @@ test_send(_) ->
     ?assertEqual(nsime_node:add_object(NodePid, nsime_ipv4_protocol, Ipv4ProtocolPid), ok),
     ?assertEqual(nsime_ipv4_protocol:set_node(Ipv4ProtocolPid, NodePid), ok),
 
-    nsime_simulator:start(),
-    ?assert(lists:member(nsime_simulator, erlang:registered())),
-    ?assert(lists:member(nsime_gbtrees_scheduler, erlang:registered())),
     ?assertEqual(nsime_udp_echo_client:start(ClientPid), ok),
     Ref = make_ref(),
     TransmitCallback = {
@@ -154,6 +155,7 @@ test_send(_) ->
             ok
     end,
 
+    ?assertEqual(nsime_simulator:stop(), simulation_complete),
     ?assertEqual(nsime_udp_echo_client:destroy(ClientPid), stopped).
 
 test_cast_info_codechange(_) ->
