@@ -23,11 +23,14 @@
 -module(udp_cs_pairs).
 -author("Saravanan Vijayakumaran").
 
--export([start/0]).
+-export([start/0, start/1]).
 
 start() ->
+    start(["100"]).
+
+start([NumPairsString]) ->
     nsime_simulator:start(),
-    NumPairs = 100,
+    NumPairs = list_to_integer(NumPairsString),
     NodePidList = nsime_node:create(2*NumPairs),
     {ClientPids, ServerPids} = lists:split(NumPairs, NodePidList),
     ClientServerTuples = lists:zip(ClientPids, ServerPids),
