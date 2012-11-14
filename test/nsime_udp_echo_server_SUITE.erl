@@ -51,6 +51,8 @@ test_creation_shutdown(_) ->
     ?assertEqual(nsime_udp_echo_server:destroy(ServerPid), stopped).
 
 test_set_get_components(_) ->
+    nsime_simulator:start(),
+    ?assert(lists:member(nsime_simulator, erlang:registered())),
     ServerPid = nsime_udp_echo_server:create(),
     ?assert(is_pid(ServerPid)),
     NodePid = nsime_node:create(),
@@ -70,9 +72,12 @@ test_set_get_components(_) ->
     ?assertEqual(nsime_udp_echo_server:get_receive_trace_callback(ServerPid), Callback2),
 
     ?assertEqual(nsime_node:destroy(NodePid), stopped),
+    ?assertEqual(nsime_simulator:stop(), simulation_complete),
     ?assertEqual(nsime_udp_echo_server:destroy(ServerPid), stopped).
 
 test_start(_) ->
+    nsime_simulator:start(),
+    ?assert(lists:member(nsime_simulator, erlang:registered())),
     ServerPid = nsime_udp_echo_server:create(),
     ?assert(is_pid(ServerPid)),
     ?assertEqual(nsime_udp_echo_server:set_listen_port(ServerPid, 9), ok),
@@ -88,7 +93,6 @@ test_start(_) ->
 
     ?assertEqual(nsime_udp_echo_server:start(ServerPid), ok),
     ?assertEqual(nsime_udp_echo_server:start(ServerPid), ok),
-    nsime_simulator:start(),
     ?assertEqual(nsime_udp_echo_server:schedule_start(ServerPid, {0, sec}), ok),
     ?assertEqual(nsime_udp_echo_server:schedule_stop(ServerPid, {10, sec}), ok),
     ?assertEqual(nsime_udp_echo_server:stop(ServerPid), ok),
