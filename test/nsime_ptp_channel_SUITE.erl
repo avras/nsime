@@ -62,8 +62,9 @@ end_per_group(testgroup_all_except_transmit, Config) ->
     Config.
 
 test_creation_shutdown(_) ->
-    ChannelPid = nsime_ptp_channel:create(),
+    nsime_channel_list:start(),
     ?assert(lists:member(nsime_channel_list, erlang:registered())),
+    ChannelPid = nsime_ptp_channel:create(),
     ?assert(is_pid(ChannelPid)),
     ?assertMatch({0, sec}, nsime_ptp_channel:get_channel_delay(ChannelPid)),
     ?assertEqual(nsime_ptp_channel:get_netdevice_pair(ChannelPid), {none, none}),
@@ -72,12 +73,13 @@ test_creation_shutdown(_) ->
     ok.
 
 test_creation_with_state(_) ->
+    nsime_channel_list:start(),
+    ?assert(lists:member(nsime_channel_list, erlang:registered())),
     Device1 = nsime_ptp_netdevice:create(),
     Device2 = nsime_ptp_netdevice:create(),
     Delay = {3, sec},
     ChannelState = create_ptp_channel_state(Delay, Device1, Device2),
     ChannelPid1 = nsime_ptp_channel:create(ChannelState),
-    ?assert(lists:member(nsime_channel_list, erlang:registered())),
     ?assert(is_pid(ChannelPid1)),
     ?assertMatch(Delay, nsime_ptp_channel:get_channel_delay(ChannelPid1)),
     ?assertEqual(nsime_ptp_channel:get_netdevice_pair(ChannelPid1), {Device1, Device2}),
@@ -94,14 +96,19 @@ test_creation_with_state(_) ->
     nsime_ptp_netdevice:destroy(Device2).
 
 test_set_get_channel_delay(_) ->
+    nsime_channel_list:start(),
+    ?assert(lists:member(nsime_channel_list, erlang:registered())),
     ChannelPid = nsime_ptp_channel:create(),
     ?assertMatch({0, sec}, nsime_ptp_channel:get_channel_delay(ChannelPid)),
     Delay = {3, sec},
     nsime_ptp_channel:set_channel_delay(ChannelPid, Delay),
     ?assertMatch(Delay, nsime_ptp_channel:get_channel_delay(ChannelPid)),
-    nsime_ptp_channel:destroy(ChannelPid).
+    nsime_ptp_channel:destroy(ChannelPid),
+    ?assertEqual(nsime_channel_list:stop(), stopped).
 
 test_attach_netdevice(_) ->
+    nsime_channel_list:start(),
+    ?assert(lists:member(nsime_channel_list, erlang:registered())),
     ChannelPid = nsime_ptp_channel:create(),
     Device1 = nsime_ptp_netdevice:create(),
     Device2 = nsime_ptp_netdevice:create(),
@@ -112,9 +119,12 @@ test_attach_netdevice(_) ->
     ?assertEqual(nsime_ptp_channel:attach_netdevice(ChannelPid, Device2), none),
     ?assertEqual(nsime_ptp_channel:destroy(ChannelPid), stopped),
     ?assertEqual(nsime_ptp_netdevice:destroy(Device1), stopped),
-    ?assertEqual(nsime_ptp_netdevice:destroy(Device2), stopped).
+    ?assertEqual(nsime_ptp_netdevice:destroy(Device2), stopped),
+    ?assertEqual(nsime_channel_list:stop(), stopped).
 
 test_transmit(_) ->
+    nsime_simulator:start(),
+    ?assert(lists:member(nsime_channel_list, erlang:registered())),
     Delay = {4, sec},
     Device1 = nsime_ptp_netdevice:create(),
     ?assert(is_pid(Device1)),
@@ -124,7 +134,6 @@ test_transmit(_) ->
     ChannelPid = nsime_ptp_channel:create(ChannelState),
     ?assert(is_pid(ChannelPid)),
     Packet = #nsime_packet{id = make_ref()},
-    nsime_simulator:start(),
     TxTime1 = {3, sec},
     ?assertEqual(
         nsime_ptp_channel:transmit(
@@ -150,12 +159,15 @@ test_transmit(_) ->
     ?assertEqual(nsime_ptp_netdevice:destroy(Device2), stopped).
 
 test_cast_info_codechange(_) ->
+    nsime_channel_list:start(),
+    ?assert(lists:member(nsime_channel_list, erlang:registered())),
     ChannelPid = nsime_ptp_channel:create(),
     ?assert(is_pid(ChannelPid)),
     gen_server:cast(ChannelPid, junk),
     ChannelPid ! junk,
     nsime_ptp_channel:code_change(junk, junk, junk),
-    ?assertEqual(nsime_ptp_channel:destroy(ChannelPid), stopped).
+    ?assertEqual(nsime_ptp_channel:destroy(ChannelPid), stopped),
+    ?assertEqual(nsime_channel_list:stop(), stopped).
 
 create_ptp_channel_state(Delay, Device1, Device2) ->
     #nsime_ptp_channel_state{
