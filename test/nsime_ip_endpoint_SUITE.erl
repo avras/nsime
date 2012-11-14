@@ -35,8 +35,7 @@ all() -> [
             test_creation_shutdown,
             test_set_get_components,
             test_set_get_callbacks,
-            test_forward,
-            test_cast_info_codechange
+            test_forward
          ].
 
 
@@ -47,91 +46,63 @@ end_per_suite(Config) ->
     Config.
 
 test_creation_shutdown(_) ->
-    EndpointPid1 = nsime_ip_endpoint:create(),
-    ?assert(is_pid(EndpointPid1)),
-    ?assertEqual(nsime_ip_endpoint:destroy(EndpointPid1), stopped),
-    EndpointState = #nsime_ip_endpoint_state{
-        local_address = {10, 107, 1, 1},
-        local_port = 8080,
-        peer_address = {192, 168, 0, 1},
-        peer_port = 80
-    },
-    EndpointPid2 = nsime_ip_endpoint:create(EndpointState),
-    ?assert(is_pid(EndpointPid2)),
-    ?assertEqual(
-        nsime_ip_endpoint:get_local_address(EndpointPid2),
-        EndpointState#nsime_ip_endpoint_state.local_address
-    ),
-    ?assertEqual(
-        nsime_ip_endpoint:get_local_port(EndpointPid2),
-        EndpointState#nsime_ip_endpoint_state.local_port
-    ),
-    ?assertEqual(
-        nsime_ip_endpoint:get_peer_address(EndpointPid2),
-        EndpointState#nsime_ip_endpoint_state.peer_address
-    ),
-    ?assertEqual(
-        nsime_ip_endpoint:get_peer_port(EndpointPid2),
-        EndpointState#nsime_ip_endpoint_state.peer_port
-    ),
-    ?assertEqual(nsime_ip_endpoint:destroy(EndpointPid2), stopped),
+    EndpointState1 = nsime_ip_endpoint:create(),
+    ?assert(is_record(EndpointState1, nsime_ip_endpoint_state)),
     Address = {10, 107, 1, 2},
     Port = 123,
-    EndpointPid3 = nsime_ip_endpoint:create(Address, Port),
+    Callbacks = {{m1, f1, a1}, {m2, f2, a2}, {m3, f3, a3}},
+    EndpointState2 = nsime_ip_endpoint:create(Address, Port, Callbacks),
     ?assertEqual(
-        nsime_ip_endpoint:get_local_address(EndpointPid3),
+        nsime_ip_endpoint:get_local_address(EndpointState2),
         Address
     ),
     ?assertEqual(
-        nsime_ip_endpoint:get_local_port(EndpointPid3),
+        nsime_ip_endpoint:get_local_port(EndpointState2),
         Port
-    ),
-    ?assertEqual(nsime_ip_endpoint:destroy(EndpointPid3), stopped).
+    ).
 
 test_set_get_components(_) ->
-    EndpointPid = nsime_ip_endpoint:create(),
-    ?assert(is_pid(EndpointPid)),
+    EndpointState = nsime_ip_endpoint:create(),
+    ?assert(is_record(EndpointState, nsime_ip_endpoint_state)),
     DevicePid = list_to_pid("<0.1.1>"),
-    ?assertEqual(nsime_ip_endpoint:bind_to_netdevice(EndpointPid, DevicePid), ok),
-    ?assertEqual(nsime_ip_endpoint:get_bound_netdevice(EndpointPid), DevicePid),
+    EndpointState1 = nsime_ip_endpoint:bind_to_netdevice(EndpointState, DevicePid),
+    ?assertEqual(nsime_ip_endpoint:get_bound_netdevice(EndpointState1), DevicePid),
     LocalAddress = {10, 107, 1, 1},
-    ?assertEqual(nsime_ip_endpoint:set_local_address(EndpointPid, LocalAddress), ok),
-    ?assertEqual(nsime_ip_endpoint:get_local_address(EndpointPid), LocalAddress),
+    EndpointState2 = nsime_ip_endpoint:set_local_address(EndpointState1, LocalAddress),
+    ?assertEqual(nsime_ip_endpoint:get_local_address(EndpointState2), LocalAddress),
     LocalPort = 1234,
-    ?assertEqual(nsime_ip_endpoint:set_local_port(EndpointPid, LocalPort), ok),
-    ?assertEqual(nsime_ip_endpoint:get_local_port(EndpointPid), LocalPort),
+    EndpointState3 = nsime_ip_endpoint:set_local_port(EndpointState2, LocalPort),
+    ?assertEqual(nsime_ip_endpoint:get_local_port(EndpointState3), LocalPort),
     PeerAddress = {10, 107, 1, 2},
     PeerPort = 456,
-    ?assertEqual(nsime_ip_endpoint:set_peer(EndpointPid, PeerAddress, PeerPort), ok),
-    ?assertEqual(nsime_ip_endpoint:get_peer_address(EndpointPid), PeerAddress),
-    ?assertEqual(nsime_ip_endpoint:get_peer_port(EndpointPid), PeerPort),
-    ?assertEqual(nsime_ip_endpoint:destroy(EndpointPid), stopped).
+    EndpointState4 = nsime_ip_endpoint:set_peer(EndpointState3, PeerAddress, PeerPort),
+    ?assertEqual(nsime_ip_endpoint:get_peer_address(EndpointState4), PeerAddress),
+    ?assertEqual(nsime_ip_endpoint:get_peer_port(EndpointState4), PeerPort).
 
 test_set_get_callbacks(_) ->
-    EndpointPid = nsime_ip_endpoint:create(),
-    ?assert(is_pid(EndpointPid)),
+    EndpointState = nsime_ip_endpoint:create(),
+    ?assert(is_record(EndpointState, nsime_ip_endpoint_state)),
     Callback1 = {erlang, date, []},
-    ?assertEqual(nsime_ip_endpoint:set_receive_callback(EndpointPid, Callback1), ok),
+    EndpointState1 = nsime_ip_endpoint:set_receive_callback(EndpointState, Callback1),
+    ?assert(is_record(EndpointState1, nsime_ip_endpoint_state)),
     Callback2 = {erlang, time, []},
-    ?assertEqual(nsime_ip_endpoint:set_icmp_callback(EndpointPid, Callback2), ok),
+    EndpointState2 = nsime_ip_endpoint:set_icmp_callback(EndpointState1, Callback2),
+    ?assert(is_record(EndpointState2, nsime_ip_endpoint_state)),
     Callback3 = {erlang, universaltime, []},
-    ?assertEqual(nsime_ip_endpoint:set_destroy_callback(EndpointPid, Callback3), ok),
-    ?assertEqual(nsime_ip_endpoint:destroy(EndpointPid), stopped).
+    EndpointState3 = nsime_ip_endpoint:set_destroy_callback(EndpointState2, Callback3),
+    ?assert(is_record(EndpointState3, nsime_ip_endpoint_state)).
 
 test_forward(_) ->
-    nsime_simulator:start(),
-    ?assert(lists:member(nsime_simulator, erlang:registered())),
-    EndpointPid = nsime_ip_endpoint:create(),
-    ?assert(is_pid(EndpointPid)),
+    EndpointState = nsime_ip_endpoint:create(),
+    ?assert(is_record(EndpointState, nsime_ip_endpoint_state)),
     Ref1 = make_ref(),
     Callback1 = {
         ?MODULE,
         send_receive_callback,
         [Ref1, self()]
     },
-    ?assertEqual(nsime_ip_endpoint:set_receive_callback(EndpointPid, Callback1), ok),
-    ?assertEqual(nsime_ip_endpoint:forward_up(EndpointPid, [], [], [], []), ok),
-    ?assertEqual(nsime_simulator:run(), simulation_complete),
+    EndpointState1 = nsime_ip_endpoint:set_receive_callback(EndpointState, Callback1),
+    nsime_ip_endpoint:forward_up(EndpointState1, [], [], [], []),
     receive
         {receive_callback, Ref1} ->
             ok
@@ -142,22 +113,12 @@ test_forward(_) ->
         send_icmp_callback,
         [Ref2, self()]
     },
-    ?assertEqual(nsime_ip_endpoint:set_icmp_callback(EndpointPid, Callback2), ok),
-    ?assertEqual(nsime_ip_endpoint:forward_icmp(EndpointPid, [], [], [], [], []), ok),
-    ?assertEqual(nsime_simulator:run(), simulation_complete),
+    EndpointState2 = nsime_ip_endpoint:set_icmp_callback(EndpointState1, Callback2),
+    nsime_ip_endpoint:forward_icmp(EndpointState2, [], [], [], [], []),
     receive
         {icmp_callback, Ref2} ->
             ok
-    end,
-    ?assertEqual(nsime_simulator:stop(), simulation_complete).
-
-test_cast_info_codechange(_) ->
-    EndpointPid = nsime_ip_endpoint:create(),
-    ?assert(is_pid(EndpointPid)),
-    gen_server:cast(EndpointPid, junk),
-    EndpointPid ! junk,
-    nsime_ip_endpoint:code_change(junk, junk, junk),
-    ?assertEqual(nsime_ip_endpoint:destroy(EndpointPid), stopped).
+    end.
 
 %% Helper methods %%
 send_receive_callback(Ref, Pid) ->
