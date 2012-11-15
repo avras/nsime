@@ -195,7 +195,6 @@ test_remove_next_simultaneous(_) ->
 create_nsime_event(Time) ->    
     #nsime_event{
         time = Time,
-        pid = erlang:self(),
         module = erlang,
         function = date,
         eventid = make_ref()
