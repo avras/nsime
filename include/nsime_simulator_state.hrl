@@ -24,7 +24,7 @@
         {
           current_time = {0, sec}     :: nsime_time(),
           scheduler                   :: module(),
-          scheduler_state             :: undefined | gb_tree(),
+          scheduler_state             :: gb_tree() | list(),
           num_remaining_events = 0    :: integer(),
           num_executed_events = 0     :: integer(),
           stopped = false             :: boolean()
