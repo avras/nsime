@@ -23,7 +23,6 @@
 -record(nsime_event,
         {
           time            :: nsime_time(),
-          pid             :: pid(),
           module          :: module(),
           function        :: fun(),
           arguments=[]    :: list(),
